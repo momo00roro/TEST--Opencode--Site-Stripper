@@ -43,8 +43,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      # --branch pins the deployment to the pushing branch so master lands on
+      # production. Without it, CI's detached HEAD produces preview-only
+      # deployments and production keeps serving stale HTML.
       - name: Deploy Pages UI
-        run: npx wrangler pages deploy web --project-name site-stripper-ui
+        run: npx wrangler pages deploy web --project-name site-stripper-ui --branch ${{ github.ref_name }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
