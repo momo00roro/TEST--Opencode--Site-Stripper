@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="api-base" content="" />
+    <title>Site Stripper — Website Analysis Pack</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <img src="./logo.svg" alt="Site Stripper logo" width="312" height="72" style="height:58px;width:auto" />
+        <p class="eyebrow">Cloudflare-only MVP</p>
+        <h1>Website Analysis Pack</h1>
+        <p class="lede">
+          Point at a public site. Get screenshots, design tokens, content structure, and JSON that an
+          AI agent can rebuild from.
+        </p>
+      </header>
+
+      <form id="analyze-form" class="card" autocomplete="off">
+        <label class="field">
+          <span class="field__label">Website URL</span>
+          <input
+            id="url"
+            name="url"
+            type="url"
+            inputmode="url"
+            placeholder="https://example.com"
+            required
+            spellcheck="false"
+          />
+        </label>
+
+        <div class="row">
+          <label class="field field--small">
+            <span class="field__label">Max pages</span>
+            <input id="max-pages" name="maxPages" type="number" min="1" max="10" value="10" />
+          </label>
+          <label class="checkbox">
+            <input id="include-mobile" name="includeMobile" type="checkbox" checked />
+            <span>Include mobile screenshots</span>
+          </label>
+        </div>
+
+        <button id="submit" type="submit">Analyze website</button>
+      </form>
+
+      <section id="status" class="card status" hidden aria-live="polite">
+        <div id="progress-wrap" class="progress-wrap" hidden>
+          <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+          <div id="progress-meta" class="progress-meta"></div>
+        </div>
+        <div id="status-text"></div>
+      </section>
+
+      <section id="budget" class="card budget" hidden>
+        <h2>Browser Budget</h2>
+        <div class="budget-bar"><div id="budget-fill" class="budget-fill"></div></div>
+        <div id="budget-text" class="budget-text"></div>
+      </section>
+
+      <section id="selection-summary" class="card" hidden>
+        <h2>Discovered Pages &amp; Selection</h2>
+        <div id="selection-stats" class="selection-stats"></div>
+        <div id="candidate-list" class="candidate-list"></div>
+      </section>
+
+      <section id="screenshot-preview" class="card screenshot-preview" hidden>
+        <h2>Screenshots</h2>
+        <div id="screenshot-container"></div>
+      </section>
+
+      <section id="pages-panel" class="card" hidden>
+        <h2>Analyzed Pages</h2>
+        <div id="pages-list" class="pages-list"></div>
+      </section>
+
+      <section id="download-panel" class="card" hidden>
+        <h2>Download Analysis Pack</h2>
+        <p id="package-info" class="package-info"></p>
+        <button id="download" type="button">Download ZIP</button>
+      </section>
+
+      <section id="result" class="card result" hidden>
+        <h2>Raw JSON Response</h2>
+        <pre id="result-body"></pre>
+      </section>
+
+      <aside class="note">
+        <strong>Free-tier budget.</strong> Browser rendering is limited to 10 minutes per day, which is
+        roughly 5–8 full analyses. Heavy media sites may fail or return a partial report.
+      </aside>
+    </main>
+
+    <script src="./vendor/zip-store.js"></script>
+    <script src="./package.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

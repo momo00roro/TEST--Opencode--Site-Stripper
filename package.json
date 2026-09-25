@@ -1,0 +1,19 @@
+{
+  "name": "site-stripper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare-only website analysis pack generator (free tier)",
+  "workspaces": [
+    "worker"
+  ],
+  "scripts": {
+    "test": "npm run test -w worker",
+    "typecheck": "npm run typecheck -w worker",
+    "dev": "npm run dev -w worker",
+    "deploy:api": "npm run deploy -w worker",
+    "deploy:ui": "wrangler pages deploy web --project-name site-stripper-ui"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
