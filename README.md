@@ -41,8 +41,46 @@ Analyze a site from the form (up to 10 pages), inspect screenshots and raw JSON,
 npm run typecheck -w worker  # tsc --noEmit, must be clean
 npm test -w worker           # vitest, 230 tests across 16 files
 npm run dev:remote -w worker # local code vs remote Cloudflare resources (hosted verification)
-npm run deploy -w worker     # deploy the Worker (hosted verification first!)
+npm run deploy -w worker     # deploy the Worker API (manual fallback)
+npm run deploy:ui            # deploy the Pages UI (manual fallback)
 ```
+
+## Deployment (GitHub Actions CI)
+
+Pushes to `master` deploy automatically via `.github/workflows/deploy.yml`:
+typecheck → test → deploy Worker API → deploy Pages UI. A red suite blocks
+the deploy. Watch runs under the repo's **Actions** tab.
+
+Live deployment:
+
+- API: `https://site-stripper-api.momo00roro.workers.dev`
+- UI: `https://fdcbe66a.site-stripper-ui.pages.dev`
+
+The UI's `<meta name="api-base">` in `web/index.html` points at the Worker
+URL (same-origin does not apply once UI and API live on different domains).
+
+### One-time setup (already done — recorded here, never edit secrets in code)
+
+1. `npx wrangler login`, then `npx wrangler whoami` to confirm the account.
+2. First-time Pages project: `npx wrangler pages project create site-stripper-ui --production-branch master`
+   (the Worker deploys without pre-creation; CI uses repo-pinned Wrangler v4
+   on Node 22 — not `cloudflare/wrangler-action`, which ships a stale v3).
+3. GitHub repo → Settings → Secrets and variables → Actions — two secrets
+   (names are case-sensitive; values are never committed):
+   - `CLOUDFLARE_ACCOUNT_ID` — from Workers & Pages Overview in dash.cloudflare.com
+   - `CLOUDFLARE_API_TOKEN` — custom token with **Account | Workers Scripts | Edit**
+     and **Account | Cloudflare Pages | Edit** (minted once under My Profile → API Tokens)
+
+### Useful terminal commands
+
+```sh
+git push origin master                    # deploy (triggers CI)
+npx wrangler whoami                       # confirm Cloudflare identity
+npx --prefix worker wrangler tail         # live Worker logs (repo root)
+```
+
+Monitor browser-minute usage at dash.cloudflare.com → **Compute → Browser Run**
+(free quota: 10 min/day, hard stop with 429s until UTC midnight).
 
 ## Output package
 
