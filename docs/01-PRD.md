@@ -650,8 +650,8 @@ Completed and verified by automated tests:
 
 Open or next milestones:
 
-- All CF01–CF12 implemented. Remaining: hosted verification via `npm run dev:remote -w worker` (Browser Rendering) and production deploy.
-- Deferred until hosted verification (require the real runtime to test): per-IP cooldown rate limiting, Cache API discovery caching, and the Turnstile bot barrier from the cost-control section.
+- All CF01–CF12 implemented. Hosted smoke-verified via `npm run dev:remote -w worker` (Browser Rendering) on 2026-09-25: `backend: cloudflare`, schema 0.2.0, extraction parity with local runs (64 blocks / 30 controls / 15 colors on the reference homepage), mobile capture metadata-only (Trap 4 holds remotely), zero Error 1102s, zero issues. One transient remote navigation timeout observed on a fast host; succeeded on immediate retry with identical evidence. Remaining: production deploy.
+- Deferred until after deploy (require the real runtime to test): per-IP cooldown rate limiting, Cache API discovery caching, and the Turnstile bot barrier from the cost-control section.
 - Deliberate deviation: screenshot and critical-asset *binaries* are not embedded in the hosted package. Encoding multi-MB images in the Worker violates Trap 4 (10 ms CPU), and a client cannot reliably read cross-origin image bytes. Hosted responses therefore return screenshot metadata plus `screenshots/manifest.json`, and asset URLs in `data/assets.json`; the local dev path inlines screenshot base64 via the Node encoder. `report.json.limitations` and package warnings state this explicitly. Introducing R2 or a Deflate path would be required to ship binaries.
 
 The previously noted test expectation used a comma in the data URL, not a colon. That issue is resolved.
