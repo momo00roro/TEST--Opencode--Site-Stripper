@@ -1,9 +1,17 @@
 import { buildDocumentationFiles, validateDocumentationPackage } from "./package-docs.mjs";
 
+const META_API_BASE =
+  document.querySelector('meta[name="api-base"]')?.getAttribute("content") ?? "";
+// Local dev serves this same UI from the API server itself, so same-origin
+// must win there: the meta tag points at production, and `??` does not fall
+// through on a non-empty string. Without this, a localhost run silently posts
+// to the hosted Worker and returns a metadata-only ZIP (Trap 4) with no
+// inline screenshots, even though the local encoder supports them.
 const API_BASE =
-  document.querySelector('meta[name="api-base"]')?.getAttribute("content") ??
   window.SITE_STRIPPER_API_BASE ??
-  "";
+  (location.hostname === "localhost" || location.hostname === "127.0.0.1"
+    ? ""
+    : META_API_BASE);
 
 const form = document.getElementById("analyze-form");
 const submit = document.getElementById("submit");
