@@ -51,13 +51,48 @@ Pushes to `master` deploy automatically via `.github/workflows/deploy.yml`:
 typecheck → test → deploy Worker API → deploy Pages UI. A red suite blocks
 the deploy. Watch runs under the repo's **Actions** tab.
 
-Live deployment:
+Live deployment (verified 2026-09-26, GMT+8):
 
-- API: `https://site-stripper-api.momo00roro.workers.dev`
-- UI: `https://fdcbe66a.site-stripper-ui.pages.dev`
+- Front end UI: `https://site-stripper-ui.pages.dev`
+- Backend API: `https://site-stripper-api.momo00roro.workers.dev`
 
 The UI's `<meta name="api-base">` in `web/index.html` points at the Worker
 URL (same-origin does not apply once UI and API live on different domains).
+Per-deployment preview URLs look like `https://<hash>.site-stripper-ui.pages.dev`
+(e.g. `59fbd3cb`); those are snapshots of one deploy, not production — always
+verify against the canonical `site-stripper-ui.pages.dev` domain.
+
+### Why GitHub Actions instead of Cloudflare's "Connect Git repository" button?
+
+Both paths ship the same files. The difference is who runs the checks and how
+many deployers exist:
+
+- **GitHub Actions (what we use):** every push runs `typecheck` + the full
+  230-test suite first; a red suite blocks the deploy. One deployer (repo-pinned
+  Wrangler v4 on Node 22 via `npx`, in CI) pushes both the Worker and the Pages
+  UI, including the `--branch master` flag so the upload promotes the
+  production environment instead of a preview. Secrets live only as GitHub
+  Actions secrets (`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`); values are
+  never committed.
+- **Cloudflare Git integration (deliberately NOT connected):** Cloudflare would
+  auto-build on every push with no typecheck/test gate, using its own Wrangler
+  version and Pages build settings instead of ours. Running both at once means
+  two deployers race for production. That is why Settings → Build → Git
+  repository is intentionally left empty (Direct Upload via CI only).
+
+ELI10: connecting the repo in Cloudflare's dashboard is like giving the printer
+its own "print every draft" button — it skips the teacher checking your homework
+(typecheck + tests) and two printers fight over the same paper. GitHub Actions
+is the one printer that only prints after homework passes.
+
+### ELI10: the whole deployment, in 5 lines
+
+1. You `git push` your homework to GitHub.
+2. A robot (Actions) checks it: spelling (typecheck), then all 230 quiz answers (tests).
+3. Fail = stop, nothing ships. Pass = keep going.
+4. Robot mails the brain (Worker API) then the face (Pages UI) to Cloudflare's computers.
+5. Your site updates at `site-stripper-ui.pages.dev`, talking to the brain at
+   `site-stripper-api.momo00roro.workers.dev`.
 
 ### One-time setup (already done — recorded here, never edit secrets in code)
 
@@ -119,4 +154,4 @@ Never performed: form submits, control clicks, CAPTCHA solving, behavior replay.
 
 ## Status
 
-All CF01–CF12 implemented; `npm run typecheck` clean; 230/230 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). **Pending:** hosted verification via `npm run dev:remote -w worker` — required before any production-readiness claim.
+All CF01–CF12 implemented; `npm run typecheck` clean; 230/230 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`).
