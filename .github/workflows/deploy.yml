@@ -31,17 +31,19 @@ jobs:
       - name: Test
         run: npm test -w worker
 
+      # NOTE: cloudflare/wrangler-action is intentionally NOT used: it installs
+      # its own Wrangler (v3) and ignores workingDirectory, so `wrangler deploy`
+      # runs without wrangler.jsonc ("Missing entry-point"). npx uses the
+      # repo-pinned Wrangler v4 in the correct directory instead.
       - name: Deploy Worker API
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: worker
-          command: deploy
+        working-directory: worker
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy Pages UI
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy web --project-name site-stripper-ui
+        run: npx wrangler pages deploy web --project-name site-stripper-ui
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
