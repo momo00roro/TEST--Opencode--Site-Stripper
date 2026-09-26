@@ -259,29 +259,145 @@ function renderSelection(selection, discovery) {
   selectionPanel.hidden = false;
 }
 
+// --- Task 5: results showcase (featured + filmstrip + overlay viewer) ---
+// Keeps `screenshot-container` ID. Empty state when shots.added === 0
+// (no dataUrl). Overlay: arrow-key nav, Esc close, focus returns to opener.
+let showcaseShots = [];
+let showcaseIndex = 0;
+let showcaseOpener = null;
+
+function collectShowcaseShots(pages) {
+  const shots = [];
+  for (const page of pages || []) {
+    const path = page?.path ?? "/";
+    if (page?.screenshot?.dataUrl) {
+      shots.push({ src: page.screenshot.dataUrl, label: `${path} — desktop`, tag: "desktop" });
+    }
+    if (page?.mobileScreenshot?.dataUrl) {
+      shots.push({ src: page.mobileScreenshot.dataUrl, label: `${path} — mobile`, tag: "mobile" });
+    }
+    (page?.sectionShots || []).forEach((shot, index) => {
+      if (!shot?.dataUrl) return;
+      shots.push({
+        src: shot.dataUrl,
+        label: `${path} — ${shot.heading || `section ${index + 1}`}`,
+        tag: "section",
+      });
+    });
+  }
+  return shots;
+}
+
+function ensureShowcaseOverlay() {
+  let overlay = document.getElementById("showcase-overlay");
+  if (overlay) return overlay;
+  overlay = document.createElement("div");
+  overlay.id = "showcase-overlay";
+  overlay.className = "showcase-overlay";
+  overlay.hidden = true;
+  overlay.innerHTML = `
+    <div class="showcase-overlay__backdrop" data-close="true"></div>
+    <div class="showcase-overlay__dialog" role="dialog" aria-modal="true" aria-label="Screenshot viewer">
+      <button type="button" class="showcase-overlay__close" aria-label="Close viewer">×</button>
+      <button type="button" class="showcase-overlay__prev" aria-label="Previous screenshot">‹</button>
+      <figure class="showcase-overlay__figure">
+        <img id="showcase-overlay-img" alt="" />
+        <figcaption id="showcase-overlay-cap"></figcaption>
+      </figure>
+      <button type="button" class="showcase-overlay__next" aria-label="Next screenshot">›</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector(".showcase-overlay__close")?.addEventListener("click", closeShowcaseViewer);
+  overlay.querySelector(".showcase-overlay__prev")?.addEventListener("click", () => showShowcaseIndex(showcaseIndex - 1));
+  overlay.querySelector(".showcase-overlay__next")?.addEventListener("click", () => showShowcaseIndex(showcaseIndex + 1));
+  overlay.querySelector(".showcase-overlay__backdrop")?.addEventListener("click", closeShowcaseViewer);
+  return overlay;
+}
+
+function showShowcaseIndex(next) {
+  if (showcaseShots.length === 0) return;
+  showcaseIndex = (next + showcaseShots.length) % showcaseShots.length;
+  const shot = showcaseShots[showcaseIndex];
+  const overlay = ensureShowcaseOverlay();
+  const img = overlay.querySelector("#showcase-overlay-img");
+  const cap = overlay.querySelector("#showcase-overlay-cap");
+  if (img) {
+    img.src = shot.src;
+    img.alt = shot.label;
+  }
+  if (cap) cap.textContent = `${shot.label} (${showcaseIndex + 1}/${showcaseShots.length})`;
+}
+
+function openShowcaseViewer(index, opener) {
+  if (showcaseShots.length === 0) return;
+  showcaseOpener = opener ?? document.activeElement;
+  showShowcaseIndex(index);
+  const overlay = ensureShowcaseOverlay();
+  overlay.hidden = false;
+  document.body.classList.add("showcase-open");
+  overlay.querySelector(".showcase-overlay__close")?.focus();
+}
+
+function closeShowcaseViewer() {
+  const overlay = document.getElementById("showcase-overlay");
+  if (overlay) overlay.hidden = true;
+  document.body.classList.remove("showcase-open");
+  if (showcaseOpener && typeof showcaseOpener.focus === "function") {
+    showcaseOpener.focus();
+  }
+  showcaseOpener = null;
+}
+
+document.addEventListener("keydown", (event) => {
+  const overlay = document.getElementById("showcase-overlay");
+  if (!overlay || overlay.hidden) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeShowcaseViewer();
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    showShowcaseIndex(showcaseIndex + 1);
+  } else if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    showShowcaseIndex(showcaseIndex - 1);
+  }
+});
+
 function renderScreenshot(pages) {
-  const withShots = (pages || []).filter((p) => p?.screenshot?.dataUrl || p?.screenshot);
-  const sectionShots = (pages?.[0]?.sectionShots || []).filter((s) => s?.dataUrl);
-  if (withShots.length === 0 && sectionShots.length === 0) {
-    screenshotPanel.hidden = true;
+  const shots = collectShowcaseShots(pages);
+  showcaseShots = shots;
+  if (shots.length === 0) {
+    // Designed empty state: metadata-only run (hosted shape) with zero binaries.
+    screenshotContainer.innerHTML = `
+      <div class="showcase-empty">
+        <div class="showcase-empty__art" aria-hidden="true">◌</div>
+        <p class="showcase-empty__title">No screenshots in this pack</p>
+        <p class="showcase-empty__body">This run returned metadata only — the host cannot capture pixels, so there is nothing to preview. Download the ZIP for tokens, content, and structure.</p>
+      </div>`;
+    screenshotPanel.hidden = false;
     return;
   }
-  const pageFigures = withShots
-    .slice(0, 10)
-    .map((page) => {
-      if (page?.screenshot?.dataUrl) {
-        return `<figure><img src="${page.screenshot.dataUrl}" alt="Screenshot of ${escapeHtml(page.path)}" loading="lazy" /><figcaption>${escapeHtml(page.path)}</figcaption></figure>`;
-      }
-      const meta = page?.screenshot;
-      return `<figure class="shot-meta"><figcaption>${escapeHtml(page.path)} — ${escapeHtml(meta?.kind ?? "no")} screenshot, ${meta?.bytes ?? 0} bytes</figcaption></figure>`;
+  const [featured, ...rest] = shots;
+  const strip = rest
+    .slice(0, 11)
+    .map((shot, i) => {
+      const index = i + 1;
+      return `<button type="button" class="filmstrip__thumb" role="listitem" data-index="${index}" aria-label="Open ${escapeHtml(shot.label)}"><img src="${shot.src}" alt="" loading="lazy" /><span class="filmstrip__tag">${escapeHtml(shot.tag)}</span></button>`;
     })
     .join("");
-  const sectionFigures = sectionShots
-    .map((shot, index) => `<figure><img src="${shot.dataUrl}" alt="Section ${index + 1}" loading="lazy" /><figcaption>Section: ${escapeHtml(shot.heading || `part ${index + 1}`)}</figcaption></figure>`)
-    .join("");
-  screenshotContainer.innerHTML =
-    pageFigures +
-    (sectionFigures ? `<h3>Homepage sections</h3><div class="section-shots">${sectionFigures}</div>` : "");
+  screenshotContainer.innerHTML = `
+    <div class="showcase">
+      <figure class="showcase__featured">
+        <button type="button" class="showcase__open" data-index="0" aria-label="Open ${escapeHtml(featured.label)}">
+          <img src="${featured.src}" alt="${escapeHtml(featured.label)}" />
+        </button>
+        <figcaption><span class="showcase__badge">Featured</span> ${escapeHtml(featured.label)}</figcaption>
+      </figure>
+      ${strip ? `<div class="filmstrip" role="list" aria-label="More screenshots">${strip}</div>` : ""}
+    </div>`;
+  screenshotContainer.querySelectorAll("[data-index]").forEach((btn) => {
+    btn.addEventListener("click", () => openShowcaseViewer(Number(btn.getAttribute("data-index") || 0), btn));
+  });
   screenshotPanel.hidden = false;
 }
 
@@ -299,6 +415,14 @@ function renderBudget(body) {
   budgetPanel.hidden = false;
 }
 
+function coveragePct(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const emitted = Number(entry.emittedCount ?? 0);
+  const source = Number(entry.sourceCount ?? 0);
+  if (!Number.isFinite(emitted) || !Number.isFinite(source) || source <= 0) return null;
+  return Math.min(Math.max((emitted / source) * 100, 0), 100);
+}
+
 function renderPages(pages) {
   if (!Array.isArray(pages) || pages.length === 0) {
     pagesPanel.hidden = true;
@@ -306,16 +430,41 @@ function renderPages(pages) {
   }
   pagesList.innerHTML = pages
     .map((page) => {
-      const colors = (page?.tokens?.colors || []).slice(0, 5).map((t) => escapeHtml(t.value)).join(", ");
       const reason = escapeHtml(page?.selectedBecause || "");
       const tone = page?.content?.tone;
       const assets = page?.assets?.length ?? 0;
       const limits = (page?.limitations || page?.styleLimitations || []).map((l) => `<li>${escapeHtml(l)}</li>`).join("");
+      const colors = (page?.tokens?.colors || []).slice(0, 6);
+      const fonts = (page?.typography?.fontFamilies || []).slice(0, 3);
+      const fontSizes = (page?.tokens?.fontSizes || []).slice(0, 3);
+      const colorChips = colors
+        .map((t) => {
+          const value = String(t?.value ?? "");
+          return `<span class="token-chip"><span class="color-dot" style="background:${escapeHtml(value)}"></span>${escapeHtml(value)}</span>`;
+        })
+        .join("");
+      const fontChips = [...fonts.map((f) => String(f?.family ?? f ?? "")).filter(Boolean), ...fontSizes.map((t) => String(t?.value ?? ""))]
+        .slice(0, 4)
+        .map((name) => `<span class="token-chip token-chip--font">${escapeHtml(name)}</span>`)
+        .join("");
+      const coverage = page?.coverage && typeof page.coverage === "object" ? page.coverage : page?.content?.coverage;
+      const bars = coverage && typeof coverage === "object"
+        ? Object.entries(coverage)
+            .slice(0, 4)
+            .map(([key, entry]) => {
+              const pct = coveragePct(entry);
+              if (pct === null) return "";
+              return `<div class="coverage"><span class="coverage__label">${escapeHtml(key)}</span><span class="coverage__track"><span class="coverage__fill" style="width:${pct.toFixed(0)}%"></span></span><span class="coverage__pct">${pct.toFixed(0)}%</span></div>`;
+            })
+            .join("")
+        : "";
       return `
         <div class="page-card">
           <div class="page-head"><strong>${escapeHtml(page?.title || page?.path)}</strong><span class="candidate-path">${escapeHtml(page?.path)}</span></div>
           <div class="page-reason">Priority ${page?.priority ?? "-"} — ${reason}</div>
-          <div class="page-meta">Tokens: ${colors || "none"} · Tone: ${escapeHtml(tone?.voice ?? "unknown")} · Assets: ${assets}</div>
+          ${(colorChips || fontChips) ? `<div class="token-chips">${colorChips}${fontChips}</div>` : ""}
+          ${bars ? `<div class="coverage-list">${bars}</div>` : ""}
+          <div class="page-meta">Tone: ${escapeHtml(tone?.voice ?? "unknown")} · Assets: ${assets}</div>
           ${limits ? `<ul class="page-limits">${limits}</ul>` : ""}
         </div>`;
     })
@@ -341,6 +490,13 @@ function renderPackage(body) {
     + Number(Boolean(page?.mobileScreenshot))
     + (page?.sectionShots || []).length, 0);
   packageInfo.textContent = `${lastAnalyzedPages.length} page observations; ${screenshotCaptures} screenshot captures (${shotCount} binaries available). Documentation rendering and ZIP assembly run in your browser; no Cloudflare compute is used.`;
+  const statsEl = document.getElementById("deliverable-stats");
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <span class="deliverable__stat"><strong>${lastAnalyzedPages.length}</strong> pages</span>
+      <span class="deliverable__stat"><strong>${shotCount}</strong> binaries</span>
+      <span class="deliverable__stat"><strong>${screenshotCaptures}</strong> captures</span>`;
+  }
   downloadPanel.hidden = false;
 }
 

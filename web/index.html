@@ -101,15 +101,19 @@
         <div id="pages-list" class="pages-list"></div>
       </section>
 
-      <section id="download-panel" class="card" hidden>
-        <h2>Download Analysis Pack</h2>
+      <section id="download-panel" class="card deliverable" hidden>
+        <h2>Deliverable — Download Analysis Pack</h2>
+        <div class="deliverable__stats" id="deliverable-stats" aria-live="polite"></div>
         <p id="package-info" class="package-info"></p>
         <button id="download" type="button">Download ZIP</button>
       </section>
 
       <section id="result" class="card result" hidden>
         <h2>Raw JSON Response</h2>
-        <pre id="result-body"></pre>
+        <details class="raw-details">
+          <summary>View raw JSON response</summary>
+          <pre id="result-body"></pre>
+        </details>
       </section>
 
       <aside class="note">
