@@ -686,3 +686,66 @@ form.addEventListener("submit", onSubmit);
     // Motion is decorative: never break analysis on animation failure.
   }
 })();
+
+// --- Task 6: scroll reveals (ScrollTrigger.batch, same guards as initMotion) ---
+// Appended block only: API_BASE / fetch / NDJSON / ZIP paths above are untouched.
+// `.js-reveals` is added only when gsap + ScrollTrigger exist AND there is no
+// reduced-motion preference, so CDN-blocked / no-JS / reduced-motion renders
+// stay fully visible with zero console errors.
+(function initScrollReveals() {
+  try {
+    if (!window.gsap || !window.ScrollTrigger) return;
+    if (
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+    if (typeof window.ScrollTrigger.batch !== "function") return;
+    if (typeof window.gsap.registerPlugin === "function") {
+      window.gsap.registerPlugin(window.ScrollTrigger);
+    }
+    document.documentElement.classList.add("js-reveals");
+    // Single pass over result sections: no loops, one batch call.
+    window.ScrollTrigger.batch(".shell .card", {
+      start: "top 88%",
+      once: true,
+      onEnter: (elements) => {
+        window.gsap.to(elements, {
+          y: 0,
+          opacity: 1,
+          duration: 0.7,
+          stagger: 0.08,
+          ease: "power3.out",
+          overwrite: true,
+        });
+      },
+    });
+    // Result cards unhide after analysis (render functions above untouched);
+    // refresh cached trigger positions so newly visible sections still reveal.
+    // Debounced observer, no polling loops.
+    let refreshTimer = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) return;
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        try {
+          window.ScrollTrigger.refresh();
+        } catch {
+          // Decorative only: never break analysis on animation failure.
+        }
+      }, 120);
+    };
+    const shell = document.querySelector(".shell");
+    if (shell && typeof MutationObserver === "function") {
+      new MutationObserver(scheduleRefresh).observe(shell, {
+        attributes: true,
+        attributeFilter: ["hidden"],
+        childList: true,
+        subtree: true,
+      });
+    }
+  } catch {
+    // Motion is decorative: never break analysis on animation failure.
+  }
+})();

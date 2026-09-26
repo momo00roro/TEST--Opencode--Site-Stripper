@@ -276,7 +276,7 @@ input[type="number"]:focus {
 
 input:focus-visible,
 button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -812,7 +812,7 @@ button:disabled {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
-  opacity: 0.75;
+  opacity: 1;
   min-width: 0;
 }
 
@@ -974,7 +974,7 @@ button:disabled {
 }
 
 .showcase__open:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -1037,7 +1037,7 @@ button:disabled {
 }
 
 .filmstrip__thumb:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -1278,7 +1278,7 @@ body.showcase-open {
 }
 
 .raw-details summary:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -1302,5 +1302,26 @@ body.showcase-open {
 
   .coverage {
     grid-template-columns: minmax(70px, 110px) 1fr 38px;
+  }
+}
+
+/* Task 6: scroll-reveal initial states, gated under .js-reveals ONLY.
+   The class is added in app.js only when gsap + ScrollTrigger exist AND there
+   is no reduced-motion preference, so no-JS / CDN-blocked / reduced-motion
+   renders fully visible. ScrollTrigger.batch animates these to opacity 1.
+   A11y audit: body text (--text #f2f5fa, --muted #9aa6bb on near-black) clears
+   4.5:1; phase labels keep full opacity for the same reason; every focusable
+   control has a 3px accent focus-visible ring; aria-live regions untouched.
+   Weight audit: GSAP + ScrollTrigger min (~110 KB) load deferred after first
+   paint; Space Grotesk uses display=swap so text never blocks on fonts. */
+.js-reveals .shell .card {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js-reveals .shell .card {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
