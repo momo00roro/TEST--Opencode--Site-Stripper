@@ -60,13 +60,12 @@ body {
 /* ---------- Hero ---------- */
 
 .hero {
-  min-height: 92svh;
   display: grid;
   gap: 18px;
-  align-content: center;
+  align-content: start;
   justify-items: start;
   text-align: left;
-  padding: 48px 0 32px;
+  padding: 8px 0 32px;
   position: relative;
 }
 
@@ -1172,14 +1171,26 @@ body.showcase-open {
   color: var(--accent-ink);
 }
 
-/* Fix 2 — screenshots responsive card grid, natural aspect, no fixed height. */
+/* Screenshots: 3-column card grid, fixed-height clipped thumbs. */
 .shot-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 14px;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .shot-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .shot-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .shot-card {
@@ -1211,11 +1222,10 @@ body.showcase-open {
 
 .shot-card img {
   width: 100%;
-  height: auto;
-  aspect-ratio: auto;
+  height: 300px;
   display: block;
-  object-fit: contain;
-  object-position: top;
+  object-fit: cover;
+  object-position: top center;
   border: 0;
   border-radius: 0;
 }
