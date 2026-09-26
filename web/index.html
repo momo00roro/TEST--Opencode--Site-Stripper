@@ -28,6 +28,7 @@
           Point at a public site. Get screenshots, design tokens, content structure, and JSON that an
           AI agent can rebuild from. This is a Cloudflare-only MVP.
         </p>
+        <p id="env-pill" class="env-pill" aria-live="polite" hidden></p>
 
         <form id="analyze-form" class="command-bar" autocomplete="off">
           <label class="field command-bar__url">
@@ -82,11 +83,20 @@
       <section id="selection-summary" hidden>
         <h2>Discovered Pages &amp; Selection</h2>
         <div id="selection-stats" class="selection-stats"></div>
-        <div id="candidate-list" class="candidate-list"></div>
+        <div class="sub-tabs" role="tablist" aria-label="Filter pages by selection">
+          <button type="button" id="selection-tab-selected" class="sub-tab" role="tab" aria-selected="true" aria-controls="candidate-list">Selected</button>
+          <button type="button" id="selection-tab-excluded" class="sub-tab" role="tab" aria-selected="false" aria-controls="candidate-list-excluded" tabindex="-1">Not selected</button>
+        </div>
+        <div id="candidate-list" class="candidate-list" role="tabpanel" aria-labelledby="selection-tab-selected" tabindex="0"></div>
+        <div id="candidate-list-excluded" class="candidate-list candidate-list--scroll" role="tabpanel" aria-labelledby="selection-tab-excluded" tabindex="0" hidden></div>
       </section>
 
       <section id="screenshot-preview" class="screenshot-preview" hidden>
         <h2>Screenshots</h2>
+        <div class="sub-tabs" role="tablist" aria-label="Filter screenshots by device">
+          <button type="button" id="shots-tab-desktop" class="sub-tab" role="tab" aria-selected="true" aria-controls="screenshot-container">Desktop</button>
+          <button type="button" id="shots-tab-mobile" class="sub-tab" role="tab" aria-selected="false" aria-controls="screenshot-container" tabindex="-1">Mobile</button>
+        </div>
         <div id="screenshot-container"></div>
       </section>
 

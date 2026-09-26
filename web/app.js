@@ -39,6 +39,17 @@ const resultBody = document.getElementById("result-body");
 let lastAnalyzedPages = [];
 let lastAnalysis = null;
 
+// Fix 4 — environment pill derived from the same API_BASE value at runtime.
+(function initEnvPill() {
+  const pill = document.getElementById("env-pill");
+  if (!pill) return;
+  const isLocal = API_BASE === "";
+  pill.hidden = false;
+  pill.innerHTML = isLocal
+    ? "<strong>Localhost</strong>: screenshots included via local Chrome/Edge capture"
+    : "<strong>Cloudflare</strong>: metadata-only, screenshots excluded by design";
+})();
+
 function dataUrlToBytes(dataUrl) {
   const comma = dataUrl.indexOf(",");
   if (comma === -1) return null;
@@ -207,6 +218,75 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function candidateCard(candidate) {
+  const isSelected = candidate.status === "selected" || candidate.selected;
+  const statusBadge = isSelected
+    ? `<span class="badge badge--selected">Priority ${candidate.priority ?? 1}</span>`
+    : `<span class="badge badge--excluded">Excluded</span>`;
+
+  const sourceBadges = (candidate.sources || [])
+    .map((src) => `<span class="badge badge--source">${escapeHtml(src)}</span>`)
+    .join(" ");
+
+  const reason = escapeHtml(candidate.reason || candidate.selectedBecause || candidate.excludedReason || "");
+
+  return `
+    <div class="candidate-item ${isSelected ? "candidate-item--selected" : ""}">
+      <div class="candidate-header">
+        <span class="candidate-title">
+          ${statusBadge}
+          ${escapeHtml(candidate.label || candidate.path)}
+          <span class="candidate-path">${escapeHtml(candidate.path)}</span>
+        </span>
+        <div class="candidate-badges">
+          ${sourceBadges}
+          <span class="badge badge--source">Score ${candidate.score ?? 0}</span>
+        </div>
+      </div>
+      <div class="candidate-reason">${reason}</div>
+    </div>
+  `;
+}
+
+// Fix 1 — selection sub-tabs: same data flow, only split rendering by selected flag.
+let selectionTab = "selected";
+
+function paintSelectionTabs() {
+  const selectedTab = document.getElementById("selection-tab-selected");
+  const excludedTab = document.getElementById("selection-tab-excluded");
+  const selectedPanel = document.getElementById("candidate-list");
+  const excludedPanel = document.getElementById("candidate-list-excluded");
+  const isSelected = selectionTab !== "excluded";
+  if (selectedTab) {
+    selectedTab.setAttribute("aria-selected", String(isSelected));
+    selectedTab.tabIndex = isSelected ? 0 : -1;
+  }
+  if (excludedTab) {
+    excludedTab.setAttribute("aria-selected", String(!isSelected));
+    excludedTab.tabIndex = !isSelected ? 0 : -1;
+  }
+  if (selectedPanel) selectedPanel.hidden = !isSelected;
+  if (excludedPanel) excludedPanel.hidden = isSelected;
+}
+
+function setSelectionTab(next, focusTab = false) {
+  selectionTab = next === "excluded" ? "excluded" : "selected";
+  paintSelectionTabs();
+  if (focusTab) {
+    document.getElementById(selectionTab === "excluded" ? "selection-tab-excluded" : "selection-tab-selected")?.focus();
+  }
+}
+
+document.getElementById("selection-tab-selected")?.addEventListener("click", () => setSelectionTab("selected"));
+document.getElementById("selection-tab-excluded")?.addEventListener("click", () => setSelectionTab("excluded"));
+for (const tabId of ["selection-tab-selected", "selection-tab-excluded"]) {
+  document.getElementById(tabId)?.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    setSelectionTab(tabId === "selection-tab-selected" ? "excluded" : "selected", true);
+  });
+}
+
 function renderSelection(selection, discovery) {
   if (!selection || !Array.isArray(selection.candidates)) {
     selectionPanel.hidden = true;
@@ -224,37 +304,13 @@ function renderSelection(selection, discovery) {
     <span>Sitemaps checked: <strong>${sitemaps}</strong></span>
   `;
 
-  candidateList.innerHTML = candidates
-    .map((candidate) => {
-      const isSelected = candidate.status === "selected" || candidate.selected;
-      const statusBadge = isSelected
-        ? `<span class="badge badge--selected">Priority ${candidate.priority ?? 1}</span>`
-        : `<span class="badge badge--excluded">Excluded</span>`;
+  const selected = candidates.filter((c) => c.status === "selected" || c.selected);
+  const excluded = candidates.filter((c) => !(c.status === "selected" || c.selected));
+  const excludedList = document.getElementById("candidate-list-excluded");
 
-      const sourceBadges = (candidate.sources || [])
-        .map((src) => `<span class="badge badge--source">${escapeHtml(src)}</span>`)
-        .join(" ");
-
-      const reason = escapeHtml(candidate.reason || candidate.selectedBecause || candidate.excludedReason || "");
-
-      return `
-        <div class="candidate-item ${isSelected ? "candidate-item--selected" : ""}">
-          <div class="candidate-header">
-            <span class="candidate-title">
-              ${statusBadge}
-              ${escapeHtml(candidate.label || candidate.path)}
-              <span class="candidate-path">${escapeHtml(candidate.path)}</span>
-            </span>
-            <div class="candidate-badges">
-              ${sourceBadges}
-              <span class="badge badge--source">Score ${candidate.score ?? 0}</span>
-            </div>
-          </div>
-          <div class="candidate-reason">${reason}</div>
-        </div>
-      `;
-    })
-    .join("");
+  candidateList.innerHTML = selected.map(candidateCard).join("");
+  if (excludedList) excludedList.innerHTML = excluded.map(candidateCard).join("");
+  paintSelectionTabs();
 
   selectionPanel.hidden = false;
 }
@@ -363,41 +419,93 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-function renderScreenshot(pages) {
-  const shots = collectShowcaseShots(pages);
+// Fix 2 — screenshots grid + Desktop/Mobile tabs. Same collectShowcaseShots
+// data flow; only the presentation is split. Overlay viewer unchanged.
+let screenshotTab = "desktop";
+let lastScreenshotPages = [];
+
+function paintScreenshotTabs() {
+  const desktopTab = document.getElementById("shots-tab-desktop");
+  const mobileTab = document.getElementById("shots-tab-mobile");
+  const isDesktop = screenshotTab !== "mobile";
+  if (desktopTab) {
+    desktopTab.setAttribute("aria-selected", String(isDesktop));
+    desktopTab.tabIndex = isDesktop ? 0 : -1;
+  }
+  if (mobileTab) {
+    mobileTab.setAttribute("aria-selected", String(!isDesktop));
+    mobileTab.tabIndex = !isDesktop ? 0 : -1;
+  }
+}
+
+function setScreenshotTab(next, focusTab = false) {
+  screenshotTab = next === "mobile" ? "mobile" : "desktop";
+  renderShotGrid();
+  if (focusTab) {
+    document.getElementById(screenshotTab === "mobile" ? "shots-tab-mobile" : "shots-tab-desktop")?.focus();
+  }
+}
+
+document.getElementById("shots-tab-desktop")?.addEventListener("click", () => setScreenshotTab("desktop"));
+document.getElementById("shots-tab-mobile")?.addEventListener("click", () => setScreenshotTab("mobile"));
+for (const tabId of ["shots-tab-desktop", "shots-tab-mobile"]) {
+  document.getElementById(tabId)?.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    setScreenshotTab(tabId === "shots-tab-desktop" ? "mobile" : "desktop", true);
+  });
+}
+
+function shotEmptyState(device) {
+  const isMobile = device === "mobile";
+  const title = isMobile ? "No mobile screenshots in this pack" : "No desktop screenshots in this pack";
+  const body = isMobile
+    ? "This run has no mobile captures: enable mobile screenshots or run locally where Chrome/Edge capture is available."
+    : "This run returned metadata only: the host cannot capture pixels, so there is nothing to preview. Download the ZIP for tokens, content, and structure.";
+  return `
+    <div class="showcase-empty">
+      <div class="showcase-empty__art" aria-hidden="true">◌</div>
+      <p class="showcase-empty__title">${title}</p>
+      <p class="showcase-empty__body">${body}</p>
+    </div>`;
+}
+
+function renderShotGrid() {
+  if (!screenshotContainer) return;
+  const allShots = collectShowcaseShots(lastScreenshotPages);
+  const isMobile = screenshotTab === "mobile";
+  // Section shots ride with Desktop so no capture is lost by filtering.
+  const shots = isMobile
+    ? allShots.filter((shot) => shot.tag === "mobile")
+    : allShots.filter((shot) => shot.tag !== "mobile");
   showcaseShots = shots;
+  paintScreenshotTabs();
   if (shots.length === 0) {
-    // Designed empty state: metadata-only run (hosted shape) with zero binaries.
-    screenshotContainer.innerHTML = `
-      <div class="showcase-empty">
-        <div class="showcase-empty__art" aria-hidden="true">◌</div>
-        <p class="showcase-empty__title">No screenshots in this pack</p>
-        <p class="showcase-empty__body">This run returned metadata only: the host cannot capture pixels, so there is nothing to preview. Download the ZIP for tokens, content, and structure.</p>
-      </div>`;
-    screenshotPanel.hidden = false;
+    screenshotContainer.innerHTML = shotEmptyState(screenshotTab);
     return;
   }
-  const [featured, ...rest] = shots;
-  const strip = rest
-    .slice(0, 11)
-    .map((shot, i) => {
-      const index = i + 1;
-      return `<button type="button" class="filmstrip__thumb" role="listitem" data-index="${index}" aria-label="Open ${escapeHtml(shot.label)}"><img src="${shot.src}" alt="" loading="lazy" /><span class="filmstrip__tag">${escapeHtml(shot.tag)}</span></button>`;
-    })
-    .join("");
   screenshotContainer.innerHTML = `
-    <div class="showcase">
-      <figure class="showcase__featured">
-        <button type="button" class="showcase__open" data-index="0" aria-label="Open ${escapeHtml(featured.label)}">
-          <img src="${featured.src}" alt="${escapeHtml(featured.label)}" />
-        </button>
-        <figcaption><span class="showcase__badge">Featured</span> ${escapeHtml(featured.label)}</figcaption>
-      </figure>
-      ${strip ? `<div class="filmstrip" role="list" aria-label="More screenshots">${strip}</div>` : ""}
+    <div class="shot-grid">
+      ${shots
+        .map((shot, index) => {
+          const featured = index === 0 ? `<span class="showcase__badge">Featured</span>` : "";
+          return `<figure class="shot-card${isMobile ? " shot-card--mobile" : ""}">
+            <button type="button" class="shot-card__open" data-index="${index}" aria-label="Open ${escapeHtml(shot.label)}">
+              <img src="${shot.src}" alt="${escapeHtml(shot.label)}" loading="lazy" />
+            </button>
+            <figcaption>${featured}<span class="shot-card__tag">${escapeHtml(shot.tag)}</span> ${escapeHtml(shot.label)}</figcaption>
+          </figure>`;
+        })
+        .join("")}
     </div>`;
   screenshotContainer.querySelectorAll("[data-index]").forEach((btn) => {
     btn.addEventListener("click", () => openShowcaseViewer(Number(btn.getAttribute("data-index") || 0), btn));
   });
+}
+
+function renderScreenshot(pages) {
+  lastScreenshotPages = Array.isArray(pages) ? pages : [];
+  renderShotGrid();
   screenshotPanel.hidden = false;
 }
 

@@ -360,9 +360,12 @@ button:disabled {
 .candidate-list {
   display: grid;
   gap: 10px;
+  padding-right: 4px;
+}
+
+.candidate-list--scroll {
   max-height: 420px;
   overflow-y: auto;
-  padding-right: 4px;
 }
 
 .candidate-item {
@@ -456,8 +459,11 @@ button:disabled {
 
 #screenshot-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .screenshot-preview figure {
@@ -638,7 +644,7 @@ button:disabled {
   padding: 15px 28px;
   font-size: 1rem;
   background: var(--accent);
-  color: #04140a;
+  color: var(--accent-ink);
 }
 
 /* ---------- Responsive & motion ---------- */
@@ -666,7 +672,7 @@ button:disabled {
   }
 
   #screenshot-container {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 }
 
@@ -1131,6 +1137,167 @@ body.showcase-open {
 
 .raw-details pre {
   margin: 0 12px 12px;
+}
+
+/* Fix 1 — selection sub-tabs (single accent, solid surfaces). */
+.sub-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sub-tab {
+  justify-self: auto;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-deep);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.sub-tab:hover:not(:disabled) {
+  transform: none;
+  filter: none;
+  box-shadow: none;
+  border-color: var(--border-bright);
+  color: var(--text);
+}
+
+.sub-tab[aria-selected="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Fix 2 — screenshots responsive card grid, natural aspect, no fixed height. */
+.shot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.shot-card {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-deep);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.shot-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(91, 157, 255, 0.5);
+}
+
+.shot-card__open {
+  all: unset;
+  display: block;
+  width: 100%;
+  cursor: zoom-in;
+  box-sizing: border-box;
+}
+
+.shot-card__open:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.shot-card img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: auto;
+  display: block;
+  object-fit: contain;
+  object-position: top;
+  border: 0;
+  border-radius: 0;
+}
+
+.shot-card figcaption {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shot-card--mobile {
+  border-radius: 18px;
+  border-width: 2px;
+}
+
+.shot-card__tag {
+  flex: none;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid rgba(91, 157, 255, 0.45);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+/* Fix 3 — raw JSON never widens the page. */
+#result,
+.result {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.raw-details {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.result pre,
+.raw-details pre,
+#result-body {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: auto;
+  white-space: pre;
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+/* Fix 4 — environment pill, small and quiet. */
+.env-pill {
+  margin: 0;
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  background: var(--panel-deep);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.env-pill strong {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 @media (max-width: 560px) {
