@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="./styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
   </head>
@@ -23,6 +23,7 @@
           height="72"
           class="hero__mark"
         />
+        <p class="eyebrow">Website analysis pack</p>
         <h1>Point at a site.<br />Steal its <span class="hero__emph">soul</span>.</h1>
         <p class="lede">
           Point at a public site. Get screenshots, design tokens, content structure, and JSON that an
@@ -60,6 +61,7 @@
       </header>
 
       <section id="status" class="card status" hidden aria-live="polite">
+        <p class="eyebrow">Progress</p>
         <ol class="phase-timeline" aria-label="Analysis phases">
           <li id="phase-validate" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Validate</span></li>
           <li id="phase-capture" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Capture</span></li>
@@ -75,12 +77,14 @@
       </section>
 
       <section id="budget" class="budget" hidden>
+        <p class="eyebrow eyebrow--center">Budget</p>
         <h2>Browser Budget</h2>
         <div class="budget-bar"><div id="budget-fill" class="budget-fill"></div></div>
         <div id="budget-text" class="budget-text"></div>
       </section>
 
       <section id="selection-summary" hidden>
+        <p class="eyebrow eyebrow--center">Discovery</p>
         <h2>Discovered Pages &amp; Selection</h2>
         <div id="selection-stats" class="selection-stats"></div>
         <div class="sub-tabs" role="tablist" aria-label="Filter pages by selection">
@@ -92,6 +96,7 @@
       </section>
 
       <section id="screenshot-preview" class="screenshot-preview" hidden>
+        <p class="eyebrow eyebrow--center">Captures</p>
         <h2>Screenshots</h2>
         <div class="sub-tabs" role="tablist" aria-label="Filter screenshots by device">
           <button type="button" id="shots-tab-desktop" class="sub-tab" role="tab" aria-selected="true" aria-controls="screenshot-container">Desktop</button>
@@ -101,6 +106,7 @@
       </section>
 
       <section id="pages-panel" hidden>
+        <p class="eyebrow eyebrow--center">Analysis</p>
         <h2>Analyzed Pages</h2>
         <div id="pages-list" class="pages-list"></div>
       </section>
@@ -113,6 +119,7 @@
       </section>
 
       <section id="result" class="result" hidden>
+        <p class="eyebrow eyebrow--center">Output</p>
         <h2>Raw JSON Response</h2>
         <details class="raw-details">
           <summary>View raw JSON response</summary>
