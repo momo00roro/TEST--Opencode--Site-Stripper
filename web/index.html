@@ -16,42 +16,53 @@
   <body>
     <main class="shell">
       <header class="hero">
-        <img src="./logo.svg" alt="Site Stripper logo" width="312" height="72" style="height:58px;width:auto" />
+        <img
+          src="./logo.svg"
+          alt="Site Stripper logo"
+          width="312"
+          height="72"
+          class="hero__mark"
+        />
         <p class="eyebrow">Cloudflare-only MVP</p>
-        <h1>Website Analysis Pack</h1>
+        <h1>Point at a site.<br />Steal its soul.</h1>
         <p class="lede">
           Point at a public site. Get screenshots, design tokens, content structure, and JSON that an
           AI agent can rebuild from.
         </p>
-      </header>
 
-      <form id="analyze-form" class="card" autocomplete="off">
-        <label class="field">
-          <span class="field__label">Website URL</span>
-          <input
-            id="url"
-            name="url"
-            type="url"
-            inputmode="url"
-            placeholder="https://example.com"
-            required
-            spellcheck="false"
-          />
-        </label>
+        <form id="analyze-form" class="command-bar" autocomplete="off">
+          <label class="field command-bar__url">
+            <span class="field__label">Website URL</span>
+            <input
+              id="url"
+              name="url"
+              type="url"
+              inputmode="url"
+              placeholder="https://example.com"
+              required
+              spellcheck="false"
+            />
+          </label>
 
-        <div class="row">
-          <label class="field field--small">
-            <span class="field__label">Max pages</span>
-            <input id="max-pages" name="maxPages" type="number" min="1" max="10" value="10" />
-          </label>
-          <label class="checkbox">
-            <input id="include-mobile" name="includeMobile" type="checkbox" checked />
-            <span>Include mobile screenshots</span>
-          </label>
+          <div class="row command-bar__options">
+            <label class="field field--small">
+              <span class="field__label">Max pages</span>
+              <input id="max-pages" name="maxPages" type="number" min="1" max="10" value="10" />
+            </label>
+            <label class="checkbox">
+              <input id="include-mobile" name="includeMobile" type="checkbox" checked />
+              <span>Include mobile screenshots</span>
+            </label>
+          </div>
+
+          <button id="submit" type="submit">Analyze website</button>
+        </form>
+
+        <div class="scroll-cue" aria-hidden="true">
+          <span class="scroll-cue__line"></span>
+          <span class="scroll-cue__text">Scroll</span>
         </div>
-
-        <button id="submit" type="submit">Analyze website</button>
-      </form>
+      </header>
 
       <section id="status" class="card status" hidden aria-live="polite">
         <div id="progress-wrap" class="progress-wrap" hidden>
