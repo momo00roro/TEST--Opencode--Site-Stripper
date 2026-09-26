@@ -778,6 +778,162 @@ button:disabled {
   }
 }
 
+/* Task 4: analysis theater — phase timeline + energy bars. */
+
+.phase-timeline {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  position: relative;
+}
+
+.phase-timeline::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 11px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--border-bright), var(--border));
+  border-radius: 2px;
+}
+
+.phase {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.75;
+  min-width: 0;
+}
+
+.phase__dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-bright);
+  background: var(--panel-deep);
+  display: inline-block;
+  position: relative;
+  z-index: 1;
+  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.phase__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.phase--active {
+  color: var(--text);
+  opacity: 1;
+}
+
+.phase--active .phase__dot {
+  border-color: var(--accent);
+  background: radial-gradient(circle at 50% 40%, #cfe3ff 0%, var(--accent) 55%, var(--accent-strong) 100%);
+  box-shadow: 0 0 0 4px rgba(91, 157, 255, 0.18), 0 0 18px rgba(91, 157, 255, 0.75);
+  animation: phase-pulse 1.6s ease-in-out infinite;
+}
+
+.phase--done {
+  color: var(--success);
+  opacity: 1;
+}
+
+.phase--done .phase__dot {
+  border-color: var(--success);
+  background: rgba(74, 222, 128, 0.2);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.4);
+}
+
+.phase--done .phase__dot::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+@keyframes phase-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(91, 157, 255, 0.15), 0 0 14px rgba(91, 157, 255, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(91, 157, 255, 0.22), 0 0 24px rgba(91, 157, 255, 0.9);
+  }
+}
+
+/* Energy bars: layered gradient + glow sheen over the existing bar shells. */
+.progress-fill,
+.budget-fill {
+  position: relative;
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 45%),
+    linear-gradient(90deg, var(--accent-strong), var(--accent) 55%, var(--success) 130%);
+}
+
+.progress-fill::after,
+.budget-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.45) 50%, transparent 80%);
+  background-size: 200% 100%;
+  background-position: 180% 0;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.progress-wrap:not(.progress-wrap--indeterminate) .progress-fill::after {
+  animation: energy-sheen 2.4s ease-in-out infinite;
+}
+
+@keyframes energy-sheen {
+  0% {
+    background-position: 180% 0;
+  }
+  60%,
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .phase-timeline {
+    gap: 4px;
+  }
+
+  .phase {
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+  }
+
+  .phase__label {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase--active .phase__dot,
+  .progress-wrap:not(.progress-wrap--indeterminate) .progress-fill::after {
+    animation: none;
+  }
+}
+
 /* Task 3: entrance-motion initial states, gated under .js-motion ONLY.
    The class is added in app.js only when window.gsap exists AND there is no
    reduced-motion preference, so no-JS / CDN-blocked / reduced-motion renders

@@ -65,6 +65,13 @@
       </header>
 
       <section id="status" class="card status" hidden aria-live="polite">
+        <ol class="phase-timeline" aria-label="Analysis phases">
+          <li id="phase-validate" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Validate</span></li>
+          <li id="phase-capture" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Capture</span></li>
+          <li id="phase-discover" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Discover</span></li>
+          <li id="phase-document" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Document</span></li>
+          <li id="phase-package" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Package</span></li>
+        </ol>
         <div id="progress-wrap" class="progress-wrap" hidden>
           <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
           <div id="progress-meta" class="progress-meta"></div>

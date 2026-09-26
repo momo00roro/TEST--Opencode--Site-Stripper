@@ -99,11 +99,60 @@ function setStatus(message, variant = "info") {
   statusPanel.classList.toggle("status--error", variant === "error");
 }
 
+// --- Task 4: analysis theater (phase timeline, keyword-mapped) ---
+// Five UI phases mapped by keyword over EXISTING progress messages only.
+// Unknown messages keep the nearest (current) phase lit.
+const PHASE_IDS = ["phase-validate", "phase-capture", "phase-discover", "phase-document", "phase-package"];
+let activePhaseIndex = -1;
+
+function phaseIndexForMessage(message) {
+  const text = String(message ?? "").toLowerCase();
+  if (/validat|dns|resolv|opening browser|^starting/.test(text)) return 0;
+  if (/robot|sitemap|discover|select/.test(text)) return 2;
+  if (/analyz|compar/.test(text)) return 3;
+  if (/captur|homepage|mobile|viewport/.test(text)) return 1;
+  if (/document|token|content|structure/.test(text)) return 3;
+  if (/complete|packag|assembl|zip|download/.test(text)) return 4;
+  return -1;
+}
+
+function paintPhases() {
+  for (let i = 0; i < PHASE_IDS.length; i += 1) {
+    const el = document.getElementById(PHASE_IDS[i]);
+    if (!el) continue;
+    el.classList.toggle("phase--done", i < activePhaseIndex);
+    el.classList.toggle("phase--active", i === activePhaseIndex);
+    if (i === activePhaseIndex) el.setAttribute("aria-current", "step");
+    else el.removeAttribute("aria-current");
+  }
+}
+
+function updatePhasesForMessage(message) {
+  const mapped = phaseIndexForMessage(message);
+  if (mapped === -1) return;
+  // Never walk backwards: unknown/out-of-order messages keep nearest phase.
+  if (mapped > activePhaseIndex) {
+    activePhaseIndex = mapped;
+    paintPhases();
+  }
+}
+
+function resetPhases() {
+  activePhaseIndex = -1;
+  paintPhases();
+}
+
+function completePhases() {
+  activePhaseIndex = PHASE_IDS.length - 1;
+  paintPhases();
+}
+
 let progressTimer = null;
 let progressValue = 0;
 
 function setProgress(current, total, message) {
   statusPanel.hidden = false;
+  updatePhasesForMessage(message);
   progressWrap.hidden = false;
   progressWrap.classList.remove("progress-wrap--indeterminate");
   if (total > 0) {
@@ -121,6 +170,7 @@ function setProgress(current, total, message) {
 // timer shows, so a long page never looks frozen.
 function startProgressHeartbeat(label) {
   stopProgressHeartbeat();
+  updatePhasesForMessage(label);
   const startedAt = Date.now();
   progressWrap.hidden = false;
   progressWrap.classList.add("progress-wrap--indeterminate");
@@ -143,6 +193,7 @@ function stopProgressHeartbeat() {
 
 function resetProgress() {
   stopProgressHeartbeat();
+  resetPhases();
   progressValue = 0;
   progressWrap.hidden = true;
   progressWrap.classList.remove("progress-wrap--indeterminate");
@@ -324,6 +375,7 @@ downloadButton?.addEventListener("click", () => {
 
 function renderResult(body) {
   const browserSec = body?.browserSecondsUsed ?? 0;
+  completePhases();
   setStatus(`Analysis complete (${browserSec}s browser time used).`);
 
   renderSelection(body?.selection, body?.discovery);
@@ -363,6 +415,8 @@ async function consumeStream(response) {
       }
       if (event.type === "progress") {
         setProgress(event.current ?? 0, event.total ?? 0, event.message ?? "Working…");
+        // Theater wiring only: light the matching phase; parsing unchanged.
+        updatePhasesForMessage(event.message ?? "Working…");
         // Re-arm the elapsed heartbeat so the bar keeps moving between events.
         const label = event.message ?? "Working";
         stopProgressHeartbeat();
