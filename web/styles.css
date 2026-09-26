@@ -98,9 +98,7 @@ a:hover {
 .hero__mark {
   height: 58px;
   width: auto;
-  background: #151516;
-  border-radius: 8px;
-  padding: 6px 12px;
+  display: block;
 }
 
 .hero h1 {
@@ -519,12 +517,7 @@ button:disabled {
 /* ---------- Screenshots ---------- */
 
 #screenshot-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
+  display: contents;
 }
 
 .screenshot-preview figure {
@@ -758,8 +751,8 @@ button:disabled {
     flex-direction: column;
   }
 
-  #screenshot-container {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  .shot-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1225,35 +1218,43 @@ body.showcase-open {
 
 /* Fix 1 - selection sub-tabs (single accent, solid surfaces). */
 .sub-tabs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: inline-flex;
+  align-items: stretch;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 0;
 }
 
 .sub-tab {
   justify-self: auto;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #FFFFFF;
+  padding: 12px 22px;
+  border: 0;
+  border-radius: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 600;
   box-shadow: none;
 }
 
+.sub-tab:first-child {
+  border-left: 0;
+}
+
 .sub-tab:hover:not(:disabled) {
   transform: none;
-  background: #FFFFFF;
-  border-color: var(--border-bright);
+  background: #F5EFFE;
   color: var(--text);
 }
 
 .sub-tab[aria-selected="true"] {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: #FFFFFF;
+  background: #F5EFFE;
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 
 /* Screenshots: 3-column card grid, fixed-height clipped thumbs. */
