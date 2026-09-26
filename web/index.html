@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="api-base" content="https://site-stripper-api.momo00roro.workers.dev" />
-    <title>Site Stripper — Website Analysis Pack</title>
+    <title>Site Stripper - Website Analysis Pack</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -23,11 +23,10 @@
           height="72"
           class="hero__mark"
         />
-        <p class="eyebrow">Cloudflare-only MVP</p>
-        <h1>Point at a site.<br />Steal its soul.</h1>
+        <h1>Point at a site.<br />Steal its <span class="hero__emph">soul</span>.</h1>
         <p class="lede">
           Point at a public site. Get screenshots, design tokens, content structure, and JSON that an
-          AI agent can rebuild from.
+          AI agent can rebuild from. This is a Cloudflare-only MVP.
         </p>
 
         <form id="analyze-form" class="command-bar" autocomplete="off">
@@ -57,11 +56,6 @@
 
           <button id="submit" type="submit">Analyze website</button>
         </form>
-
-        <div class="scroll-cue" aria-hidden="true">
-          <span class="scroll-cue__line"></span>
-          <span class="scroll-cue__text">Scroll</span>
-        </div>
       </header>
 
       <section id="status" class="card status" hidden aria-live="polite">
@@ -79,36 +73,36 @@
         <div id="status-text"></div>
       </section>
 
-      <section id="budget" class="card budget" hidden>
+      <section id="budget" class="budget" hidden>
         <h2>Browser Budget</h2>
         <div class="budget-bar"><div id="budget-fill" class="budget-fill"></div></div>
         <div id="budget-text" class="budget-text"></div>
       </section>
 
-      <section id="selection-summary" class="card" hidden>
+      <section id="selection-summary" hidden>
         <h2>Discovered Pages &amp; Selection</h2>
         <div id="selection-stats" class="selection-stats"></div>
         <div id="candidate-list" class="candidate-list"></div>
       </section>
 
-      <section id="screenshot-preview" class="card screenshot-preview" hidden>
+      <section id="screenshot-preview" class="screenshot-preview" hidden>
         <h2>Screenshots</h2>
         <div id="screenshot-container"></div>
       </section>
 
-      <section id="pages-panel" class="card" hidden>
+      <section id="pages-panel" hidden>
         <h2>Analyzed Pages</h2>
         <div id="pages-list" class="pages-list"></div>
       </section>
 
-      <section id="download-panel" class="card deliverable" hidden>
-        <h2>Deliverable — Download Analysis Pack</h2>
+      <section id="download-panel" class="deliverable" hidden>
+        <h2>Deliverable: Download Analysis Pack</h2>
         <div class="deliverable__stats" id="deliverable-stats" aria-live="polite"></div>
         <p id="package-info" class="package-info"></p>
         <button id="download" type="button">Download ZIP</button>
       </section>
 
-      <section id="result" class="card result" hidden>
+      <section id="result" class="result" hidden>
         <h2>Raw JSON Response</h2>
         <details class="raw-details">
           <summary>View raw JSON response</summary>
@@ -118,7 +112,7 @@
 
       <aside class="note">
         <strong>Free-tier budget.</strong> Browser rendering is limited to 10 minutes per day, which is
-        roughly 5–8 full analyses. Heavy media sites may fail or return a partial report.
+        roughly 5-8 full analyses. Heavy media sites may fail or return a partial report.
       </aside>
     </main>
 

@@ -180,7 +180,7 @@ function startProgressHeartbeat(label) {
     const seconds = Math.round((Date.now() - startedAt) / 1000);
     progressValue = Math.min(progressValue + 0.6, 96);
     progressFill.style.width = `${progressValue}%`;
-    progressMeta.textContent = `${label} — ${seconds}s elapsed`;
+    progressMeta.textContent = `${label} - ${seconds}s elapsed`;
   }, 1000);
 }
 
@@ -271,16 +271,16 @@ function collectShowcaseShots(pages) {
   for (const page of pages || []) {
     const path = page?.path ?? "/";
     if (page?.screenshot?.dataUrl) {
-      shots.push({ src: page.screenshot.dataUrl, label: `${path} — desktop`, tag: "desktop" });
+      shots.push({ src: page.screenshot.dataUrl, label: `${path} - desktop`, tag: "desktop" });
     }
     if (page?.mobileScreenshot?.dataUrl) {
-      shots.push({ src: page.mobileScreenshot.dataUrl, label: `${path} — mobile`, tag: "mobile" });
+      shots.push({ src: page.mobileScreenshot.dataUrl, label: `${path} - mobile`, tag: "mobile" });
     }
     (page?.sectionShots || []).forEach((shot, index) => {
       if (!shot?.dataUrl) return;
       shots.push({
         src: shot.dataUrl,
-        label: `${path} — ${shot.heading || `section ${index + 1}`}`,
+        label: `${path} - ${shot.heading || `section ${index + 1}`}`,
         tag: "section",
       });
     });
@@ -372,7 +372,7 @@ function renderScreenshot(pages) {
       <div class="showcase-empty">
         <div class="showcase-empty__art" aria-hidden="true">◌</div>
         <p class="showcase-empty__title">No screenshots in this pack</p>
-        <p class="showcase-empty__body">This run returned metadata only — the host cannot capture pixels, so there is nothing to preview. Download the ZIP for tokens, content, and structure.</p>
+        <p class="showcase-empty__body">This run returned metadata only: the host cannot capture pixels, so there is nothing to preview. Download the ZIP for tokens, content, and structure.</p>
       </div>`;
     screenshotPanel.hidden = false;
     return;
@@ -461,7 +461,7 @@ function renderPages(pages) {
       return `
         <div class="page-card">
           <div class="page-head"><strong>${escapeHtml(page?.title || page?.path)}</strong><span class="candidate-path">${escapeHtml(page?.path)}</span></div>
-          <div class="page-reason">Priority ${page?.priority ?? "-"} — ${reason}</div>
+          <div class="page-reason">Priority ${page?.priority ?? "-"}: ${reason}</div>
           ${(colorChips || fontChips) ? `<div class="token-chips">${colorChips}${fontChips}</div>` : ""}
           ${bars ? `<div class="coverage-list">${bars}</div>` : ""}
           <div class="page-meta">Tone: ${escapeHtml(tone?.voice ?? "unknown")} · Assets: ${assets}</div>
@@ -581,7 +581,7 @@ async function consumeStream(response) {
           const seconds = Math.round((Date.now() - startedAt) / 1000);
           progressValue = Math.min(progressValue + 0.6, 96);
           progressFill.style.width = `${progressValue}%`;
-          progressMeta.textContent = `${label} — ${seconds}s elapsed`;
+          progressMeta.textContent = `${label} - ${seconds}s elapsed`;
         }, 1000);
         statusText.textContent = event.message ?? "Working…";
       } else if (event.type === "result") {
@@ -665,7 +665,7 @@ form.addEventListener("submit", onSubmit);
 // Appended block only: API_BASE / fetch / NDJSON / ZIP paths above are untouched.
 // Pre-animation hidden states live in styles.css under `.js-motion` ONLY, and
 // this class is added here only when GSAP is present AND the user has no
-// reduced-motion preference — so CDN-blocked / no-JS / reduced-motion stays
+// reduced-motion preference - so CDN-blocked / no-JS / reduced-motion stays
 // fully visible with zero console errors.
 (function initMotion() {
   try {
@@ -679,73 +679,11 @@ form.addEventListener("submit", onSubmit);
     document.documentElement.classList.add("js-motion");
     window.gsap.fromTo(
       ".hero > *",
-      { y: 28, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.9, stagger: 0.09, ease: "power3.out", overwrite: true },
+      { y: 12, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.6, ease: "power3.out", overwrite: true },
     );
   } catch {
     // Motion is decorative: never break analysis on animation failure.
   }
 })();
 
-// --- Task 6: scroll reveals (ScrollTrigger.batch, same guards as initMotion) ---
-// Appended block only: API_BASE / fetch / NDJSON / ZIP paths above are untouched.
-// `.js-reveals` is added only when gsap + ScrollTrigger exist AND there is no
-// reduced-motion preference, so CDN-blocked / no-JS / reduced-motion renders
-// stay fully visible with zero console errors.
-(function initScrollReveals() {
-  try {
-    if (!window.gsap || !window.ScrollTrigger) return;
-    if (
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      return;
-    }
-    if (typeof window.ScrollTrigger.batch !== "function") return;
-    if (typeof window.gsap.registerPlugin === "function") {
-      window.gsap.registerPlugin(window.ScrollTrigger);
-    }
-    document.documentElement.classList.add("js-reveals");
-    // Single pass over result sections: no loops, one batch call.
-    window.ScrollTrigger.batch(".shell .card", {
-      start: "top 88%",
-      once: true,
-      onEnter: (elements) => {
-        window.gsap.to(elements, {
-          y: 0,
-          opacity: 1,
-          duration: 0.7,
-          stagger: 0.08,
-          ease: "power3.out",
-          overwrite: true,
-        });
-      },
-    });
-    // Result cards unhide after analysis (render functions above untouched);
-    // refresh cached trigger positions so newly visible sections still reveal.
-    // Debounced observer, no polling loops.
-    let refreshTimer = null;
-    const scheduleRefresh = () => {
-      if (refreshTimer !== null) return;
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        try {
-          window.ScrollTrigger.refresh();
-        } catch {
-          // Decorative only: never break analysis on animation failure.
-        }
-      }, 120);
-    };
-    const shell = document.querySelector(".shell");
-    if (shell && typeof MutationObserver === "function") {
-      new MutationObserver(scheduleRefresh).observe(shell, {
-        attributes: true,
-        attributeFilter: ["hidden"],
-        childList: true,
-        subtree: true,
-      });
-    }
-  } catch {
-    // Motion is decorative: never break analysis on animation failure.
-  }
-})();
