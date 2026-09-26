@@ -450,3 +450,29 @@ async function onSubmit(event) {
 }
 
 form.addEventListener("submit", onSubmit);
+
+// --- Task 3: entrance motion (GSAP, reduced-motion + no-CDN safe) ---
+// Appended block only: API_BASE / fetch / NDJSON / ZIP paths above are untouched.
+// Pre-animation hidden states live in styles.css under `.js-motion` ONLY, and
+// this class is added here only when GSAP is present AND the user has no
+// reduced-motion preference — so CDN-blocked / no-JS / reduced-motion stays
+// fully visible with zero console errors.
+(function initMotion() {
+  try {
+    if (!window.gsap) return;
+    if (
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+    document.documentElement.classList.add("js-motion");
+    window.gsap.fromTo(
+      ".hero > *",
+      { y: 28, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.9, stagger: 0.09, ease: "power3.out", overwrite: true },
+    );
+  } catch {
+    // Motion is decorative: never break analysis on animation failure.
+  }
+})();

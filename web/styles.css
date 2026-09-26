@@ -777,3 +777,19 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Task 3: entrance-motion initial states, gated under .js-motion ONLY.
+   The class is added in app.js only when window.gsap exists AND there is no
+   reduced-motion preference, so no-JS / CDN-blocked / reduced-motion renders
+   fully visible. GSAP animates these to opacity 1 / y 0 via fromTo. */
+.js-motion .hero > * {
+  opacity: 0;
+  transform: translateY(28px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js-motion .hero > * {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
