@@ -14,10 +14,53 @@
   --success: #2BCC28;
   --danger: #D92D20;
   --radius: 10px;
+  --input-bg: #FFFFFF;
+  --track-bg: #EDEEF0;
+  --chip-bg: #F0F1F3;
+  --chip-text: #5B5C60;
+  --lavender: #F5EFFE;
+  --lavender-border: #D9C8F5;
+  --btn-primary-bg: #151516;
+  --btn-primary-text: #FFFFFF;
+  --btn-primary-hover: #2A2A2D;
+  --overlay-img-bg: #F0F1F3;
   --shadow-pop: 0 1px 2px rgba(21, 21, 22, 0.05);
   --font-display: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "Space Grotesk", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Task B — dark theme (cline-dark). Light remains the default. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0B0D12;
+  --ink: #F2F5FA;
+  --panel: #12151D;
+  --panel-deep: #12151D;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-bright: rgba(255, 255, 255, 0.22);
+  --text: #F2F5FA;
+  --muted: #A9B1C1;
+  --accent: #9F58FA;
+  --accent-strong: #C4A0FF;
+  --accent-ink: #FFFFFF;
+  --input-bg: #1B2030;
+  --track-bg: #1B2030;
+  --chip-bg: #1B2030;
+  --chip-text: #A9B1C1;
+  --lavender: #1B2030;
+  --lavender-border: rgba(217, 200, 245, 0.35);
+  --btn-primary-bg: #FFFFFF;
+  --btn-primary-text: #0B0D12;
+  --btn-primary-hover: #DCE2EE;
+  --overlay-img-bg: #1B2030;
+  --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --danger: #F26D5F;
+}
+
+/* Dark mode: invert the dark-on-transparent wordmark so it stays readable. */
+html[data-theme="dark"] .hero__mark {
+  filter: invert(1);
 }
 
 * {
@@ -248,7 +291,7 @@ input[type="number"] {
   padding: 13px 15px;
   border-radius: 8px;
   border: 1px solid var(--border-bright);
-  background: #FFFFFF;
+  background: var(--input-bg);
   color: var(--text);
   font: inherit;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -256,7 +299,7 @@ input[type="number"] {
 
 input[type="url"]:hover,
 input[type="number"]:hover {
-  border-color: rgba(21, 21, 22, 0.28);
+  border-color: var(--border-bright);
 }
 
 input[type="url"]:focus,
@@ -306,8 +349,8 @@ button {
   padding: 13px 28px;
   border: 0;
   border-radius: 8px;
-  background: #151516;
-  color: #FFFFFF;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
   font-weight: 600;
   font-size: 0.95rem;
   letter-spacing: 0.01em;
@@ -318,7 +361,7 @@ button {
 
 button:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: #2A2A2D;
+  background: var(--btn-primary-hover);
 }
 
 button:active:not(:disabled) {
@@ -355,7 +398,7 @@ button:disabled {
 .progress-bar {
   height: 10px;
   border-radius: 7px;
-  background: #EDEEF0;
+  background: var(--track-bg);
   border: 1px solid var(--border);
   overflow: hidden;
 }
@@ -380,7 +423,7 @@ button:disabled {
   margin: 0;
   padding: 16px;
   border-radius: 8px;
-  background: #FFFFFF;
+  background: var(--panel);
   border: 1px solid var(--border);
   overflow: auto;
   font-family: var(--mono);
@@ -468,7 +511,7 @@ button:disabled {
   font-family: var(--mono);
   font-size: 0.8rem;
   color: var(--muted);
-  background: rgba(21, 21, 22, 0.05);
+  background: var(--chip-bg);
   padding: 1px 7px;
   border-radius: 6px;
 }
@@ -497,14 +540,14 @@ button:disabled {
 }
 
 .badge--excluded {
-  background: #F0F1F3;
+  background: var(--chip-bg);
   color: var(--muted);
   border: 1px solid var(--border);
 }
 
 .badge--source {
-  background: #F0F1F3;
-  color: #5B5C60;
+  background: var(--chip-bg);
+  color: var(--chip-text);
   border: 1px solid var(--border);
 }
 
@@ -579,7 +622,7 @@ button:disabled {
 .budget-bar {
   height: 10px;
   border-radius: 7px;
-  background: #EDEEF0;
+  background: var(--track-bg);
   border: 1px solid var(--border);
   overflow: hidden;
 }
@@ -678,7 +721,7 @@ button:disabled {
   border-right: 0;
   border-bottom: 0;
   border-top: 1px solid var(--border);
-  background: #FFFFFF;
+  background: var(--panel);
   box-shadow: 0 -8px 24px -12px rgba(21, 21, 22, 0.12);
   padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
 }
@@ -723,8 +766,8 @@ button:disabled {
   margin-inline: auto;
   padding: 15px 28px;
   font-size: 1rem;
-  background: #151516;
-  color: #FFFFFF;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
 }
 
 /* ---------- Responsive & motion ---------- */
@@ -812,7 +855,7 @@ button:disabled {
   height: 22px;
   border-radius: 50%;
   border: 2px solid var(--border-bright);
-  background: #FFFFFF;
+  background: var(--panel);
   display: inline-block;
   position: relative;
   z-index: 1;
@@ -934,8 +977,8 @@ button:disabled {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #FFFFFF;
-  background: #151516;
+  color: var(--btn-primary-text);
+  background: var(--btn-primary-bg);
   padding: 2px 9px;
   border-radius: 999px;
   flex: none;
@@ -989,9 +1032,9 @@ button:disabled {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  background: #151516;
-  color: #FFFFFF;
-  border: 1px solid #151516;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border: 1px solid var(--btn-primary-bg);
   padding: 1px 7px;
   border-radius: 999px;
 }
@@ -1053,7 +1096,7 @@ button:disabled {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
-  background: #FFFFFF;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
@@ -1073,7 +1116,7 @@ button:disabled {
   width: 100%;
   object-fit: contain;
   border-radius: 8px;
-  background: #F0F1F3;
+  background: var(--overlay-img-bg);
 }
 
 .showcase-overlay__figure figcaption {
@@ -1120,7 +1163,7 @@ body.showcase-open {
   font-size: 0.72rem;
   font-family: var(--mono);
   color: var(--text);
-  background: rgba(21, 21, 22, 0.05);
+  background: var(--chip-bg);
   border: 1px solid var(--border);
   padding: 2px 9px;
   border-radius: 999px;
@@ -1134,7 +1177,7 @@ body.showcase-open {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 1px solid rgba(21, 21, 22, 0.2);
+  border: 1px solid var(--border-bright);
   flex: none;
 }
 
@@ -1162,7 +1205,7 @@ body.showcase-open {
 .coverage__track {
   height: 6px;
   border-radius: 4px;
-  background: #EDEEF0;
+  background: var(--track-bg);
   border: 1px solid var(--border);
   overflow: hidden;
 }
@@ -1216,11 +1259,12 @@ body.showcase-open {
   margin: 0 12px 12px;
 }
 
-/* Fix 1 - selection sub-tabs (single accent, solid surfaces). */
+/* Task A: cline tab/download anatomy — white card top-strip, dividers,
+   active = bold ink title + 2px purple bottom-underline. */
 .sub-tabs {
   display: inline-flex;
   align-items: stretch;
-  background: #FFFFFF;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
@@ -1246,15 +1290,101 @@ body.showcase-open {
 
 .sub-tab:hover:not(:disabled) {
   transform: none;
-  background: #F5EFFE;
+  background: var(--lavender);
   color: var(--text);
 }
 
 .sub-tab[aria-selected="true"] {
-  background: #F5EFFE;
-  color: var(--text);
+  background: var(--panel);
+  color: var(--ink);
   font-weight: 700;
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* Task A: lavender secondary buttons (overlay Prev/Next). Primary
+   Analyze/Download CTAs stay solid via the base `button` style. */
+.btn-secondary,
+.showcase-overlay__prev,
+.showcase-overlay__next {
+  background: var(--lavender);
+  border: 1px solid var(--lavender-border);
+  color: var(--text);
+  border-radius: 8px;
+}
+
+.btn-secondary:hover:not(:disabled),
+.showcase-overlay__prev:hover:not(:disabled),
+.showcase-overlay__next:hover:not(:disabled) {
+  background: var(--lavender);
+  border-color: var(--accent);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+/* Task A: card wrap for each tab group + panel on existing structure.
+   Tab strip on top, hairline below strip, padded content. */
+#selection-summary .sub-tabs,
+#screenshot-preview .sub-tabs {
+  display: flex;
+  width: 100%;
+  border-radius: 12px 12px 0 0;
+  border-bottom: 1px solid var(--border);
+}
+
+#selection-summary .sub-tab,
+#screenshot-preview .sub-tab {
+  flex: 1;
+  text-align: center;
+}
+
+#candidate-list,
+#candidate-list-excluded {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  padding: 16px;
+  margin-top: 0;
+}
+
+#screenshot-container .shot-grid,
+#screenshot-container .showcase-empty {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  padding: 16px;
+  margin-top: 0;
+}
+
+/* Task B: hero top bar (logo left, theme toggle right). */
+.hero__topbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+#theme-toggle {
+  justify-self: end;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+  line-height: 1;
+  border-radius: 8px;
+  background: var(--lavender);
+  border: 1px solid var(--lavender-border);
+  color: var(--text);
+}
+
+#theme-toggle:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: translateY(-1px);
 }
 
 /* Screenshots: 3-column card grid, fixed-height clipped thumbs. */
@@ -1382,9 +1512,9 @@ body.showcase-open {
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: #FFFFFF;
-  background: #151516;
-  border: 1px solid #151516;
+  color: var(--btn-primary-text);
+  background: var(--btn-primary-bg);
+  border: 1px solid var(--btn-primary-bg);
   border-radius: 999px;
   padding: 6px 14px;
   max-width: 100%;
@@ -1392,7 +1522,7 @@ body.showcase-open {
 }
 
 .env-pill strong {
-  color: #FFFFFF;
+  color: inherit;
   font-weight: 800;
 }
 

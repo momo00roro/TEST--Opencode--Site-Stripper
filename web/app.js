@@ -795,3 +795,37 @@ form.addEventListener("submit", onSubmit);
   }
 })();
 
+// --- Task B: light/dark theme toggle (additive; existing logic untouched) ---
+(function initTheme() {
+  const btn = document.getElementById("theme-toggle");
+  if (!btn) return;
+  const root = document.documentElement;
+  let stored = null;
+  try {
+    stored = localStorage.getItem("site-stripper-theme");
+  } catch {
+    stored = null;
+  }
+  const prefersDark =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const initial = stored === "dark" || stored === "light" ? stored : prefersDark ? "dark" : "light";
+  const apply = (theme) => {
+    const isDark = theme === "dark";
+    root.setAttribute("data-theme", isDark ? "dark" : "light");
+    btn.setAttribute("aria-pressed", String(isDark));
+    btn.textContent = isDark ? "☀" : "☾";
+    btn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+  };
+  apply(initial);
+  btn.addEventListener("click", () => {
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    apply(next);
+    try {
+      localStorage.setItem("site-stripper-theme", next);
+    } catch {
+      // Storage unavailable: theme still applies for this session.
+    }
+  });
+})();
+

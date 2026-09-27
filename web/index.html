@@ -16,13 +16,16 @@
   <body>
     <main class="shell">
       <header class="hero">
-        <img
-          src="./logo.svg"
-          alt="Site Stripper logo"
-          width="312"
-          height="72"
-          class="hero__mark"
-        />
+        <div class="hero__topbar">
+          <img
+            src="./logo.svg"
+            alt="Site Stripper logo"
+            width="312"
+            height="72"
+            class="hero__mark"
+          />
+          <button id="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to dark mode">☾</button>
+        </div>
         <p class="eyebrow">Website analysis pack</p>
         <h1>Point at a site.<br />Steal its <span class="hero__emph">soul</span>.</h1>
         <p class="lede">
