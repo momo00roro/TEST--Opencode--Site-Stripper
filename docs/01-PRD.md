@@ -625,6 +625,24 @@ Verify page selection, Markdown, JSON, screenshots, ZIP integrity, timeouts, pay
 
 Status: implemented and verified by automated tests (`worker/test/acceptance.spec.ts`, 12 scenarios + rubric).
 
+### CF13 — Asset rehydration (SVG download at capture time)
+
+`data/assets.json` records URLs but preserves no bytes; optimizer URLs
+(e.g. Next.js `/_next/image?url=`) 404 outside the source site, which broke
+the provider-icon grid and nav logo in the 2026-09-27 cline.bot rebuild
+experiment (~85–90% similarity otherwise). After the manifest is built, the
+API layer downloads eligible assets with plain `fetch` (never browser time)
+into pack `assets/` and records `localPath`/`bytes`/`source` per entry; the
+client ZIP includes the directory.
+
+Eligible: `kind` logo/icon/hero, same-origin CF02-validated targets,
+`image/svg+xml` only, 50 KB per file, 512 KB total, max 40 files, document
+order, shortfall recorded as limitation (never an error). SVGs ship as inert
+files referenced via `<img>`, never inlined. Full spec:
+`docs/plans/2026-09-27-cf13-asset-rehydration.md`.
+
+Status: specified 2026-09-27. Not implemented.
+
 ## Current implementation status
 
 Completed and verified by automated tests:
@@ -653,6 +671,7 @@ Open or next milestones:
 - All CF01–CF12 implemented. Hosted smoke-verified via `npm run dev:remote -w worker` (Browser Rendering) on 2026-09-25: `backend: cloudflare`, schema 0.2.0, extraction parity with local runs (64 blocks / 30 controls / 15 colors on the reference homepage), mobile capture metadata-only (Trap 4 holds remotely), zero Error 1102s, zero issues. One transient remote navigation timeout observed on a fast host; succeeded on immediate retry with identical evidence.
 - **Deploy pipeline live 2026-09-25** via GitHub Actions (`.github/workflows/deploy.yml`: typecheck → test → deploy Worker → deploy Pages UI on push to `master`, green): API at `https://site-stripper-api.momo00roro.workers.dev`, canonical UI at `https://site-stripper-ui.pages.dev` with `api-base` wired to the Worker. CI uses repo-pinned Wrangler v4 on Node 22 with `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` repo secrets, plus `--branch master` on the Pages step so CI's detached HEAD still promotes production. Cloudflare Git integration intentionally unconnected (Direct Upload via CI only — avoids double-deploy races and keeps the test gate). Public end-to-end verified 2026-09-26 (GMT+8): `https://example.com` max pages 1 → ZIP downloaded to gitignored `.examples/2026-09-26__example.com/`. Note: per-deploy hashes (e.g. `fdcbe66a`, `59fbd3cb`) are snapshots, not production — verify the canonical domain.
 - Deferred (require the real runtime to test): per-IP cooldown rate limiting, Cache API discovery caching, and the Turnstile bot barrier from the cost-control section.
+- Specified, not built: CF13 asset rehydration (SVG-only download at capture time, 512 KB total cap) — closes the rebuild-fidelity gap proven by the 2026-09-27 dogfood experiments.
 - Deliberate deviation: screenshot and critical-asset *binaries* are not embedded in the hosted package. Encoding multi-MB images in the Worker violates Trap 4 (10 ms CPU), and a client cannot reliably read cross-origin image bytes. Hosted responses therefore return screenshot metadata plus `screenshots/manifest.json`, and asset URLs in `data/assets.json`; the local dev path inlines screenshot base64 via the Node encoder. `report.json.limitations` and package warnings state this explicitly. Introducing R2 or a Deflate path would be required to ship binaries.
 
 The previously noted test expectation used a comma in the data URL, not a colon. That issue is resolved.
