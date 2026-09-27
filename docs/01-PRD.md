@@ -603,7 +603,7 @@ Status: implemented and verified by automated tests (client-side STORE ZIP; Work
 
 Build the URL form, progress/status display, selected-page summary with reasons, remaining-budget indicator, error state, screenshot display, and download action.
 
-Status: implemented (form, status, selection, budget meter, per-page cards, screenshot thumbnails, client ZIP download).
+Status: implemented (form, status, selection, budget meter, per-page cards, screenshot thumbnails, client ZIP download). UI restyled 2026-09-27 to the cline.bot design language (light-first + dark toggle, segmented tabs, lavender CTAs, 3-column screenshot grid with Desktop/Mobile tabs, environment pill, width-clamped raw-JSON accordion, purple monster identity); see `docs/plans/2026-09-27-cline-reskin.md`. All element IDs, `api-base` handling, NDJSON parsing, and ZIP assembly unchanged.
 
 ### CF12 — Acceptance tests and fidelity rubric
 
@@ -639,7 +639,7 @@ Completed and verified by automated tests:
 - CF08 verbatim content (paragraphs, code samples with line breaks, bounded support tables, hidden/collapsed copy labeled, consecutive-duplicate collapse), tone notes, asset manifest by URL reference with report-level deduped manifest, video/audio file entries with readiness, iframe embeds, form actions (same-origin only), SVG icon inventory, social/share metadata, page language and direction.
 - CF09 client-side package generation from canonical bounded observations (Markdown, JSON, W3C tokens, theme.css, Tailwind config, interaction docs, key-role mapping, stack detection, canvas fallbacks, coverage dedupe) with schema/manifest validation and a 24 MiB documentation cap; generated files are not duplicated in the Worker response.
 - CF10 STORE-only ZIP writer shared Worker/web, client-side assembly with 25MB warn cap, Worker never compresses.
-- CF11 Pages UI (monster brand, sticky bottom download bar, budget meter, per-page cards, screenshot gallery, client ZIP download).
+  - CF11 Pages UI (monster brand, sticky bottom download bar, budget meter, per-page cards, screenshot gallery, client ZIP download; restyled 2026-09-27 to cline.bot language — see CF11 note).
 - CF12 synthetic acceptance suite (11 scenarios + fidelity rubric at 1440/390).
 - PRD-record compliance: every multi-page record carries `selected`, `sections`, `observedInteractions`, and `limitations`; section-clipped homepage screenshots (max 6, byte-budgeted) and mobile capture for the homepage plus one representative page (max 2) are implemented; CSS parsing respects the 3MB per-page cap.
 - Budget and safety hardening: total screenshot bytes never exceed 6 MB (per-capture remaining-budget enforcement), redirect landings are checked for blocked hosts, disallowed ports, and non-HTTP(S) protocols, unexpected errors no longer leak internal detail, and discovery no longer duplicates mixed-case homepage paths.

@@ -152,6 +152,22 @@ Never performed: form submits, control clicks, CAPTCHA solving, behavior replay.
 - `docs/plans/` — design and implementation plans (historical record)
 - `.examples/` — real captured packages from verification runs
 
+## UI design (cline.bot language, 2026-09-27)
+
+The Pages UI speaks the stolen design language of `https://cline.bot`
+(reference pack captured with this very tool into `.examples/2026-09-27__cline.bot/`):
+
+- Light-first theme: `#F8FAFB` canvas, `#151516` ink, `#9F58FA` accent,
+  DM Sans display + Inter body, hairline borders, eyebrow section labels.
+- Dark mode via header toggle (persisted, `prefers-color-scheme` default).
+- Cline-exact components: segmented tabs with purple-underline actives,
+  lavender CTAs (purple border, lavender fill, black text), 3-column
+  clipped screenshot grid with Desktop/Mobile tabs, full-image overlay viewer.
+- Environment pill derived from `API_BASE`: localhost notice vs
+  Cloudflare metadata-only notice. Raw JSON in a width-clamped accordion.
+- Identity: purple monster-face mark (`web/favicon.svg`, inline SVG lockup
+  in `web/index.html` so the wordmark follows the theme).
+
 ## Status
 
-All CF01–CF12 implemented; `npm run typecheck` clean; 230/230 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`).
+All CF01–CF12 implemented; `npm run typecheck` clean; 230/230 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
