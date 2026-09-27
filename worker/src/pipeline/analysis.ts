@@ -22,6 +22,7 @@ import { discoverCandidates } from "../discovery/discover";
 import type { DiscoveryResult } from "../discovery/types";
 import { humanizeSegment } from "../discovery/paths";
 import { ApiError } from "../http/errors";
+import { rehydrateAssets } from "./rehydrate-assets";
 import { buildSelection, type SelectionReport } from "../ranking/key-pages";
 import type { AnalyzeRequest } from "../validation/analyze-request";
 import { assertPublicTarget, parseHttpUrl } from "../validation/url";
@@ -580,7 +581,7 @@ export async function runAnalysis(
     // CF08: report-level asset manifest — deduped URL references only, no downloads.
     // Bounded and Worker-safe: pages <= 10, assets per page <= 100.
     const seenAssetKeys = new Set<string>();
-    const assets: SnapshotAsset[] = [];
+    let assets: SnapshotAsset[] = [];
     for (const page of pages) {
       for (const asset of page.assets) {
         const key = `${asset.kind}|${asset.url}`;
@@ -590,6 +591,28 @@ export async function runAnalysis(
         assets.push(asset);
       }
       if (assets.length >= LIMITS.maxAssetManifestEntries) break;
+    }
+
+    // CF13: rehydrate eligible SVGs (logo/icon/hero) with plain fetch
+    // subrequests, batched after page analysis. Shortfall is recorded on the
+    // entries and in limitations, never thrown. Entries are replaced with new
+    // objects so page-level assets stay reference-only (no content duplication
+    // into data/pages.json).
+    let assetOrigin = request.target.origin;
+    try {
+      assetOrigin = new URL(homepageSnapshot?.url ?? request.target.origin).origin;
+    } catch {
+      // Keep the requested origin when the snapshot URL is unparseable.
+    }
+    try {
+      const rehydrated = await rehydrateAssets(assets, { fetchImpl, origin: assetOrigin });
+      assets = rehydrated.assets;
+      limitations.push(
+        `Asset rehydration: downloaded ${rehydrated.downloaded} SVG asset(s) (${rehydrated.totalBytes} bytes) to assets/; ${rehydrated.skipped} asset(s) remain URL references (oversize: ${rehydrated.skippedOversize}, unresolvable: ${rehydrated.skippedUnresolvable}).`,
+      );
+    } catch {
+      assets = assets.map((asset) => ({ ...asset, source: "reference-only" as const, skipReason: "rehydration-error" }));
+      limitations.push("Asset rehydration was skipped after an unexpected error; all assets remain URL references.");
     }
 
     // PRD fidelity model: known product limits are always disclosed, but only

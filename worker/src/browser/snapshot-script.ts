@@ -173,6 +173,13 @@ export interface SnapshotAsset {
   readyState?: number | null;
   rectY?: number | null;
   rectHeight?: number | null;
+  // CF13 asset rehydration (additive): entries downloaded at capture time
+  // carry raw SVG text, exactly like screenshot dataUrl strings ride the JSON.
+  localPath?: string;
+  bytes?: number;
+  source?: "downloaded" | "reference-only";
+  skipReason?: string;
+  content?: string;
 }
 
 export interface SnapshotHoverState {
