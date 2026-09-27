@@ -20,9 +20,10 @@
   --chip-text: #5B5C60;
   --lavender: #F5EFFE;
   --lavender-border: #D9C8F5;
-  --btn-primary-bg: #151516;
-  --btn-primary-text: #FFFFFF;
-  --btn-primary-hover: #2A2A2D;
+  --btn-primary-bg: #F5EFFE;
+  --btn-primary-text: #151516;
+  --btn-primary-hover: #EDE4FD;
+  --btn-primary-border: #D9C8F5;
   --overlay-img-bg: #F0F1F3;
   --shadow-pop: 0 1px 2px rgba(21, 21, 22, 0.05);
   --font-display: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -50,18 +51,16 @@ html[data-theme="dark"] {
   --chip-text: #A9B1C1;
   --lavender: #1B2030;
   --lavender-border: rgba(217, 200, 245, 0.35);
-  --btn-primary-bg: #FFFFFF;
-  --btn-primary-text: #0B0D12;
-  --btn-primary-hover: #DCE2EE;
+  --btn-primary-bg: #1B2030;
+  --btn-primary-text: #F2F5FA;
+  --btn-primary-hover: #242B40;
+  --btn-primary-border: rgba(217, 200, 245, 0.35);
   --overlay-img-bg: #1B2030;
   --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.45);
   --danger: #F26D5F;
 }
 
-/* Dark mode: invert the dark-on-transparent wordmark so it stays readable. */
-html[data-theme="dark"] .hero__mark {
-  filter: invert(1);
-}
+/* Wordmark uses currentColor; purple chip reads on both themes, no invert. */
 
 * {
   box-sizing: border-box;
@@ -142,6 +141,7 @@ a:hover {
   height: 58px;
   width: auto;
   display: block;
+  color: var(--ink);
 }
 
 .hero h1 {
@@ -347,7 +347,7 @@ button:focus-visible {
 button {
   justify-self: start;
   padding: 13px 28px;
-  border: 0;
+  border: 1px solid var(--btn-primary-border);
   border-radius: 8px;
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
@@ -356,12 +356,13 @@ button {
   letter-spacing: 0.01em;
   cursor: pointer;
   box-shadow: none;
-  transition: transform 0.15s ease, background-color 0.2s ease;
+  transition: transform 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
 
 button:hover:not(:disabled) {
   transform: translateY(-1px);
   background: var(--btn-primary-hover);
+  border-color: var(--accent);
 }
 
 button:active:not(:disabled) {

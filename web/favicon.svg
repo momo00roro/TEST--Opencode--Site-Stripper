@@ -1,11 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Site Stripper mark">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Site Stripper monster">
   <title>Site Stripper</title>
-  <rect x="2" y="2" width="60" height="60" rx="15" fill="#151516"/>
-  <rect x="15" y="21" width="34" height="35" rx="5" fill="#F8FAFB" opacity="0.3"/>
-  <rect x="15" y="14" width="34" height="35" rx="5" fill="#F8FAFB"/>
-  <path d="M37 14 L49 14 L49 26 Z" fill="#9F58FA"/>
-  <rect x="21" y="22" width="12" height="3" rx="1.5" fill="#151516" opacity="0.8"/>
-  <rect x="21" y="28" width="22" height="3" rx="1.5" fill="#151516" opacity="0.45"/>
-  <rect x="21" y="34" width="16" height="3" rx="1.5" fill="#151516" opacity="0.45"/>
-  <rect x="21" y="41" width="6" height="6" rx="1.5" fill="#9F58FA"/>
+  <path d="M12 22 L18 6 L28 20 Z" fill="#6D28D9"/>
+  <path d="M36 20 L46 6 L52 22 Z" fill="#6D28D9"/>
+  <rect x="2" y="12" width="60" height="50" rx="15" fill="#9F58FA"/>
+  <circle cx="22" cy="34" r="9" fill="#FFFFFF"/>
+  <circle cx="42" cy="34" r="9" fill="#FFFFFF"/>
+  <circle cx="23.5" cy="35.5" r="4" fill="#151516"/>
+  <circle cx="43.5" cy="35.5" r="4" fill="#151516"/>
+  <path d="M20 48 Q32 56 44 48" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none"/>
 </svg>
