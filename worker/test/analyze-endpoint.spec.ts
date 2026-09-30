@@ -21,6 +21,9 @@ describe("POST /api/analyze", () => {
     const response = await handleRequest(request, makeEnv(), {
       launcher,
       fetchImpl: mockSiteFetchWithDoh({}, { a: ["93.184.216.34"] }),
+      // Endpoint unit tests skip the 5s rotation wait; coverage lives in
+      // browser-capture.spec.ts and pipeline-analysis.spec.ts.
+      detectRotationMs: 0,
     });
     expect(response.status).toBe(200);
 
@@ -49,6 +52,7 @@ describe("POST /api/analyze", () => {
     const response = await handleRequest(request, makeEnv(), {
       launcher,
       fetchImpl: mockSiteFetchWithDoh({}, { a: ["93.184.216.34"] }),
+      detectRotationMs: 0,
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("no-store");
@@ -78,6 +82,7 @@ describe("POST /api/analyze", () => {
     const response = await handleRequest(request, makeEnv(), {
       launcher,
       fetchImpl: mockSiteFetchWithDoh({}, { a: ["93.184.216.34"] }),
+      detectRotationMs: 0,
     });
 
     expect(response.status).toBe(200);

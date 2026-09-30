@@ -2,6 +2,9 @@ export interface RawHeading {
   level: number;
   text: string;
   truncated: boolean;
+  // Word indices that start a new rendered line at the capture viewport
+  // (e.g. [0, 5] = wraps before word 5). h1-h3 only, first 12 measured.
+  breaks: number[];
 }
 
 export interface RawLink {
@@ -64,6 +67,8 @@ export interface SnapshotLayoutSample {
   columns: string;
   gap: string;
   position: string;
+  flexDirection: string;
+  textTransform: string;
   visible: boolean;
 }
 
@@ -75,6 +80,22 @@ export interface SnapshotMotion {
   transitions: { property: string; duration: string; easing: string; delay: string }[];
   animations: { name: string; duration: string; easing: string; delay: string }[];
   keyframes: string[];
+  animatedSelectors: string[];
+}
+
+export interface SnapshotTab {
+  label: string;
+  selected: boolean;
+  panelVisible: boolean | null;
+}
+
+export interface SnapshotTabSet {
+  tabs: SnapshotTab[];
+}
+
+export interface SnapshotFooterGroup {
+  heading: string;
+  links: string[];
 }
 
 export interface SnapshotGeometry {
@@ -86,6 +107,24 @@ export interface SnapshotSection {
   role: string;
   heading: string;
   textExcerpt: string;
+}
+
+// CF16 layout pass: per-section geometry plus the media/form/table boxes
+// inside it, so a rebuild knows composition without eyeballing screenshots.
+export interface SnapshotSectionComponent {
+  kind: string;
+  w: number;
+  h: number;
+}
+
+export interface SnapshotSectionLayout {
+  heading: string;
+  y: number;
+  height: number;
+  textAlign: string;
+  columns: string;
+  background: string;
+  components: SnapshotSectionComponent[];
 }
 
 export interface SnapshotTone {
@@ -103,6 +142,10 @@ export interface SnapshotContent {
   coverage: Record<string, SnapshotCollectionCoverage>;
   sections: SnapshotSection[];
   tone: SnapshotTone;
+  tabSets: SnapshotTabSet[];
+  footerGroups: SnapshotFooterGroup[];
+  // Worker-side rotation re-sample results (in-page default is always []).
+  rotatingText: SnapshotRotatingText[];
 }
 
 export interface SnapshotHiddenBlock {
@@ -175,11 +218,16 @@ export interface SnapshotAsset {
   rectHeight?: number | null;
   // CF13 asset rehydration (additive): entries downloaded at capture time
   // carry raw SVG text, exactly like screenshot dataUrl strings ride the JSON.
+  // CF14 posters carry raw raster bytes instead (never text-decoded).
+  // Poster bytes cannot survive the JSON API as Uint8Array, so the pipeline
+  // re-encodes them as dataUrl strings (local dev) exactly like screenshots.
   localPath?: string;
   bytes?: number;
   source?: "downloaded" | "reference-only";
   skipReason?: string;
-  content?: string;
+  content?: string | Uint8Array;
+  contentType?: string;
+  dataUrl?: string;
 }
 
 export interface SnapshotHoverState {
@@ -196,6 +244,105 @@ export interface SnapshotEmbed {
   readyState: number | null;
   rectY: number | null;
   rectHeight: number | null;
+}
+
+// CF14 poster-capture: video playback records — which videos exist, their
+// poster frames, and playback flags, so a static rebuild can show the poster
+// and wire tap-to-play instead of a blank band.
+export interface SnapshotVideo {
+  url: string;
+  poster: string;
+  autoplay: boolean;
+  muted: boolean;
+  loop: boolean;
+  playsinline: boolean;
+  rectY: number | null;
+  rectHeight: number | null;
+}
+
+// Rotation re-sample: an h1-h3 whose text changed between the snapshot and
+// a second read ~5s later. Label is tag + per-tag index (h1[0]); variants
+// are capped at 120 chars each.
+export interface SnapshotRotatingText {
+  label: string;
+  before: string;
+  after: string;
+}
+
+export interface SnapshotHeadingText {
+  label: string;
+  text: string;
+}
+
+/**
+ * Second-read heading texts for rotation detection. Serialized into the page
+ * via toInPageScript like collectPageSnapshot — self-contained, no module
+ * references. Mirrors the snapshot pass (DOM order, h1-h3, same visibility
+ * filter inlined) so indices align with labelSnapshotHeadings.
+ */
+export function collectHeadingTexts(): SnapshotHeadingText[] {
+  const out: SnapshotHeadingText[] = [];
+  try {
+    const nodes = document.querySelectorAll("h1,h2,h3");
+    const counts: Record<string, number> = {};
+    for (let index = 0; index < nodes.length && out.length < 6; index += 1) {
+      const node = nodes[index] as unknown as {
+        tagName: string;
+        innerText?: string;
+        textContent?: string;
+        getAttribute?: (name: string) => string | null;
+        closest?: (selector: string) => unknown;
+      };
+      if (node.getAttribute?.("aria-hidden") === "true" || node.getAttribute?.("hidden") !== null) continue;
+      if (node.closest?.("[aria-hidden='true'], [hidden]")) continue;
+      try {
+        const style = getComputedStyle(node as unknown as Element) as unknown as Record<string, string>;
+        if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") continue;
+      } catch {
+        // Treat unreadable styles as visible, like the snapshot pass.
+      }
+      const tag = String(node.tagName || "h").toLowerCase();
+      const count = counts[tag] ?? 0;
+      counts[tag] = count + 1;
+      const text = String(node.innerText || node.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120);
+      if (text) out.push({ label: tag + "[" + count + "]", text });
+    }
+  } catch {
+    return [];
+  }
+  return out;
+}
+
+/** Labels the snapshot's h1-h3 headings the same way collectHeadingTexts does. */
+export function labelSnapshotHeadings(headings: RawHeading[]): SnapshotHeadingText[] {
+  const out: SnapshotHeadingText[] = [];
+  const counts: Record<string, number> = {};
+  for (const heading of headings) {
+    if (out.length >= 6) break;
+    if (heading.level < 1 || heading.level > 3) continue;
+    const tag = "h" + heading.level;
+    const count = counts[tag] ?? 0;
+    counts[tag] = count + 1;
+    if (heading.text) out.push({ label: tag + "[" + count + "]", text: heading.text.slice(0, 120) });
+  }
+  return out;
+}
+
+/** Pairs before/after reads by index (same label required); records changes. */
+export function diffRotatingText(
+  before: SnapshotHeadingText[],
+  after: SnapshotHeadingText[],
+): SnapshotRotatingText[] {
+  const out: SnapshotRotatingText[] = [];
+  const total = Math.min(before.length, after.length, 6);
+  for (let index = 0; index < total; index += 1) {
+    const prev = before[index]!;
+    const next = after[index]!;
+    if (prev.label !== next.label || prev.text === next.text) continue;
+    out.push({ label: prev.label, before: prev.text.slice(0, 120), after: next.text.slice(0, 120) });
+    if (out.length >= 6) break;
+  }
+  return out;
 }
 
 export interface SnapshotSocial {
@@ -245,10 +392,12 @@ export interface PageSnapshot {
   coverage: Record<string, SnapshotCollectionCoverage>;
   assets: SnapshotAsset[];
   embeds: SnapshotEmbed[];
+  videos: SnapshotVideo[];
   social: SnapshotSocial;
   hoverStates: SnapshotHoverState[];
   formActions: string[];
   sectionRects: SectionRect[];
+  sectionLayouts: SnapshotSectionLayout[];
   observedInteractions: ObservedInteraction[];
   limitations: string[];
 }
@@ -281,11 +430,68 @@ export function collectPageSnapshot(): PageSnapshot {
     node?.innerText || node?.textContent || "";
 
   const headings: RawHeading[] = [];
+  // Heading line-break measurement: per-word Range rects over the heading's
+  // text nodes; a change in rounded top means a new line starts at that word
+  // index. In-place (no clone/reflow hacks); <br> breaks surface naturally
+  // as top changes. Caps: 12 headings (h1-h3), 60 words, 8 breaks each. Any
+  // DOM API gap (test shims, exotic pages) yields [] — never throws.
+  let measuredBreaks = 0;
+  const measureHeadingBreaks = (heading: Element): number[] => {
+    const breaks: number[] = [];
+    try {
+      const walker = doc.createTreeWalker(heading, 4);
+      const nodes: Text[] = [];
+      let current = walker.nextNode();
+      while (current) {
+        nodes.push(current as Text);
+        current = walker.nextNode();
+      }
+      if (nodes.length === 0) return breaks;
+      const range = doc.createRange();
+      let wordIndex = 0;
+      let currentTop: number | null = null;
+      for (const textNode of nodes) {
+        const text = textNode.textContent || "";
+        let from = 0;
+        for (;;) {
+          while (from < text.length && /\s/.test(text[from] || "")) from += 1;
+          if (from >= text.length) break;
+          let end = from + 1;
+          while (end < text.length && !/\s/.test(text[end] || "")) end += 1;
+          range.setStart(textNode, from);
+          range.setEnd(textNode, end);
+          const rects = range.getClientRects();
+          const top = rects.length > 0 ? Math.round(rects[0]!.top) : null;
+          if (top !== null) {
+            if (currentTop === null) currentTop = top;
+            else if (top !== currentTop) {
+              if (!breaks.includes(wordIndex)) breaks.push(wordIndex);
+              currentTop = top;
+              if (breaks.length >= 8) return breaks;
+            }
+          }
+          wordIndex += 1;
+          if (wordIndex >= 60) return breaks;
+          from = end;
+        }
+      }
+    } catch {
+      return [];
+    }
+    return breaks;
+  };
   doc.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((el) => {
     if (headings.length >= maxHeadings) return;
     if (!isObservable(el)) return;
     const rawText = renderedText(el).replace(/\s+/g, " ").trim();
-    if (rawText) headings.push({ level: Number(el.tagName.slice(1)) || 0, text: rawText.slice(0, 1200), truncated: rawText.length > 1200 });
+    if (!rawText) return;
+    const level = Number(el.tagName.slice(1)) || 0;
+    let breaks: number[] = [];
+    if (level >= 1 && level <= 3 && measuredBreaks < 12) {
+      measuredBreaks += 1;
+      breaks = measureHeadingBreaks(el);
+    }
+    headings.push({ level, text: rawText.slice(0, 1200), truncated: rawText.length > 1200, breaks });
   });
 
   const header = doc.querySelector("header");
@@ -395,6 +601,7 @@ export function collectPageSnapshot(): PageSnapshot {
   };
   const transList: { property: string; duration: string; easing: string; delay: string }[] = [];
   const animList: { name: string; duration: string; easing: string; delay: string }[] = [];
+  const animatedSelectors: string[] = [];
 
   const bump = (map: Record<string, number>, key: string): void => {
     const clean = (key || "").replace(/\s+/g, " ").trim().slice(0, 120);
@@ -700,6 +907,8 @@ export function collectPageSnapshot(): PageSnapshot {
             columns: (styleRecord.gridTemplateColumns || "").slice(0, 120),
             gap: (styleRecord.gap || "").slice(0, 40),
             position: (styleRecord.position || "").slice(0, 30),
+            flexDirection: (styleRecord.flexDirection || "").slice(0, 30),
+            textTransform: (styleRecord.textTransform || "").slice(0, 30),
             visible: width > 0 && height > 0 && styleRecord.display !== "none" && styleRecord.visibility !== "hidden",
           });
         } catch {
@@ -733,11 +942,53 @@ export function collectPageSnapshot(): PageSnapshot {
           const parsed = parseAnimationTiming(animation);
           animList.push({ name: parsed.name, duration: parsed.duration, easing: parsed.easing, delay: parsed.delay });
         }
+        // CF15: which selectors actually animate (marquee/ticker detection).
+        // "none" names never qualify, even with nonzero durations elsewhere.
+        if (animatedSelectors.length < 12 && parseAnimationTiming(animation).name !== "none") {
+          const tagName = String((first as unknown as { tagName?: unknown }).tagName || "?").toLowerCase();
+          const cls = (first as unknown as { className?: unknown }).className;
+          const firstClass = typeof cls === "string" ? cls.split(/\s+/).filter(Boolean)[0] || "" : "";
+          const label = firstClass ? tagName + "." + firstClass.slice(0, 40) : tagName;
+          if (!animatedSelectors.includes(label)) animatedSelectors.push(label);
+        }
       }
       if (sampledElements >= 30) break;
     }
   } catch {
     limitations.push("Computed-style sampling partially failed.");
+  }
+
+  // Marquee/ticker sweep: class-named scrollers (logo tickers, carousels)
+  // often fall outside the 30 sampled selectors. Targeted pass over at most
+  // 8 candidates; labels reuse the tag.firstClass convention and dedupe
+  // against sampler findings. Real browsers support the *= selectors
+  // natively; unit-test shims may need the same support.
+  try {
+    const marqueeNodes = doc.querySelectorAll(
+      '[class*="marquee"],[class*="ticker"],[class*="carousel"],[class*="slider"],[class*="slide-track"],[data-marquee]',
+    );
+    const seen = Math.min(marqueeNodes.length, 8);
+    for (let index = 0; index < seen; index += 1) {
+      if (animatedSelectors.length >= 12) break;
+      const node = marqueeNodes[index] as unknown as { tagName?: unknown; className?: unknown };
+      let animation = "";
+      try {
+        const styleRecord = getComputedStyle(
+          marqueeNodes[index] as unknown as Element,
+        ) as unknown as Record<string, string>;
+        animation = styleRecord.animation || "";
+      } catch {
+        continue;
+      }
+      if (!animation || !hasNonZeroTiming(animation) || parseAnimationTiming(animation).name === "none") continue;
+      const tagName = String(node.tagName || "?").toLowerCase();
+      const cls = node.className;
+      const firstClass = typeof cls === "string" ? cls.split(/\s+/).filter(Boolean)[0] || "" : "";
+      const label = firstClass ? tagName + "." + firstClass.slice(0, 40) : tagName;
+      if (!animatedSelectors.includes(label)) animatedSelectors.push(label);
+    }
+  } catch {
+    // A failed sweep must never fail the snapshot; sampler findings stand.
   }
 
   // CF07 Pass 3: CSS custom properties crawl.
@@ -888,6 +1139,7 @@ export function collectPageSnapshot(): PageSnapshot {
     transitions: transList.slice(0, 20),
     animations: animList.slice(0, 20),
     keyframes: keyframeNames.slice(0, 20),
+    animatedSelectors: animatedSelectors.slice(0, 12),
   };
   let geometry: SnapshotGeometry = {
     containerWidths: toTop(widthFreq, "computed", "inferred", 8),
@@ -1247,6 +1499,7 @@ export function collectPageSnapshot(): PageSnapshot {
 
   const detailedSections: SnapshotSection[] = [];
   const sectionRects: SectionRect[] = [];
+  const sectionLayouts: SnapshotSectionLayout[] = [];
   try {
     const nodes = sectionNodesForContent;
     for (let index = 0; index < nodes.length && detailedSections.length < 20; index += 1) {
@@ -1273,6 +1526,47 @@ export function collectPageSnapshot(): PageSnapshot {
           }
         } catch {
           // Geometry unavailable for this node; skip silently.
+        }
+      }
+      // CF16: per-section layout — alignment, columns, background, plus the
+      // media/form/table boxes inside (cap 12), for faithful recomposition.
+      if (sectionLayouts.length < 20) {
+        try {
+          const style = getComputedStyle(node as Element) as unknown as Record<string, string>;
+          const components: SnapshotSectionComponent[] = [];
+          for (const candidate of Array.from(doc.querySelectorAll("img,video,canvas,form,table"))) {
+            if (components.length >= 12) break;
+            let inside = false;
+            try {
+              inside = ((node as Element).contains as unknown as (n: unknown) => boolean)?.(candidate) ?? false;
+            } catch {
+              inside = false;
+            }
+            if (!inside) continue;
+            try {
+              const box = (candidate as unknown as { getBoundingClientRect?: () => { width: number; height: number } }).getBoundingClientRect?.();
+              if (!box) continue;
+              components.push({
+                kind: String((candidate as unknown as { tagName?: string }).tagName || "?").toLowerCase().slice(0, 20),
+                w: Math.round(box.width),
+                h: Math.round(box.height),
+              });
+            } catch {
+              // Unmeasurable candidate; skip silently.
+            }
+          }
+          const srect = (node as unknown as { getBoundingClientRect?: () => { top: number; height: number } }).getBoundingClientRect?.();
+          sectionLayouts.push({
+            heading: cleanText(renderedText(innerHeading), 80),
+            y: srect ? Math.max(Math.round(srect.top + (window.scrollY || 0)), 0) : 0,
+            height: srect ? Math.round(srect.height) : 0,
+            textAlign: (style.textAlign || "").slice(0, 30),
+            columns: (style.gridTemplateColumns || "").slice(0, 120),
+            background: (style.backgroundColor || "").slice(0, 80),
+            components,
+          });
+        } catch {
+          // Layout unavailable for this node; skip silently.
         }
       }
     }
@@ -1306,6 +1600,87 @@ export function collectPageSnapshot(): PageSnapshot {
   const representedComponentCount = componentPatterns.reduce((total, pattern) => total + pattern.count, 0);
   const componentCoverage = coverage(componentNodes.length, representedComponentCount, 300, false, "pattern signatures omitted after the 20-pattern cap");
   if (Object.keys(componentBySignature).length > 20) componentCoverage.reason = "pattern signatures omitted after the 20-pattern cap";
+  // CF15: tab sets — labels, selection, and per-tab panel visibility, so a
+  // static rebuild knows whether panels show all-at-once or switch.
+  const tabSets: SnapshotTabSet[] = [];
+  try {
+    const byId = new Map<string, Element>();
+    for (const node of Array.from(doc.querySelectorAll("[id]"))) {
+      const id = (node as Element).getAttribute?.("id");
+      if (id && !byId.has(id)) byId.set(id, node as Element);
+    }
+    const ordered = Array.from(doc.querySelectorAll('[role="tablist"],[role="tab"]'));
+    let current: { label: string; selected: boolean; panelVisible: boolean | null }[] | null = null;
+    const flushTabs = (): void => {
+      if (current && current.length > 0 && tabSets.length < 4) tabSets.push({ tabs: current.slice(0, 8) });
+      current = null;
+    };
+    for (const node of ordered) {
+      const el = node as Element;
+      const role = el.getAttribute?.("role");
+      if (role === "tablist") { flushTabs(); current = []; continue; }
+      if (role === "tab" && current) {
+        if (current.length >= 8) continue;
+        const controls = el.getAttribute?.("aria-controls") || "";
+        const panel = controls ? byId.get(controls) ?? null : null;
+        let panelVisible: boolean | null = null;
+        if (panel) {
+          try {
+            panelVisible = panel.getAttribute?.("hidden") === null &&
+              (getComputedStyle(panel) as unknown as Record<string, string>).display !== "none";
+          } catch {
+            panelVisible = panel.getAttribute?.("hidden") === null;
+          }
+        }
+        current.push({
+          label: cleanText((el as unknown as { textContent?: string }).textContent ?? "", 80),
+          selected: el.getAttribute?.("aria-selected") === "true",
+          panelVisible,
+        });
+      }
+    }
+    flushTabs();
+  } catch {
+    limitations.push("Tab-set collection partially failed.");
+  }
+
+  // CF15: footer link groups — heading→link association, the structure a
+  // flat link list cannot convey.
+  const footerGroups: SnapshotFooterGroup[] = [];
+  try {
+    const footers = Array.from(doc.querySelectorAll("footer")).slice(0, 2);
+    if (footers.length > 0) {
+      const seq = Array.from(doc.querySelectorAll("h1,h2,h3,h4,h5,h6,a[href]"));
+      let currentGroup: { heading: string; links: string[] } | null = null;
+      const flushGroup = (): void => {
+        if (currentGroup && currentGroup.links.length > 0 && footerGroups.length < 8) {
+          footerGroups.push({ heading: currentGroup.heading, links: currentGroup.links.slice(0, 20) });
+        }
+        currentGroup = null;
+      };
+      for (const node of seq) {
+        if (footerGroups.length >= 8) break;
+        const el = node as Element;
+        let inside = false;
+        try {
+          inside = footers.some((f) => ((f as Element).contains as unknown as (n: unknown) => boolean)?.(node) ?? false);
+        } catch {
+          inside = false;
+        }
+        if (!inside) continue;
+        if (/^H[1-6]$/.test(String(el.tagName || "").toUpperCase())) {
+          flushGroup();
+          currentGroup = { heading: cleanText((el as unknown as { textContent?: string }).textContent ?? "", 80), links: [] };
+        } else if (currentGroup && currentGroup.links.length < 20) {
+          currentGroup.links.push(cleanText((el as unknown as { textContent?: string }).textContent ?? "", 80));
+        }
+      }
+      flushGroup();
+    }
+  } catch {
+    limitations.push("Footer-group collection partially failed.");
+  }
+
   const content: SnapshotContent = {
     blocks: contentBlocks,
     hiddenBlocks,
@@ -1328,6 +1703,9 @@ export function collectPageSnapshot(): PageSnapshot {
     },
     sections: detailedSections,
     tone,
+    tabSets,
+    footerGroups,
+    rotatingText: [],
   };
   const anchorSourceCount = doc.querySelectorAll("a[href]").length;
   content.coverage.links = coverage(
@@ -1449,12 +1827,17 @@ export function collectPageSnapshot(): PageSnapshot {
       const heightAttr = node.getAttribute ? node.getAttribute("height") : null;
       const width = widthAttr ? Number(widthAttr) || null : null;
       const height = heightAttr ? Number(heightAttr) || null : null;
-      const kind = /logo/i.test(raw + " " + alt) ? "logo" : "image";
+      // SVG <img> elements are vector brand marks, not photos: provider logos
+      // live under paths like /assets/images/home/models/ with alts like
+      // "Anthropic", so neither the /logo/ test nor the alt catches them.
+      // Tracking pixels and blog photos never end in .svg and stay "image".
+      const kind = /logo/i.test(raw + " " + alt) || /\.svg($|[?#&])/i.test(raw + " " + firstSrc) ? "logo" : "image";
       pushAsset(url, kind, alt, width, height);
     }
   } catch {
     limitations.push("Image manifest collection partially failed.");
   }
+  const videoRecords: SnapshotVideo[] = [];
   try {
     const icons = doc.querySelectorAll("link[rel='icon'], link[rel='shortcut icon']");
     for (let index = 0; index < icons.length && assets.length < 100; index += 1) {
@@ -1465,11 +1848,38 @@ export function collectPageSnapshot(): PageSnapshot {
     const ogImage = doc.querySelector('meta[property="og:image"]');
     const ogContent = ogImage ? (ogImage as unknown as { getAttribute?: (name: string) => string | null }).getAttribute?.("content") || "" : "";
     if (ogContent) pushAsset(resolveUrl(ogContent), "hero", "open graph image", null, null);
-    const videos = doc.querySelectorAll("video[poster]");
-    for (let index = 0; index < videos.length && assets.length < 100; index += 1) {
-      const node = videos[index] as unknown as { getAttribute?: (name: string) => string | null };
-      const poster = (node.getAttribute ? node.getAttribute("poster") || "" : "") || "";
-      pushAsset(resolveUrl(poster), "video-poster", "video poster", null, null);
+    // CF14: poster frames are first-class downloadable assets (kind "poster"),
+    // from native video posters, custom video elements, and explicit markers.
+    // Bare-tag queries plus attribute reads (hyphenated compound selectors
+    // avoided for shim compatibility).
+    const getAttr = (node: unknown, name: string): string =>
+      ((node as unknown as { getAttribute?: (n: string) => string | null }).getAttribute?.(name) || "");
+    const pushPoster = (node: unknown): void => {
+      if (assets.length >= 100) return;
+      const poster = getAttr(node, "poster") || getAttr(node, "data-poster");
+      if (!poster) return;
+      const alt = getAttr(node, "aria-label") || getAttr(node, "title");
+      pushAsset(resolveUrl(poster), "poster", alt || "video poster", null, null);
+    };
+    for (const node of Array.from(doc.querySelectorAll("video, vimeo-video"))) pushPoster(node);
+    for (const node of Array.from(doc.querySelectorAll("[data-poster]"))) pushPoster(node);
+    // CF14: video playback records — url, poster, and flags per video element
+    // (cap 6), so rebuilds show the poster frame and wire tap-to-play.
+    const videoNodes = doc.querySelectorAll("video, vimeo-video");
+    for (let index = 0; index < videoNodes.length && videoRecords.length < 6; index += 1) {
+      const node = videoNodes[index] as unknown as { getAttribute?: (name: string) => string | null };
+      const get = (name: string): string | null => (node.getAttribute ? node.getAttribute(name) : null);
+      const rect = embedRect(node);
+      videoRecords.push({
+        url: resolveUrl(get("src") || ""),
+        poster: resolveUrl(get("poster") || ""),
+        autoplay: get("autoplay") !== null,
+        muted: get("muted") !== null,
+        loop: get("loop") !== null,
+        playsinline: get("playsinline") !== null,
+        rectY: rect?.y ?? null,
+        rectHeight: rect?.height ?? null,
+      });
     }
   } catch {
     limitations.push("Icon/hero manifest collection partially failed.");
@@ -1672,6 +2082,8 @@ export function collectPageSnapshot(): PageSnapshot {
     coverage: collectionCoverage,
     assets,
     embeds,
+    videos: videoRecords,
+    sectionLayouts,
     social,
     hoverStates,
     formActions,
@@ -1723,7 +2135,7 @@ export function collectPageSnapshot(): PageSnapshot {
   if (serialized > 350 * 1024) {
     limitations.push("Extraction payload pruned to stay within the 512 KB/page budget; collection coverage identifies reduced fields.");
     prunedTokens = { ...tokens, shadows: tokens.shadows.slice(0, 4), borders: tokens.borders.slice(0, 4), customProperties: tokens.customProperties.slice(0, 20) };
-    prunedMotion = { transitions: motion.transitions.slice(0, 10), animations: motion.animations.slice(0, 10), keyframes: motion.keyframes.slice(0, 10) };
+    prunedMotion = { transitions: motion.transitions.slice(0, 10), animations: motion.animations.slice(0, 10), keyframes: motion.keyframes.slice(0, 10), animatedSelectors: motion.animatedSelectors.slice(0, 12) };
     prunedBreakpoints = { mediaQueries: breakpoints.mediaQueries.slice(0, 10) };
     prunedContent = reducedContent({ blocks: 80, hiddenBlocks: 20, controls: 60, components: 12, sections: 10 }, "350 KB warning-budget pruning");
     prunedAssets = assets.slice(0, 50);
@@ -1740,7 +2152,7 @@ export function collectPageSnapshot(): PageSnapshot {
   if (serialized > 512 * 1024) {
     limitations.push("Extraction payload required emergency hard-cap pruning; collection coverage identifies all reduced fields.");
     prunedTokens = { colors: tokens.colors.slice(0, 5), fontSizes: tokens.fontSizes.slice(0, 5), spacing: tokens.spacing.slice(0, 5), radii: [], borders: [], shadows: [], gradients: [], icons: [], customProperties: [] };
-    prunedMotion = { transitions: [], animations: [], keyframes: [] };
+    prunedMotion = { transitions: [], animations: [], keyframes: [], animatedSelectors: [] };
     prunedBreakpoints = { mediaQueries: [] };
     prunedContent = reducedContent({ blocks: 40, hiddenBlocks: 12, controls: 30, components: 6, sections: 5 }, "512 KB hard-cap emergency pruning");
     prunedAssets = assets.slice(0, 20);
@@ -1857,7 +2269,7 @@ export function collectPageSnapshot(): PageSnapshot {
       semanticStyles: semanticStyles.slice(0, 2),
       layoutSamples: layoutSamples.slice(0, 2),
       breakpoints: { mediaQueries: [] },
-      motion: { transitions: [], animations: [], keyframes: [] },
+      motion: { transitions: [], animations: [], keyframes: [], animatedSelectors: [] },
       geometry: { containerWidths: geometry.containerWidths.slice(0, 3), sampledElements: geometry.sampledElements },
       content: reducedContent({ blocks: 8, hiddenBlocks: 3, controls: 5, components: 2, sections: 1 }, "final payload hard-cap fallback"),
       assets: assets.slice(0, 2),
@@ -1870,7 +2282,7 @@ export function collectPageSnapshot(): PageSnapshot {
         { colors: tokens.colors.slice(0, 3), fontSizes: tokens.fontSizes.slice(0, 3), spacing: tokens.spacing.slice(0, 3), radii: [], borders: [], shadows: [], gradients: [], icons: [], customProperties: [] },
         { fontFaces: typography.fontFaces.slice(0, 2), fontFamilies: [], lineHeights: [], letterSpacings: [] },
         { mediaQueries: [] },
-        { transitions: [], animations: [], keyframes: [] },
+        { transitions: [], animations: [], keyframes: [], animatedSelectors: [] },
         { containerWidths: geometry.containerWidths.slice(0, 3), sampledElements: geometry.sampledElements },
         reducedContent({ blocks: 8, hiddenBlocks: 3, controls: 5, components: 2, sections: 1 }, "final payload hard-cap fallback"),
         assets.slice(0, 2),

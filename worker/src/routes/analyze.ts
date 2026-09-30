@@ -10,6 +10,8 @@ export interface AnalyzeRouteDeps {
   fetchImpl?: typeof fetch;
   launcher?: SessionLauncher;
   encodeBase64?: (bytes: Uint8Array) => string;
+  /** Homepage rotation re-sample delay in ms (default 5000; 0 disables). */
+  detectRotationMs?: number;
 }
 
 export function resolveLauncher(env: Env, deps: AnalyzeRouteDeps): SessionLauncher {
@@ -46,6 +48,7 @@ export async function handleAnalyze(
     const result = await runAnalysis(launcher, parsed, {
       encodeBase64: deps.encodeBase64,
       fetchImpl,
+      detectRotationMs: deps.detectRotationMs ?? 5000,
     });
     return json(result, 200, { "cache-control": "no-store" });
   }
@@ -70,6 +73,7 @@ export async function handleAnalyze(
         encodeBase64: deps.encodeBase64,
         fetchImpl,
         onProgress,
+        detectRotationMs: deps.detectRotationMs ?? 5000,
       })
         .then((result) => {
           // Keep each serialized observation bounded to one page instead of

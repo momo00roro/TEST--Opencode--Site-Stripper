@@ -1,6 +1,6 @@
 # CF13 — Asset rehydration (download critical SVGs at capture time)
 
-Status: specified 2026-09-27 (GMT+8). Not implemented.
+Status: Implemented and verified 2026-09-27 (GMT+8, commit 0d5f855). 253 tests passing.
 
 ## Problem (proven by dogfood)
 

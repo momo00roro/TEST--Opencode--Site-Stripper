@@ -39,7 +39,7 @@ Analyze a site from the form (up to 10 pages), inspect screenshots and raw JSON,
 
 ```sh
 npm run typecheck -w worker  # tsc --noEmit, must be clean
-npm test -w worker           # vitest, 230 tests across 16 files
+npm test -w worker           # vitest, 330 tests across 19 files
 npm run dev:remote -w worker # local code vs remote Cloudflare resources (hosted verification)
 npm run deploy -w worker     # deploy the Worker API (manual fallback)
 npm run deploy:ui            # deploy the Pages UI (manual fallback)
@@ -68,7 +68,7 @@ Both paths ship the same files. The difference is who runs the checks and how
 many deployers exist:
 
 - **GitHub Actions (what we use):** every push runs `typecheck` + the full
-  230-test suite first; a red suite blocks the deploy. One deployer (repo-pinned
+  330-test suite first; a red suite blocks the deploy. One deployer (repo-pinned
   Wrangler v4 on Node 22 via `npx`, in CI) pushes both the Worker and the Pages
   UI, including the `--branch master` flag so the upload promotes the
   production environment instead of a preview. Secrets live only as GitHub
@@ -88,7 +88,7 @@ is the one printer that only prints after homework passes.
 ### ELI10: the whole deployment, in 5 lines
 
 1. You `git push` your homework to GitHub.
-2. A robot (Actions) checks it: spelling (typecheck), then all 230 quiz answers (tests).
+2. A robot (Actions) checks it: spelling (typecheck), then all 330 quiz answers (tests).
 3. Fail = stop, nothing ships. Pass = keep going.
 4. Robot mails the brain (Worker API) then the face (Pages UI) to Cloudflare's computers.
 5. Your site updates at `site-stripper-ui.pages.dev`, talking to the brain at
@@ -139,6 +139,7 @@ website-analysis/
 | Pages per analysis | 10 max (homepage + 9) |
 | Per-page extraction payload | 512 KB hard / 350 KB warn |
 | Screenshots | 10 desktop, 2 mobile, 6 homepage sections; 6 MB total |
+| Video shots | 12 max (`maxVideoShots`): autoplay-first, isolated motion-polled render, streamless-only click fallback; carousel pager (3 turns, stream-URL dedup); playing frames composited into sections client-side |
 | Mobile | screenshots for homepage + 1 representative page; extract-only DOM comparisons for the rest |
 | Wall budget | 90 s, hard — partial reports beyond it |
 | Client documentation cap | 24 MiB (explicit error, never silent truncation) |
@@ -170,4 +171,6 @@ The Pages UI speaks the stolen design language of `https://cline.bot`
 
 ## Status
 
-All CF01–CF12 implemented; `npm run typecheck` clean; 230/230 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
+All CF01–CF24 implemented; `npm run typecheck` clean; 330/330 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
+
+CF14–CF20 fidelity pack (2026-09-29): video posters, computed behaviors, `data/layout.json`, `REBUILD.md`, heading breaks, split rehydration budget, rotation re-sample. CF21–CF24 video capture (2026-09-30): facades render playing frames via autoplay → isolated render → click fallback, composited into section stills. Open: figma.com Vimeo grid remainder (4/6 cards proven; rest pending a throttle-window retest — see `docs/plans/2026-09-30-video-capture.md`).

@@ -540,4 +540,101 @@ describe("runAnalysis (CF06)", () => {
     expect(result.pages[0]?.sectionShots).toEqual([]);
     expect(state.screenshots.filter((shot) => (shot.clip?.y ?? 0) > 0)).toHaveLength(0);
   });
+
+  it("captures playing-state video clips for click-to-play facades", async () => {
+    const { launcher } = makeFakeLauncher("fake", {
+      videoTarget: { status: "target", x: 720, y: 500, label: "Demo" },
+      videoPlayer: { started: true, x: 0, y: 100, width: 800, height: 450 },
+    });
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+      encodeBase64: (bytes) => Buffer.from(bytes).toString("base64"),
+    });
+
+    // Homepage + playing-state clips up to the video cap; mobile off; no section rects.
+    expect(result.screenshotsCaptured).toBe(13);
+    expect(result.pages[0]?.videoShots).toHaveLength(12);
+    expect(result.pages[0]?.videoShots[0]).toMatchObject({ kind: "webp", height: 450, label: "video: Demo" });
+    expect(result.pages[0]?.videoShots[0]?.dataUrl).toMatch(/^data:image\/webp;base64,/);
+  });
+
+  it("renders deferred streams isolated and inlines their dataUrls", async () => {
+    const streams: Record<number, { status: string; x: number; y: number; label: string; streamUrl: string }> = {};
+    for (let i = 0; i < 12; i += 1) {
+      streams[i] = {
+        status: "target",
+        x: 720,
+        y: 500,
+        label: `Demo ${i}`,
+        streamUrl: `https://player.vimeo.com/video/${1202887330 + i}?autoplay=1&muted=1`,
+      };
+    }
+    const { launcher, state } = makeFakeLauncher("fake", { videoTargetAt: streams, variedShots: true });
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+      encodeBase64: (bytes) => Buffer.from(bytes).toString("base64"),
+    });
+
+    // Autoplay finds nothing, clicks are skipped for resolvable streams, and
+    // the isolated tier renders all twelve up to the video cap.
+    expect(result.pages[0]?.videoShots).toHaveLength(12);
+    expect(result.pages[0]?.videoShots[0]).toMatchObject({ kind: "webp", height: 720, label: "video: Demo 0" });
+    expect(result.pages[0]?.videoShots[0]?.dataUrl).toMatch(/^data:image\/webp;base64,/);
+    expect(state.gotos.some((goto) => goto.url.includes("player.vimeo.com"))).toBe(true);
+    expect(state.clicks).toEqual([]);
+    expect(result.warnings.some((warning) => warning.includes("did not"))).toBe(false);
+  }, 90_000);
+
+  it("records no video clips when facades never boot", async () => {
+    const { launcher } = makeFakeLauncher("fake", {
+      videoTarget: { status: "target", x: 720, y: 500, label: "Stuck" },
+      videoPlayer: { started: false, x: 0, y: 0, width: 0, height: 0 },
+      facadeCount: 1,
+    });
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+    });
+
+    expect(result.pages[0]?.videoShots).toEqual([]);
+    expect(result.warnings.some((warning) => warning.includes("did not start"))).toBe(true);
+  });
+});
+
+describe("runAnalysis rotation re-sample", () => {
+  it("merges homepage heading changes into page content", async () => {
+    const { launcher } = makeFakeLauncher("fake", {
+      headingTexts: [{ label: "h1[0]", text: "Hi again" }],
+    });
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+      detectRotationMs: 5,
+    });
+
+    expect(result.pages[0]?.content.rotatingText).toEqual([
+      { label: "h1[0]", before: "Hi", after: "Hi again" },
+    ]);
+  });
+
+  it("leaves rotation empty and undisclosed by default", async () => {
+    const { launcher } = makeFakeLauncher("fake", {
+      headingTexts: [{ label: "h1[0]", text: "Hi again" }],
+    });
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+    });
+
+    expect(result.pages[0]?.content.rotatingText).toEqual([]);
+    expect(result.limitations.some((line) => line.includes("Rotation check"))).toBe(false);
+  });
+
+  it("discloses a clean rotation re-sample as a limitation", async () => {
+    const { launcher } = makeFakeLauncher("fake");
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+      detectRotationMs: 5,
+    });
+
+    expect(result.pages[0]?.content.rotatingText).toEqual([]);
+    expect(result.limitations.some((line) => line.includes("Rotation check"))).toBe(true);
+  });
 });

@@ -182,7 +182,7 @@ describe("acceptance (CF12)", () => {
   it("10. contains a large extraction payload within budget honesty", async () => {
     const huge: PageSnapshot = {
       ...SAMPLE_SNAPSHOT,
-      headings: Array.from({ length: 200 }, (_, i) => ({ level: 2, text: `h${i}-` + "y".repeat(3000), truncated: false })),
+      headings: Array.from({ length: 200 }, (_, i) => ({ level: 2, text: `h${i}-` + "y".repeat(3000), truncated: false, breaks: [] })),
     };
     const result = await runAnalysis(launcherWithSnapshot(huge), buildRequest({ maxPages: 1, includeMobile: false }), {
       fetchImpl: mockSiteFetch(),

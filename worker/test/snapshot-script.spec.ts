@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { collectPageSnapshot } from "../src/browser/snapshot-script";
+import {
+  collectHeadingTexts,
+  collectPageSnapshot,
+  diffRotatingText,
+  labelSnapshotHeadings,
+} from "../src/browser/snapshot-script";
 
 interface ShimElement {
   tagName: string;
@@ -69,6 +74,12 @@ function matchesOne(element: ShimElement, selector: string): boolean {
       element.tagName === attrEquals[1]!.toUpperCase() &&
       element.attrs[attrEquals[2]!] === attrEquals[3]
     );
+  }
+
+  // Substring attribute match (e.g. [class*="ticker"]) for marquee sweeps.
+  const attrContains = /^\[([\w-]+)\*=["']?([^"'\]]+)["']?\]$/.exec(selector);
+  if (attrContains) {
+    return (element.attrs[attrContains[1]!] ?? "").includes(attrContains[2]!);
   }
 
   if (selector === "*") return true;
@@ -159,8 +170,8 @@ describe("collectPageSnapshot", () => {
     expect(snapshot.lang).toBe("en");
     expect(snapshot.metaDescription).toBe("A demo site");
     expect(snapshot.headings).toEqual([
-      { level: 1, text: "Welcome to the site", truncated: false },
-      { level: 2, text: "Features", truncated: false },
+      { level: 1, text: "Welcome to the site", truncated: false, breaks: [] },
+      { level: 2, text: "Features", truncated: false, breaks: [] },
     ]);
 
     const about = snapshot.links.find((link) => link.text === "About");
@@ -530,6 +541,20 @@ describe("collectPageSnapshot", () => {
     }
   });
 
+  it("classifies SVG images without logo in the name as logos (provider-logo case)", () => {
+    saved = installDom(
+      [
+        el("img", { attrs: { src: "/_next/image?url=%2Fassets%2Fimages%2Fhome%2Fmodels%2Fclaude.svg&w=2048&q=75", alt: "Anthropic" } }),
+        el("img", { attrs: { src: "https://example.com/photo.jpg", alt: "Team photo" } }),
+      ],
+      "SVG classification",
+    );
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.assets.find((asset) => asset.alt === "Anthropic")?.kind).toBe("logo");
+    expect(snapshot.assets.find((asset) => asset.alt === "Team photo")?.kind).toBe("image");
+  });
+
   it("reports repeated media URLs as collapsed references, not truncation", () => {
     saved = installDom([
       el("img", { attrs: { src: "https://example.com/shared.webp", alt: "Shared" } }),
@@ -849,6 +874,185 @@ describe("collectPageSnapshot", () => {
     expect(snapshot.semanticStyles.find((sample) => sample.role === "button")?.fontSize).toBe("14px");
   });
 
+  it("samples flexDirection and textTransform on layout roles", () => {
+    saved = installDom([el("form", {}), el("h2", { text: "Shop" })], "Layout behavior");
+    (globalThis as Record<string, unknown>).getComputedStyle = (node: unknown) => {
+      const doc = (globalThis as Record<string, unknown>).document as Record<string, unknown>;
+      const buttons = (doc.querySelectorAll as (selector: string) => ShimElement[])("form,h2");
+      const isForm = Array.isArray(buttons) && buttons[0] !== undefined && node === buttons[0];
+      return {
+        display: "flex",
+        visibility: "visible",
+        backgroundColor: "rgb(255, 255, 255)",
+        color: "rgb(17, 17, 17)",
+        fontFamily: "Inter, sans-serif",
+        flexDirection: isForm ? "column" : "row",
+        textTransform: isForm ? "none" : "uppercase",
+      };
+    };
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.layoutSamples.find((sample) => sample.role === "form")).toMatchObject({ flexDirection: "column" });
+    expect(snapshot.layoutSamples.find((sample) => sample.role === "heading-2")).toMatchObject({ textTransform: "uppercase" });
+  });
+
+  it("records selectors with running CSS animations", () => {
+    saved = installDom(
+      [el("a", { text: "Promo", attrs: { class: "ticker-track", href: "https://example.com/promo" } }), el("p", { text: "Still" })],
+      "Animated selectors",
+    );
+    (globalThis as Record<string, unknown>).getComputedStyle = (node: unknown) => {
+      const doc = (globalThis as Record<string, unknown>).document as Record<string, unknown>;
+      const anchors = (doc.querySelectorAll as (selector: string) => ShimElement[])("a");
+      const animated = Array.isArray(anchors) && anchors[0] !== undefined && node === anchors[0];
+      return {
+        display: "block",
+        visibility: "visible",
+        backgroundColor: "rgb(255, 255, 255)",
+        color: "rgb(17, 17, 17)",
+        fontFamily: "Inter, sans-serif",
+        transition: "all 0s ease 0s",
+        animation: animated ? "tick 38s linear infinite" : "none 0s ease 0s 1 normal none running",
+      };
+    };
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.motion.animatedSelectors).toContain("a.ticker-track");
+    expect(snapshot.motion.animatedSelectors).toHaveLength(1);
+  });
+
+  it("finds animated tickers the sampler never visits via the marquee sweep", () => {
+    // div elements are outside the 30-selector sampling list, so only the
+    // class-name sweep can report this scroller.
+    saved = installDom(
+      [el("div", { attrs: { class: "logo-ticker-inner" } }), el("p", { text: "Still" })],
+      "Marquee sweep",
+    );
+    (globalThis as Record<string, unknown>).getComputedStyle = (node: unknown) => {
+      const doc = (globalThis as Record<string, unknown>).document as Record<string, unknown>;
+      const divs = (doc.querySelectorAll as (selector: string) => ShimElement[])("div");
+      const animated = Array.isArray(divs) && divs[0] !== undefined && node === divs[0];
+      return {
+        display: "block",
+        visibility: "visible",
+        backgroundColor: "rgb(255, 255, 255)",
+        color: "rgb(17, 17, 17)",
+        fontFamily: "Inter, sans-serif",
+        transition: "all 0s ease 0s",
+        animation: animated ? "scroll 30s linear infinite" : "none 0s ease 0s 1 normal none running",
+      };
+    };
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.motion.animatedSelectors).toContain("div.logo-ticker-inner");
+  });
+
+  it("records heading line-break word indices from per-word top changes", () => {
+    saved = installDom([el("h1", { text: "Scale design across teams" })], "Breaks");
+    const doc = (globalThis as Record<string, unknown>).document as Record<string, unknown>;
+    const textNode = { textContent: "Scale design across teams" };
+    let calls = 0;
+    const tops = [0, 0, 12, 12];
+    doc.createTreeWalker = () => {
+      let done = false;
+      return { nextNode: () => (done ? null : ((done = true), textNode)), currentNode: null };
+    };
+    doc.createRange = () => ({
+      setStart: () => undefined,
+      setEnd: () => undefined,
+      getClientRects: () => [{ top: tops[calls++] ?? 0 }],
+    });
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.headings[0]).toMatchObject({ text: "Scale design across teams", breaks: [2] });
+  });
+
+  it("skips line-break measurement for h4+ headings", () => {
+    saved = installDom([el("h4", { text: "Small section title here" })], "No breaks");
+    const doc = (globalThis as Record<string, unknown>).document as Record<string, unknown>;
+    doc.createTreeWalker = () => ({ nextNode: () => ({ textContent: "Small section title here" }), currentNode: null });
+    doc.createRange = () => {
+      throw new Error("must not measure h4 headings");
+    };
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.headings[0]).toMatchObject({ breaks: [] });
+  });
+
+  it("labels snapshot headings per tag for rotation pairing", () => {
+    expect(
+      labelSnapshotHeadings([
+        { level: 1, text: "A", truncated: false, breaks: [] },
+        { level: 2, text: "B", truncated: false, breaks: [] },
+        { level: 1, text: "C", truncated: false, breaks: [] },
+        { level: 4, text: "D", truncated: false, breaks: [] },
+      ]),
+    ).toEqual([
+      { label: "h1[0]", text: "A" },
+      { label: "h2[0]", text: "B" },
+      { label: "h1[1]", text: "C" },
+    ]);
+  });
+
+  it("diffs heading re-samples into rotation records", () => {
+    const before = [
+      { label: "h1[0]", text: "Made for Gemini" },
+      { label: "h2[0]", text: "Stable" },
+    ];
+    expect(diffRotatingText(before, [
+      { label: "h1[0]", text: "Made for Claude" },
+      { label: "h2[0]", text: "Stable" },
+    ])).toEqual([{ label: "h1[0]", before: "Made for Gemini", after: "Made for Claude" }]);
+    expect(diffRotatingText(before, before)).toEqual([]);
+    // Relabeled indices (DOM churn) never pair.
+    expect(diffRotatingText(before, [{ label: "h1[1]", text: "Made for Claude" }])).toEqual([]);
+  });
+
+  it("collects h1-h3 texts for the rotation re-sample", () => {
+    saved = installDom(
+      [el("h1", { text: "Hello" }), el("h2", { text: "World" }), el("h4", { text: "Skip" })],
+      "Heading texts",
+    );
+
+    expect(collectHeadingTexts()).toEqual([
+      { label: "h1[0]", text: "Hello" },
+      { label: "h2[0]", text: "World" },
+    ]);
+  });
+
+  it("captures tab sets with per-tab panel visibility", () => {
+    saved = installDom(
+      [
+        el("div", { attrs: { role: "tablist" } }),
+        el("button", { text: "Understand", attrs: { role: "tab", "aria-selected": "true", "aria-controls": "panel-a" } }),
+        el("button", { text: "Refactor", attrs: { role: "tab", "aria-selected": "false", "aria-controls": "panel-b" } }),
+        el("div", { attrs: { role: "tabpanel", id: "panel-a" } }),
+        el("div", { attrs: { role: "tabpanel", id: "panel-b", hidden: "" } }),
+      ],
+      "Tab sets",
+    );
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.content.tabSets).toHaveLength(1);
+    expect(snapshot.content.tabSets[0]?.tabs).toMatchObject([
+      { label: "Understand", selected: true, panelVisible: true },
+      { label: "Refactor", selected: false, panelVisible: false },
+    ]);
+  });
+
+  it("groups footer links under their headings", () => {
+    const foot = el("footer", {});
+    const hProduct = el("h4", { text: "Product", within: [foot] });
+    const docs = el("a", { text: "Docs", attrs: { href: "https://example.com/docs" }, within: [foot] });
+    const hCompany = el("h4", { text: "Company", attrs: {}, within: [foot] });
+    void hProduct;
+    void hCompany;
+    saved = installDom([foot, hProduct, docs, hCompany], "Footer groups");
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.content.footerGroups.find((g) => g.heading === "Product")?.links).toContain("Docs");
+  });
+
   it("merges body-level custom properties unseen on root", () => {
     saved = installDom([el("p", { text: "Body" })], "Scheme props");
     const doc = (globalThis as Record<string, unknown>).document as Record<string, unknown>;
@@ -903,6 +1107,28 @@ describe("collectPageSnapshot", () => {
     expect(snapshot.observedInteractions.map((entry) => entry.kind)).toContain("canvas-present");
     expect(snapshot.limitations.some((line) => line.includes("single static frame"))).toBe(true);
     expect(snapshot.coverage.assets).toMatchObject({ sourceCount: 3, emittedCount: 3, truncated: false });
+  });
+
+  it("collects video poster assets and video playback records", () => {
+    saved = installDom(
+      [
+        el("video", { attrs: { src: "https://example.com/clip.webm", poster: "https://example.com/poster.jpg", autoplay: "", muted: "", loop: "", playsinline: "" } }),
+        el("vimeo-video", { attrs: { src: "https://vimeo.com/123", poster: "https://example.com/vimeo-poster.jpg" } }),
+        el("div", { attrs: { "data-poster": "https://example.com/bg-poster.jpg" } }),
+      ],
+      "Video posters",
+    );
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.assets.filter((asset) => asset.kind === "poster").map((asset) => asset.url)).toEqual([
+      "https://example.com/poster.jpg",
+      "https://example.com/vimeo-poster.jpg",
+      "https://example.com/bg-poster.jpg",
+    ]);
+    expect(snapshot.videos).toMatchObject([
+      { url: "https://example.com/clip.webm", poster: "https://example.com/poster.jpg", autoplay: true, muted: true, loop: true, playsinline: true },
+      { url: "https://vimeo.com/123", poster: "https://example.com/vimeo-poster.jpg", autoplay: false, muted: false, loop: false, playsinline: false },
+    ]);
   });
 
   it("flags sticky/fixed rules as pin-scene evidence", () => {
@@ -1008,8 +1234,29 @@ describe("collectPageSnapshot", () => {
     expect(snapshot.content.coverage.tableElements).toMatchObject({ sourceCount: 1, emittedCount: 1 });
   });
 
-  it("collects section bounding rects for screenshot clipping", () => {
-    const body = el("body");
+  it("collects per-section layout with component boxes", () => {
+    const sec = el("section", {});
+    const shot = el("img", { attrs: { src: "https://example.com/shot.jpg", alt: "Demo" }, within: [sec] });
+    (shot as unknown as { getBoundingClientRect: () => { top: number; height: number; width: number } }).getBoundingClientRect = () => ({ top: 100, height: 50, width: 200 });
+    (sec as unknown as { getBoundingClientRect: () => { top: number; height: number; width: number } }).getBoundingClientRect = () => ({ top: 100, height: 500, width: 1400 });
+    saved = installDom([sec, shot], "Section layout");
+    (globalThis as Record<string, unknown>).getComputedStyle = () => ({
+      display: "block",
+      visibility: "visible",
+      backgroundColor: "rgb(255, 255, 255)",
+      color: "rgb(17, 17, 17)",
+      fontFamily: "Inter, sans-serif",
+      textAlign: "center",
+      gridTemplateColumns: "1fr 1fr",
+    });
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.sectionLayouts).toHaveLength(1);
+    expect(snapshot.sectionLayouts[0]).toMatchObject({ textAlign: "center", columns: "1fr 1fr", height: 500 });
+    expect(snapshot.sectionLayouts[0]?.components).toMatchObject([{ kind: "img", w: 200, h: 50 }]);
+  });
+
+  it("collects section bounding rects for screenshot clipping", () => {    const body = el("body");
     saved = installDom(
       [el("section", { within: [body] }), el("section", { within: [body] })],
       "Rects",

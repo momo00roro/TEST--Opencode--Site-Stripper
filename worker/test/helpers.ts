@@ -96,7 +96,7 @@ export const SAMPLE_SNAPSHOT: PageSnapshot = {
   metaDescription: null,
   lang: "en",
   direction: "ltr",
-  headings: [{ level: 1, text: "Hi", truncated: false }],
+  headings: [{ level: 1, text: "Hi", truncated: false, breaks: [] }],
   links: [
     { href: "https://example.com/about", text: "About", inNav: true, inHeader: true, inFooter: false },
     { href: "https://example.com/x", text: "X", inNav: false, inHeader: false, inFooter: false },
@@ -126,7 +126,7 @@ export const SAMPLE_SNAPSHOT: PageSnapshot = {
   semanticStyles: [],
   layoutSamples: [],
   breakpoints: { mediaQueries: [] },
-  motion: { transitions: [], animations: [], keyframes: [] },
+  motion: { transitions: [], animations: [], keyframes: [], animatedSelectors: [] },
   geometry: { containerWidths: [], sampledElements: 0 },
   content: {
     blocks: [],
@@ -136,10 +136,15 @@ export const SAMPLE_SNAPSHOT: PageSnapshot = {
     coverage: {},
     sections: [],
     tone: { avgSentenceWords: 0, questionCount: 0, ctaCount: 0, voice: "unknown" },
+    tabSets: [],
+    footerGroups: [],
+    rotatingText: [],
   },
   coverage: {},
   assets: [],
   embeds: [],
+  videos: [],
+  sectionLayouts: [],
   social: { ogTitle: null, ogDescription: null, twitterCard: null, generator: null, themeColor: null },
   hoverStates: [],
   formActions: [],
@@ -153,22 +158,69 @@ export interface FakePageState {
   gotos: Array<{ url: string; options?: GotoOptions }>;
   scrolls: number;
   screenshots: ScreenshotOptions[];
+  clicks: Array<{ x: number; y: number }>;
+  keys: string[];
 }
 
 export interface FakePageOptions {
   height?: number;
   bytes?: number;
   failTypes?: string[];
+  headingTexts?: Array<{ label: string; text: string }>;
+  lazySweep?: { settled: number; pending: number; failed?: number; videosPending?: number };
+  videoTarget?: { status: string; x?: number; y?: number; label?: string; streamUrl?: string; rectY?: number; rectHeight?: number; rectX?: number; rectWidth?: number; uid?: string };
+  videoPlayer?: { started: boolean; x?: number; y?: number; width?: number; height?: number };
+  autoplayPlayer?: { started: boolean; x?: number; y?: number; width?: number; height?: number };
+  /**
+   * Ordered facade answers consumed per facadeClickTarget call (models
+   * carousel DOM states across page-turns; null = "none"). When exhausted,
+   * falls back to videoTargetAt/videoTarget/facadeCount. Copied, not mutated.
+   */
+  facadeSequence?: Array<{ status: string; x?: number; y?: number; label?: string; streamUrl?: string; rectY?: number; rectHeight?: number; rectX?: number; rectWidth?: number; uid?: string } | null>;
+  /**
+   * Index-pinned facade answers (models distinct per-index facades without a
+   * sequence). Checked after facadeSequence, before videoTarget/facadeCount.
+   */
+  videoTargetAt?: Record<number, { status: string; x?: number; y?: number; label?: string; streamUrl?: string; rectY?: number; rectHeight?: number; rectX?: number; rectWidth?: number; uid?: string }>;
+  /**
+   * Ordered carousel next-arrow answers consumed per pager call.
+   * Empty/absent means no pager target. The array is copied, not mutated.
+   */
+  carouselNexts?: Array<{ x: number; y: number }>;
+  /**
+   * How many facades exist: facadeClickTarget(index) reports "none" for
+   * index >= facadeCount. Default is unbounded (every index is a target),
+   * which models pages with more facades than the clip cap.
+   */
+  facadeCount?: number;
+  /**
+   * Fill each screenshot with its call index so consecutive shots differ
+   * (simulates motion for the isolated two-frame check). Default screenshots
+   * are zero-filled and therefore identical.
+   */
+  variedShots?: boolean;
+  /**
+   * With variedShots, zero-fill the first N shots (slow-booting stream:
+   * static frames before motion starts). The adaptive poll must catch the
+   * first differing pair; a fixed two-shot dwell would reject it.
+   */
+  staticShots?: number;
 }
 
 export function makeFakePage(options: FakePageOptions = {}): {
   page: BrowserPage;
   state: FakePageState;
 } {
-  const state: FakePageState = { viewports: [], gotos: [], scrolls: 0, screenshots: [] };
+  const state: FakePageState = { viewports: [], gotos: [], scrolls: 0, screenshots: [], clicks: [], keys: [] };
   const failTypes = new Set(options.failTypes ?? []);
+  let shotCalls = 0;
+  const facadeQueue = [...(options.facadeSequence ?? [])];
+  const carouselQueue = [...(options.carouselNexts ?? [])];
 
-  const page: BrowserPage = {
+  const page: BrowserPage & {
+    mouse: { click(x: number, y: number): Promise<void> };
+    keyboard: { press(key: string): Promise<void> };
+  } = {
     async setViewport(viewport) {
       state.viewports.push(viewport);
     },
@@ -187,6 +239,37 @@ export function makeFakePage(options: FakePageOptions = {}): {
           viewport: { width: viewport?.width ?? 1440, height: viewport?.height ?? 900 },
         } as unknown as T;
       }
+      if (src.includes("collectHeadingTexts")) {
+        return (options.headingTexts ?? []) as unknown as T;
+      }
+      if (src.includes("facadeClickTarget")) {
+        if (facadeQueue.length > 0) {
+          const next = facadeQueue.shift();
+          return ((next ?? { status: "none", x: 0, y: 0, label: "" }) as unknown) as T;
+        }
+        // The facade index rides as the trailing literal: ...(fn)(N).
+        const at = /\((\d+)\)$/.exec(src)?.[1];
+        const facadeIndex = at === undefined ? 0 : Number(at);
+        const pinned = options.videoTargetAt?.[facadeIndex];
+        if (pinned) return pinned as unknown as T;
+        if (facadeIndex >= (options.facadeCount ?? Number.POSITIVE_INFINITY)) {
+          return { status: "none", x: 0, y: 0, label: "" } as unknown as T;
+        }
+        return (options.videoTarget ?? { status: "none", x: 0, y: 0, label: "" }) as unknown as T;
+      }
+      if (src.includes("awaitVideoPlayer")) {
+        return (options.videoPlayer ?? { started: false, x: 0, y: 0, width: 0, height: 0 }) as unknown as T;
+      }
+      if (src.includes("awaitAutoplayVideo")) {
+        return (options.autoplayPlayer ?? { started: false, x: 0, y: 0, width: 0, height: 0 }) as unknown as T;
+      }
+      if (src.includes("pageVideoCarousel")) {
+        const next = carouselQueue.shift();
+        return ((next ? { status: "target", ...next } : { status: "none", x: 0, y: 0 }) as unknown) as T;
+      }
+      if (src.includes("scrollIntoView")) {
+        return (options.lazySweep ?? { settled: 0, pending: 0 }) as unknown as T;
+      }
       state.scrolls += 1;
       return (options.height ?? 4000) as unknown as T;
     },
@@ -195,7 +278,25 @@ export function makeFakePage(options: FakePageOptions = {}): {
       if (shotOptions.type && failTypes.has(shotOptions.type)) {
         throw new Error(`${shotOptions.type} unsupported`);
       }
-      return new Uint8Array(options.bytes ?? 1024);
+      const size = options.bytes ?? 1024;
+      if (options.variedShots) {
+        shotCalls += 1;
+        if (shotCalls <= (options.staticShots ?? 0)) return new Uint8Array(size);
+        return new Uint8Array(size).fill(shotCalls % 256);
+      }
+      return new Uint8Array(size);
+    },
+    // Trusted-input surface for click-to-play capture (both real backends
+    // are puppeteer pages with .mouse/.keyboard; see trustedClick in capture.ts).
+    mouse: {
+      async click(x: number, y: number) {
+        state.clicks.push({ x, y });
+      },
+    },
+    keyboard: {
+      async press(key: string) {
+        state.keys.push(key);
+      },
     },
     async close() {},
   };
@@ -203,11 +304,11 @@ export function makeFakePage(options: FakePageOptions = {}): {
   return { page, state };
 }
 
-export function makeFakeLauncher(name = "fake"): {
+export function makeFakeLauncher(name = "fake", pageOptions: FakePageOptions = {}): {
   launcher: SessionLauncher;
   state: FakePageState & { readonly opened: number; readonly closed: number };
 } {
-  const { page, state } = makeFakePage();
+  const { page, state } = makeFakePage(pageOptions);
   const counter = { opened: 0, closed: 0 };
   const session: AnalysisSession = {
     async newPage() {
@@ -225,6 +326,8 @@ export function makeFakeLauncher(name = "fake"): {
       gotos: state.gotos,
       scrolls: state.scrolls,
       screenshots: state.screenshots,
+      clicks: state.clicks,
+      keys: state.keys,
       get opened() {
         return counter.opened;
       },

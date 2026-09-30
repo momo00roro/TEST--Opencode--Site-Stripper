@@ -1,4 +1,5 @@
 import { buildDocumentationFiles, validateDocumentationPackage } from "./package-docs.mjs";
+import { compositeSectionStills } from "./composite-video.mjs";
 
 const META_API_BASE =
   document.querySelector('meta[name="api-base"]')?.getAttribute("content") ?? "";
@@ -97,6 +98,14 @@ function collectScreenshotFiles(pages) {
       const bytes = dataUrlToBytes(shot.dataUrl);
       if (bytes) {
         files[`screenshots/sections/${slug}-${index + 1}.${shotExt(shot.kind)}`] = bytes;
+        added += 1;
+      }
+    });
+    (page?.videoShots || []).forEach((shot, index) => {
+      if (!shot?.dataUrl) return;
+      const bytes = dataUrlToBytes(shot.dataUrl);
+      if (bytes) {
+        files[`screenshots/videos/${slug}-${index + 1}.${shotExt(shot.kind)}`] = bytes;
         added += 1;
       }
     });
@@ -340,8 +349,37 @@ function collectShowcaseShots(pages) {
         tag: "section",
       });
     });
+    (page?.videoShots || []).forEach((shot, index) => {
+      if (!shot?.dataUrl) return;
+      shots.push({
+        src: shot.dataUrl,
+        label: `${path} - playing: ${shot.label || shot.heading || `video ${index + 1}`}${sectionTagForShot(page, shot)}`,
+        tag: "video",
+      });
+    });
   }
   return shots;
+}
+
+// Placement tag: which layout section a playing-state frame belongs to, so a
+// blank video band in a section screenshot can be matched to its frame.
+// Display-only: never throws, returns "" when placement is unknown.
+function sectionTagForShot(page, shot) {
+  try {
+    const layouts = page?.sectionLayouts || [];
+    const y = Number(shot?.y);
+    if (!Number.isFinite(y) || !Array.isArray(layouts) || layouts.length === 0) return "";
+    for (let i = 0; i < layouts.length; i += 1) {
+      const layout = layouts[i] || {};
+      const ly = Number(layout.y);
+      const lh = Number(layout.height);
+      if (!Number.isFinite(ly) || !Number.isFinite(lh) || lh <= 0) continue;
+      if (y >= ly && y < ly + lh) return ` → section ${i + 1}`;
+    }
+  } catch {
+    // Display-only; never break the showcase.
+  }
+  return "";
 }
 
 function ensureShowcaseOverlay() {
@@ -591,12 +629,14 @@ function renderPackage(body) {
     return total
       + (page?.screenshot?.dataUrl ? 1 : 0)
       + (page?.mobileScreenshot?.dataUrl ? 1 : 0)
-      + (page?.sectionShots || []).filter((shot) => shot?.dataUrl).length;
+      + (page?.sectionShots || []).filter((shot) => shot?.dataUrl).length
+      + (page?.videoShots || []).filter((shot) => shot?.dataUrl).length;
   }, 0);
   const screenshotCaptures = (body?.pages || []).reduce((total, page) => total
     + Number(Boolean(page?.screenshot))
     + Number(Boolean(page?.mobileScreenshot))
-    + (page?.sectionShots || []).length, 0);
+    + (page?.sectionShots || []).length
+    + (page?.videoShots || []).length, 0);
   packageInfo.textContent = `${lastAnalyzedPages.length} page observations; ${screenshotCaptures} screenshot captures (${shotCount} binaries available). Documentation rendering and ZIP assembly run in your browser; no Cloudflare compute is used.`;
   const statsEl = document.getElementById("deliverable-stats");
   if (statsEl) {
@@ -608,13 +648,22 @@ function renderPackage(body) {
   downloadPanel.hidden = false;
 }
 
-downloadButton?.addEventListener("click", () => {
+downloadButton?.addEventListener("click", async () => {
   if (!lastAnalysis || typeof window.buildZip !== "function") {
     setStatus("Package not ready yet.", "error");
     return;
   }
   setStatus("Assembling ZIP in your browser…");
   try {
+    // Composite first so the ZIP ships complete sections; cached after the
+    // render-time pass, and a no-op where canvas is unavailable.
+    let compositeTotal = 0;
+    try {
+      const compositeStats = await compositeSectionStills(lastAnalysis);
+      compositeTotal = Number(compositeStats?.total) || 0;
+    } catch {
+      // Fall through with unpatched shots; validation below still applies.
+    }
     const shots = collectScreenshotFiles(lastAnalyzedPages);
     const documentation = buildDocumentationFiles(lastAnalysis, shots.files);
     const validationIssues = validateDocumentationPackage(documentation.files, shots.files);
@@ -629,8 +678,9 @@ downloadButton?.addEventListener("click", () => {
       return;
     }
     const note = shots.added > 0 ? ` with ${shots.added} screenshots` : " (no inline screenshots to include)";
-    if (result.warnings.length > 0) setStatus(`ZIP ready${note} with warnings: ${result.warnings.join("; ")}`);
-    else setStatus(`ZIP ready${note} (${result.fileCount} files, ${documentation.byteLength.toLocaleString()} documentation bytes).`);
+    const compositeNote = compositeTotal > 0 ? `, ${compositeTotal} section(s) with composited video stills` : "";
+    if (result.warnings.length > 0) setStatus(`ZIP ready${note}${compositeNote} with warnings: ${result.warnings.join("; ")}`);
+    else setStatus(`ZIP ready${note}${compositeNote} (${result.fileCount} files, ${documentation.byteLength.toLocaleString()} documentation bytes).`);
     window.downloadZip(result.bytes, "website-analysis.zip");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "ZIP assembly failed.", "error");
@@ -647,6 +697,16 @@ function renderResult(body) {
   renderPages(body?.pages);
   renderBudget(body);
   renderPackage(body);
+
+  // Composite verified video stills into section shots (blank bands become
+  // playing frames), then re-render the showcase so section cards show the
+  // complete picture. Cached per analysis; no-op without canvas.
+  compositeSectionStills(body).then((stats) => {
+    if (stats && stats.composited > 0) {
+      setStatus(`Analysis complete (${browserSec}s browser time used). Composited ${stats.composited} video still${stats.composited === 1 ? "" : "s"} into section shots.`);
+      renderScreenshot(body?.pages);
+    }
+  }).catch(() => {});
 
   resultPanel.hidden = false;
   resultBody.textContent = JSON.stringify(body, null, 2);

@@ -6,7 +6,31 @@ import { assertPublicTarget, parseHttpUrl } from "../validation/url";
 // browser) downloads eligible SVGs with plain fetch and stores the raw text
 // on the manifest entry. Worker-safe: text only, no base64, no DOM.
 
-export const REHYDRATABLE_KINDS = new Set(["logo", "icon", "hero"]);
+export const REHYDRATABLE_KINDS = new Set(["logo", "icon", "hero", "poster"]);
+
+// Defense-in-depth for manifests captured before the snapshot classifier
+// learned SVG <img> elements: a kind:"image" entry whose unwrapped target is
+// an .svg file (provider logos under /assets/images/home/models/) is treated
+// as rehydratable. Non-SVG images (photos, pixels, PNG/JPG) stay excluded,
+// and the content-type check below still rejects anything that is not SVG.
+function isSvgTarget(target: string): boolean {
+  try {
+    return /\.svg$/i.test(new URL(target).pathname);
+  } catch {
+    return false;
+  }
+}
+
+// Poster-kind fallback for plain cross-origin absolute URLs (CDN hosts).
+// Still requires absolute HTTP(S), standard ports, no credentials — the
+// same-origin equality check is skipped, but assertPublicTarget below is not.
+function resolveCrossOriginPosterTarget(raw: string): string | null {
+  try {
+    return parseHttpUrl(raw).raw;
+  } catch {
+    return null;
+  }
+}
 
 const SVG_CONTENT_TYPE = "image/svg+xml";
 
@@ -82,8 +106,9 @@ function slugify(value: string): string {
 
 // Deterministic ZIP-relative filename: manifest-order number plus a slug from
 // the alt text (falling back to the unwrapped URL basename, never the
-// optimizer path), always `.svg`.
-export function assetFilename(asset: SnapshotAsset, index: number, resolvedUrl?: string): string {
+// optimizer path). Extension defaults to `.svg`; raster kinds pass the
+// sniffed content-type extension instead.
+export function assetFilename(asset: SnapshotAsset, index: number, resolvedUrl?: string, ext = ".svg"): string {
   let base = String(asset.alt ?? "").trim();
   if (!base) {
     try {
@@ -95,13 +120,13 @@ export function assetFilename(asset: SnapshotAsset, index: number, resolvedUrl?:
     }
   }
   const number = String(index + 1).padStart(2, "0");
-  return `assets/${number}-${slugify(base)}.svg`;
+  return `assets/${number}-${slugify(base)}${ext}`;
 }
 
 async function readBodyCapped(
   response: Response,
   perFileCap: number,
-): Promise<{ ok: true; text: string } | { ok: false; reason: "oversize" | "unreadable" }> {
+): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; reason: "oversize" | "unreadable" }> {
   try {
     if (response.body) {
       const reader = response.body.getReader();
@@ -136,13 +161,13 @@ async function readBodyCapped(
         merged.set(chunk, offset);
         offset += chunk.byteLength;
       }
-      return { ok: true, text: new TextDecoder().decode(merged) };
+      return { ok: true, bytes: merged };
     }
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > perFileCap) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > perFileCap) {
       return { ok: false, reason: "oversize" };
     }
-    return { ok: true, text };
+    return { ok: true, bytes };
   } catch {
     return { ok: false, reason: "unreadable" };
   }
@@ -156,7 +181,7 @@ export async function rehydrateAssets(
   const totalCap = options.totalCap ?? LIMITS.maxAssetDownloadBytesTotal;
   const maxFiles = options.maxFiles ?? LIMITS.maxAssetDownloads;
 
-  const out: SnapshotAsset[] = [];
+  const out: SnapshotAsset[] = new Array(assets.length);
   let downloaded = 0;
   let skippedOversize = 0;
   let skippedUnresolvable = 0;
@@ -171,142 +196,204 @@ export async function rehydrateAssets(
     totalBytes,
   });
 
-  try {
-    for (let index = 0; index < assets.length; index += 1) {
-      const asset = assets[index]!;
-      // Strip any previous CF13 annotation so re-runs are idempotent; the
-      // verdict below re-attaches exactly one consistent set of fields.
-      const {
-        localPath: _localPath,
-        bytes: _bytes,
-        source: _source,
-        skipReason: _skipReason,
-        content: _content,
-        ...base
-      } = asset;
-      void _localPath;
-      void _bytes;
-      void _source;
-      void _skipReason;
-      void _content;
-      const referenceOnly = (skipReason: string): SnapshotAsset => ({
-        ...base,
-        source: "reference-only",
-        skipReason,
-      });
+  // Phase A: resolve targets and eligibility without fetching or consuming
+  // caps, so Phase B can order downloads.
+  const planned = assets.map((asset) => {
+    const {
+      localPath: _localPath,
+      bytes: _bytes,
+      source: _source,
+      skipReason: _skipReason,
+      content: _content,
+      ...base
+    } = asset;
+    void _localPath;
+    void _bytes;
+    void _source;
+    void _skipReason;
+    void _content;
+    const referenceOnly = (skipReason: string): SnapshotAsset => ({
+      ...base,
+      source: "reference-only",
+      skipReason,
+    });
+    // Unwrap before the kind gate so kind:"image" entries pointing at
+    // .svg files can be recognized as rehydratable below. Unresolvable
+    // targets stay ineligible without consuming caps. Cross-origin
+    // targets stay ineligible too — except poster kind, whose CDN hosts
+    // (Sanity, Vimeo thumbs) are validated by the public-target SSRF
+    // guard below instead of the same-origin rule.
+    const target =
+      unwrapOptimizerUrl(asset.url, options.origin) ??
+      (asset.kind === "poster" ? resolveCrossOriginPosterTarget(asset.url) : null);
+    const eligible =
+      REHYDRATABLE_KINDS.has(asset.kind) ||
+      (asset.kind === "image" && target !== null && isSvgTarget(target));
+    return { asset, base, referenceOnly, target, eligible, posterKind: asset.kind === "poster" };
+  });
 
+  type Planned = (typeof planned)[number];
+
+  const attempt = async (index: number, entry: Planned): Promise<void> => {
+    const { asset, base, referenceOnly, target, posterKind } = entry;
+    const done = (result: SnapshotAsset): void => {
+      out[index] = result;
+    };
+    try {
+      if (downloaded >= maxFiles) {
+        done(referenceOnly("count-cap"));
+        return;
+      }
+      if (totalBytes >= totalCap) {
+        done(referenceOnly("total-cap"));
+        return;
+      }
+
+      if (!target) {
+        skippedUnresolvable += 1;
+        done(referenceOnly("unresolvable-url"));
+        return;
+      }
+
+      // CF02-equivalent check: same-origin plus the public-target validator
+      // (no private/loopback/link-local, HTTP(S) only, standard ports).
+      // CF14 posters usually live on third-party CDNs (Sanity, Vimeo
+      // thumbs), so poster kind skips the same-origin equality check —
+      // but ALWAYS keeps assertPublicTarget, the actual SSRF guard.
       try {
-        if (!REHYDRATABLE_KINDS.has(asset.kind)) {
-          out.push(referenceOnly("ineligible-kind"));
-          continue;
-        }
-        if (downloaded >= maxFiles) {
-          out.push(referenceOnly("count-cap"));
-          continue;
-        }
-        if (totalBytes >= totalCap) {
-          out.push(referenceOnly("total-cap"));
-          continue;
-        }
-
-        const target = unwrapOptimizerUrl(asset.url, options.origin);
-        if (!target) {
-          skippedUnresolvable += 1;
-          out.push(referenceOnly("unresolvable-url"));
-          continue;
-        }
-
-        // CF02-equivalent check: same-origin plus the public-target validator
-        // (no private/loopback/link-local, HTTP(S) only, standard ports).
-        try {
-          if (options.validate) {
-            await options.validate(target);
-          } else {
-            const parsed = parseHttpUrl(target);
-            if (parsed.origin !== options.origin) throw new Error("cross-origin asset");
-            await assertPublicTarget(parsed, options.fetchImpl);
+        if (options.validate) {
+          await options.validate(target);
+        } else {
+          const parsed = parseHttpUrl(target);
+          if (!posterKind && parsed.origin !== options.origin) {
+            throw new Error("cross-origin asset");
           }
-        } catch {
-          skippedUnresolvable += 1;
-          out.push(referenceOnly("validation-failed"));
-          continue;
+          await assertPublicTarget(parsed, options.fetchImpl);
         }
+      } catch {
+        skippedUnresolvable += 1;
+        done(referenceOnly("validation-failed"));
+        return;
+      }
 
-        let response: Response;
-        try {
-          response = await options.fetchImpl(target, {
-            headers: { accept: SVG_CONTENT_TYPE },
-            redirect: "follow",
-          });
-        } catch {
-          out.push(referenceOnly("fetch-failed"));
-          continue;
-        }
-        if (!response.ok) {
-          out.push(referenceOnly("fetch-failed"));
-          continue;
-        }
-        // Redirects are followed by fetch: re-check the landed origin.
-        if (response.url) {
-          try {
-            if (new URL(response.url).origin !== options.origin) {
-              skippedUnresolvable += 1;
-              out.push(referenceOnly("cross-origin-redirect"));
-              continue;
-            }
-          } catch {
-            skippedUnresolvable += 1;
-            out.push(referenceOnly("unresolvable-url"));
-            continue;
-          }
-        }
-
-        const contentType = response.headers.get("content-type") ?? "";
-        if (!contentType.toLowerCase().includes(SVG_CONTENT_TYPE)) {
-          out.push(referenceOnly("non-svg-content-type"));
-          continue;
-        }
-
-        // Cheap pre-check before streaming the body.
-        const declared = Number(response.headers.get("content-length") ?? "");
-        if (Number.isFinite(declared) && declared > 0 && declared > perFileCap) {
-          skippedOversize += 1;
-          out.push(referenceOnly("oversize"));
-          continue;
-        }
-
-        const body = await readBodyCapped(response, perFileCap);
-        if (!body.ok) {
-          if (body.reason === "oversize") skippedOversize += 1;
-          out.push(referenceOnly(body.reason === "oversize" ? "oversize" : "fetch-failed"));
-          continue;
-        }
-
-        const bytes = new TextEncoder().encode(body.text).byteLength;
-        if (totalBytes + bytes > totalCap) {
-          out.push(referenceOnly("total-cap"));
-          continue;
-        }
-        totalBytes += bytes;
-        downloaded += 1;
-        out.push({
-          ...base,
-          source: "downloaded",
-          localPath: assetFilename(asset, index, target),
-          bytes,
-          content: body.text,
+      let response: Response;
+      try {
+        response = await options.fetchImpl(target, {
+          headers: {
+            accept: posterKind ? "image/jpeg,image/png,image/webp" : SVG_CONTENT_TYPE,
+          },
+          redirect: "follow",
         });
       } catch {
-        // Shortfall is recorded, never thrown: one bad asset must not fail
-        // the analysis.
-        out.push(referenceOnly("fetch-failed"));
+        done(referenceOnly("fetch-failed"));
+        return;
+      }
+      if (!response.ok) {
+        done(referenceOnly("fetch-failed"));
+        return;
+      }
+      // Redirects are followed by fetch: re-check the landed URL. Same
+      // poster carve-out as above: public-target, not same-origin.
+      if (response.url) {
+        try {
+          if (new URL(response.url).origin !== options.origin) {
+            if (!posterKind) {
+              skippedUnresolvable += 1;
+              done(referenceOnly("cross-origin-redirect"));
+              return;
+            }
+            await assertPublicTarget(parseHttpUrl(response.url), options.fetchImpl);
+          }
+        } catch {
+          skippedUnresolvable += 1;
+          done(referenceOnly("unresolvable-url"));
+          return;
+        }
+      }
+
+      // CF14: posters ship raster bytes (content-type sniffed, never
+      // extension-trusted); every other kind must be SVG text.
+      const contentType = response.headers.get("content-type") ?? "";
+      const lowered = contentType.toLowerCase();
+      let ext = ".svg";
+      if (posterKind) {
+        if (lowered.includes("image/jpeg")) ext = ".jpg";
+        else if (lowered.includes("image/png")) ext = ".png";
+        else if (lowered.includes("image/webp")) ext = ".webp";
+        else {
+          done(referenceOnly("non-image-content-type"));
+          return;
+        }
+      } else if (!lowered.includes(SVG_CONTENT_TYPE)) {
+        done(referenceOnly("non-svg-content-type"));
+        return;
+      }
+
+      // Cheap pre-check before streaming the body.
+      const declared = Number(response.headers.get("content-length") ?? "");
+      if (Number.isFinite(declared) && declared > 0 && declared > perFileCap) {
+        skippedOversize += 1;
+        done(referenceOnly("oversize"));
+        return;
+      }
+
+      const body = await readBodyCapped(response, perFileCap);
+      if (!body.ok) {
+        if (body.reason === "oversize") skippedOversize += 1;
+        done(referenceOnly(body.reason === "oversize" ? "oversize" : "fetch-failed"));
+        return;
+      }
+
+      const bytes = body.bytes.byteLength;
+      if (totalBytes + bytes > totalCap) {
+        done(referenceOnly("total-cap"));
+        return;
+      }
+      totalBytes += bytes;
+      downloaded += 1;
+      const mime =
+        ext === ".jpg" ? "image/jpeg"
+        : ext === ".png" ? "image/png"
+        : ext === ".webp" ? "image/webp"
+        : "image/svg+xml";
+      done({
+        ...base,
+        source: "downloaded",
+        localPath: assetFilename(asset, index, target, ext),
+        bytes,
+        contentType: mime,
+        content: asset.kind === "poster" ? body.bytes : new TextDecoder().decode(body.bytes),
+      });
+    } catch {
+      // Shortfall is recorded, never thrown: one bad asset must not fail
+      // the analysis.
+      done(referenceOnly("fetch-failed"));
+    }
+  };
+
+  try {
+    // Phase B: split budget — eligible non-poster assets (logos, icons)
+    // download first in document order so CDN poster frames can never starve
+    // identity assets; posters use the remaining files and bytes. Filenames
+    // keep manifest (document) order regardless of download order.
+    const passes = [false, true];
+    for (const wantPoster of passes) {
+      for (let index = 0; index < planned.length; index += 1) {
+        const entry = planned[index]!;
+        if (!entry.eligible) {
+          if (out[index] === undefined) out[index] = entry.referenceOnly("ineligible-kind");
+          continue;
+        }
+        if (entry.posterKind !== wantPoster || out[index] !== undefined) continue;
+        await attempt(index, entry);
       }
     }
   } catch {
-    // Catastrophic failure (e.g. bad options): every entry stays a URL
-    // reference rather than failing the run.
-    while (out.length < assets.length) {
-      const asset = assets[out.length]!;
+    // Catastrophic failure (e.g. bad options): every unfilled entry stays a
+    // URL reference rather than failing the run.
+    for (let index = 0; index < assets.length; index += 1) {
+      if (out[index] !== undefined) continue;
+      const asset = assets[index]!;
       const {
         localPath: _lp,
         bytes: _b,
@@ -320,7 +407,7 @@ export async function rehydrateAssets(
       void _s;
       void _sr;
       void _c;
-      out.push({ ...base, source: "reference-only", skipReason: "rehydration-error" });
+      out[index] = { ...base, source: "reference-only", skipReason: "rehydration-error" };
     }
   }
 

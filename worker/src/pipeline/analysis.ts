@@ -1,4 +1,4 @@
-import { capturePage, type CaptureResult } from "../browser/capture";
+import { capturePage, renderIsolatedVideoShot, type CaptureResult } from "../browser/capture";
 import type {
   PageSnapshot,
   SnapshotAsset,
@@ -11,10 +11,12 @@ import type {
   SnapshotMotion,
   SnapshotSection,
   SnapshotLayoutSample,
+  SnapshotSectionLayout,
   SnapshotSemanticStyle,
   SnapshotSocial,
   SnapshotTokens,
   SnapshotTypography,
+  SnapshotVideo,
 } from "../browser/snapshot-script";
 import type { AnalysisSession, SessionLauncher } from "../browser/types";
 import { LIMITS, SCHEMA_VERSION } from "../config/limits";
@@ -33,6 +35,17 @@ export interface AnalysisScreenshot {
   width: number;
   height: number;
   dataUrl?: string;
+  /** Human label for playing-state video clips (e.g. "video: Demo"). */
+  label?: string;
+  /** Page-Y placement of a playing-state clip (facade box), for compositing over section shots. */
+  y?: number;
+  /**
+   * Full on-page box a playing-state frame belongs to. The client compositor
+   * draws the frame here; set on section shots after compositing.
+   */
+  placement?: { x: number; y: number; width: number; height: number };
+  /** True when a section shot already contains composited video still(s). */
+  composited?: boolean;
 }
 
 export interface AnalysisNavLink {
@@ -76,6 +89,8 @@ export interface AnalysisPage {
   screenshot: AnalysisScreenshot | null;
   mobileScreenshot: AnalysisScreenshot | null;
   sectionShots: AnalysisScreenshot[];
+  /** Playing-state clips of video facades, autoplay-first (CF21, homepage only). */
+  videoShots: AnalysisScreenshot[];
   warnings: string[];
   tokens: SnapshotTokens;
   typography: SnapshotTypography;
@@ -86,6 +101,8 @@ export interface AnalysisPage {
   observedInteractions: { kind: string; detail: string }[];
   hoverStates: SnapshotHoverState[];
   embeds: SnapshotEmbed[];
+  videos: SnapshotVideo[];
+  sectionLayouts: SnapshotSectionLayout[];
   social: SnapshotSocial;
   formActions: string[];
   content: SnapshotContent;
@@ -156,6 +173,8 @@ export interface AnalysisOptions {
   maxInlineImageBytes?: number;
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
   onProgress?: (event: AnalysisProgress) => void;
+  /** Homepage rotation re-sample delay in ms; unset disables the check. */
+  detectRotationMs?: number;
 }
 
 // Bot-verification challenges (CAPTCHAs, sliders, rate walls) are never
@@ -235,6 +254,11 @@ export async function runAnalysis(
         viewportWidth: LIMITS.desktopViewportWidth,
         fetchImpl,
         maxSectionShots: LIMITS.maxSectionScreenshots,
+        maxVideoShots: LIMITS.maxVideoShots,
+        analysisStartedAt: startedAt,
+        // Rotation re-sample is opt-in (costs browser seconds): the API
+        // route enables it; unit tests leave it off for speed.
+        ...(options.detectRotationMs !== undefined ? { detectRotationMs: options.detectRotationMs } : {}),
       });
       homepageSnapshot = homepage.capture.snapshot;
       screenshotBytesTotal += homepage.screenshotBytes;
@@ -242,6 +266,8 @@ export async function runAnalysis(
       desktopTaken += homepage.screenshotCount;
       screenshotBytesTotal += homepage.sectionShotBytes;
       screenshotsCaptured += homepage.sectionShots.length;
+      screenshotBytesTotal += homepage.videoShotBytes;
+      screenshotsCaptured += homepage.videoShots.length;
       if (homepage.extractionBytes > LIMITS.maxExtractionPayloadBytes) oversizePages += 1;
       warnings.push(...homepage.warnings);
       const homepageRecord = toRecord(homepage, {
@@ -255,12 +281,30 @@ export async function runAnalysis(
         maxInlineImageBytes: options.maxInlineImageBytes,
       });
       homepageRecord.sectionShots = homepage.sectionShots;
+      homepageRecord.videoShots = homepage.videoShots;
+      // Rotation re-sample honesty: a repeat read that matches only rules
+      // out fast rotations; slower ones stay undetected.
+      if (homepage.capture.rotationChecked && homepageRecord.content.rotatingText.length === 0) {
+        limitations.push(
+          "Rotation check: homepage headings re-sampled after a short delay with no text changes; rotations slower than the delay are undetected.",
+        );
+      }
       // Inline small section clips where the environment supports it (local
       // dev); hosted responses stay metadata-only (Trap 4: no Worker encoding).
       if (options.encodeBase64) {
         const maxInline = options.maxInlineImageBytes ?? DEFAULT_MAX_INLINE_BYTES;
         homepageRecord.sectionShots = homepageRecord.sectionShots.map((shot, index) => {
           const raw = homepage.capture.sectionShots[index];
+          if (raw && raw.data.byteLength <= maxInline) {
+            return {
+              ...shot,
+              dataUrl: `data:image/${shot.kind};base64,` + options.encodeBase64!(raw.data),
+            };
+          }
+          return shot;
+        });
+        homepageRecord.videoShots = homepageRecord.videoShots.map((shot, index) => {
+          const raw = homepage.capture.videoShots[index];
           if (raw && raw.data.byteLength <= maxInline) {
             return {
               ...shot,
@@ -606,9 +650,42 @@ export async function runAnalysis(
     }
     try {
       const rehydrated = await rehydrateAssets(assets, { fetchImpl, origin: assetOrigin });
-      assets = rehydrated.assets;
+      // Poster bytes ride Uint8Array in memory but cannot survive the JSON
+      // API (they serialize as {"0":..} bloat and fail client-side
+      // validation, killing the whole ZIP download). Where the environment
+      // supplies an encoder (local dev), re-encode as dataUrl strings exactly
+      // like screenshots; hosted responses stay metadata-only (Trap 4), so
+      // poster downloads there revert to URL references instead of shipping
+      // undecodable entries that would fail package validation.
+      assets = rehydrated.assets.map((entry) => {
+        if (entry.source !== "downloaded" || !(entry.content instanceof Uint8Array)) return entry;
+        if (options.encodeBase64) {
+          const { content, ...rest } = entry;
+          return {
+            ...rest,
+            dataUrl: `data:${entry.contentType || "image/webp"};base64,${options.encodeBase64(content)}`,
+          };
+        }
+        const { content, contentType, ...rest } = entry;
+        void content;
+        void contentType;
+        return { ...rest, source: "reference-only" as const, skipReason: "binary-not-shipped" };
+      });
+      const kindCounts: Record<string, number> = {};
+      for (const entry of assets) {
+        if (entry.source === "downloaded") kindCounts[entry.kind] = (kindCounts[entry.kind] ?? 0) + 1;
+      }
+      const kindBreakdown = Object.entries(kindCounts)
+        .map(([kind, count]) => `${count} ${kind}`)
+        .join(", ");
+      // Hosted reverts above move poster downloads back to references; report
+      // the shipped numbers, not the fetched ones.
+      const revertedBytes = assets
+        .filter((entry) => entry.skipReason === "binary-not-shipped")
+        .reduce((total, entry) => total + (entry.bytes ?? 0), 0);
+      const reverted = assets.filter((entry) => entry.skipReason === "binary-not-shipped").length;
       limitations.push(
-        `Asset rehydration: downloaded ${rehydrated.downloaded} SVG asset(s) (${rehydrated.totalBytes} bytes) to assets/; ${rehydrated.skipped} asset(s) remain URL references (oversize: ${rehydrated.skippedOversize}, unresolvable: ${rehydrated.skippedUnresolvable}).`,
+        `Asset rehydration: downloaded ${rehydrated.downloaded - reverted} asset(s) (${rehydrated.totalBytes - revertedBytes} bytes) to assets/${kindBreakdown ? ` [${kindBreakdown}]` : ""}; ${rehydrated.skipped + reverted} asset(s) remain URL references (oversize: ${rehydrated.skippedOversize}, unresolvable: ${rehydrated.skippedUnresolvable}).`,
       );
     } catch {
       assets = assets.map((asset) => ({ ...asset, source: "reference-only" as const, skipReason: "rehydration-error" }));
@@ -620,7 +697,7 @@ export async function runAnalysis(
     limitations.push(
       "Custom fonts referenced by @font-face were not downloaded; text falls back to system stacks.",
     );
-    if (assets.some((asset) => asset.kind === "video-poster")) {
+    if (assets.some((asset) => asset.kind === "video")) {
       limitations.push("Video content was referenced but not captured; see data/assets.json.");
     }
     if (
@@ -707,8 +784,15 @@ async function captureOne(
     viewportWidth: number;
     captureScreenshot?: boolean;
     maxSectionShots?: number;
+    maxVideoShots?: number;
     maxBytes?: number;
     fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
+    detectRotationMs?: number;
+    /**
+     * Analysis start timestamp (Date.now()). The isolated video tier checks
+     * the remaining wall budget against it and skips honestly when exhausted.
+     */
+    analysisStartedAt?: number;
   },
 ): Promise<{
   url: string;
@@ -718,6 +802,8 @@ async function captureOne(
   screenshotCount: number;
   sectionShots: AnalysisScreenshot[];
   sectionShotBytes: number;
+  videoShots: AnalysisScreenshot[];
+  videoShotBytes: number;
   extractionBytes: number;
   warnings: string[];
 }> {
@@ -731,8 +817,76 @@ async function captureOne(
       viewportWidth: options.viewportWidth,
       ...(options.captureScreenshot === false ? { captureScreenshot: false } : {}),
       ...(options.maxSectionShots !== undefined ? { maxSectionShots: options.maxSectionShots } : {}),
+      ...(options.maxVideoShots !== undefined ? { maxVideoShots: options.maxVideoShots } : {}),
       ...(options.maxBytes !== undefined ? { maxBytes: options.maxBytes } : {}),
+      ...(options.detectRotationMs !== undefined ? { detectRotationMs: options.detectRotationMs } : {}),
     });
+    // Isolated video tier (CF22): the site page is closed FIRST so only one
+    // tab is ever open (Trap 3). Each deferred stream renders in a clean
+    // player page; motion-verified frames append to videoShots exactly like
+    // in-page clips (downstream counts/bytes/dataUrls map by index).
+    await page.close().catch(() => undefined);
+    const pending = (options.maxVideoShots ?? 0) > 0 && capture.screenshot
+      ? capture.pendingVideoStreams
+      : [];
+    if (pending.length > 0) {
+      const maxBytes = options.maxBytes ?? LIMITS.maxTotalScreenshotBytes;
+      let used = (capture.screenshot?.byteLength ?? 0)
+        + capture.sectionShots.reduce((total, shot) => total + shot.bytes, 0)
+        + capture.videoShots.reduce((total, shot) => total + shot.bytes, 0);
+      const deadline = (options.analysisStartedAt ?? Date.now()) + LIMITS.totalAnalysisWallBudgetMs;
+      for (let pi = 0; pi < pending.length; pi += 1) {
+        const item = pending[pi]!;
+        if (used >= maxBytes) {
+          warnings.push(`Isolated render for video '${item.label}' dropped: byte budget exhausted.`);
+          break;
+        }
+        if (Date.now() > deadline) {
+          warnings.push(
+            `Skipped isolated render for video '${item.label}': wall budget exhausted; its cover art stands in.`,
+          );
+          for (let qi = pi + 1; qi < pending.length; qi += 1) {
+            warnings.push(
+              `Skipped isolated render for video '${pending[qi]!.label}': wall budget exhausted; its cover art stands in.`,
+            );
+          }
+          break;
+        }
+        let shot: Awaited<ReturnType<typeof renderIsolatedVideoShot>> = null;
+        try {
+          shot = await renderIsolatedVideoShot(session, item.streamUrl);
+        } catch {
+          shot = null;
+        }
+        if (!shot) {
+          warnings.push(`Isolated render for video '${item.label}' failed to load; its cover art stands in.`);
+          continue;
+        }
+        // Per-facade outcome (bounded: one line each, at most the video cap):
+        // repeated labels here mean duplicate deferrals upstream; distinct
+        // failing labels mean distinct gated streams.
+        if (!shot.started) {
+          warnings.push(`Isolated render for video '${item.label}' showed no motion; its cover art stands in.`);
+          continue;
+        }
+        if (used + shot.bytes > maxBytes) {
+          warnings.push(`Isolated render for video '${item.label}' dropped: byte budget exhausted.`);
+          break;
+        }
+        capture.videoShots.push({
+          kind: shot.kind,
+          bytes: shot.bytes,
+          y: item.rectY,
+          height: item.rectHeight > 0 ? item.rectHeight : 720,
+          heading: `video: ${item.label}`,
+          data: shot.data,
+          ...(item.rectWidth > 0 && item.rectHeight > 0
+            ? { placement: { x: item.rectX, y: item.rectY, width: item.rectWidth, height: item.rectHeight } }
+            : {}),
+        });
+        used += shot.bytes;
+      }
+    }
     warnings.push(...capture.warnings);
 
     // CF02 "reject again after redirects": when the browser landed on a
@@ -756,6 +910,16 @@ async function captureOne(
       bytes: shot.bytes,
       width: options.viewportWidth,
       height: shot.height,
+      y: shot.y,
+    }));
+    const videoShots: AnalysisScreenshot[] = capture.videoShots.map((shot) => ({
+      kind: shot.kind,
+      bytes: shot.bytes,
+      width: options.viewportWidth,
+      height: shot.height,
+      y: shot.y,
+      label: shot.heading,
+      ...(shot.placement ? { placement: { ...shot.placement } } : {}),
     }));
     return {
       url,
@@ -765,6 +929,8 @@ async function captureOne(
       screenshotCount: capture.screenshot ? 1 : 0,
       sectionShots,
       sectionShotBytes: capture.sectionShots.reduce((total, shot) => total + shot.bytes, 0),
+      videoShots,
+      videoShotBytes: capture.videoShots.reduce((total, shot) => total + shot.bytes, 0),
       extractionBytes,
       warnings,
     };
@@ -929,6 +1095,7 @@ function toRecord(
     screenshot,
     mobileScreenshot: null,
     sectionShots: [],
+    videoShots: [],
     warnings: captured.warnings,
     tokens: snapshot.tokens,
     typography: snapshot.typography,
@@ -939,9 +1106,11 @@ function toRecord(
     observedInteractions: snapshot.observedInteractions,
     hoverStates: snapshot.hoverStates,
     embeds: snapshot.embeds,
+    videos: snapshot.videos,
+    sectionLayouts: snapshot.sectionLayouts,
     social: snapshot.social,
     formActions: snapshot.formActions,
-    content: snapshot.content,
+    content: { ...snapshot.content, rotatingText: captured.capture.rotatingText ?? [] },
     assets: snapshot.assets,
   };
 }

@@ -92,7 +92,7 @@ This abstraction is implemented around:
 - `worker/local/launcher.ts`
 - `worker/src/routes/analyze.ts`
 - `worker/src/app.ts`
-- `worker/src/pipeline/preview.ts`
+- `worker/src/pipeline/analysis.ts`
 
 ## Free-tier reality
 
@@ -641,7 +641,7 @@ order, shortfall recorded as limitation (never an error). SVGs ship as inert
 files referenced via `<img>`, never inlined. Full spec:
 `docs/plans/2026-09-27-cf13-asset-rehydration.md`.
 
-Status: specified 2026-09-27. Not implemented.
+Status: implemented and verified (2026-09-27 GMT+8, commit 0d5f855). Plain fetch downloading into assets/ directory in client ZIP, unwrapping optimizer URLs, 50KB/512KB/40 caps.
 
 ## Current implementation status
 
@@ -657,21 +657,23 @@ Completed and verified by automated tests:
 - CF08 verbatim content (paragraphs, code samples with line breaks, bounded support tables, hidden/collapsed copy labeled, consecutive-duplicate collapse), tone notes, asset manifest by URL reference with report-level deduped manifest, video/audio file entries with readiness, iframe embeds, form actions (same-origin only), SVG icon inventory, social/share metadata, page language and direction.
 - CF09 client-side package generation from canonical bounded observations (Markdown, JSON, W3C tokens, theme.css, Tailwind config, interaction docs, key-role mapping, stack detection, canvas fallbacks, coverage dedupe) with schema/manifest validation and a 24 MiB documentation cap; generated files are not duplicated in the Worker response.
 - CF10 STORE-only ZIP writer shared Worker/web, client-side assembly with 25MB warn cap, Worker never compresses.
-  - CF11 Pages UI (monster brand, sticky bottom download bar, budget meter, per-page cards, screenshot gallery, client ZIP download; restyled 2026-09-27 to cline.bot language — see CF11 note).
+- CF11 Pages UI (monster brand, sticky bottom download bar, budget meter, per-page cards, screenshot gallery, client ZIP download; restyled 2026-09-27 to cline.bot language — see CF11 note).
 - CF12 synthetic acceptance suite (11 scenarios + fidelity rubric at 1440/390).
+ - CF13 asset rehydration (downloading critical SVGs via plain fetch into `assets/` in client ZIP, Next.js optimizer URL unwrapping, 50KB/512KB/40 caps).
+ - CF14–CF20 fidelity pack (video poster/flag metadata + binary ship, computed-behavior pass, `data/layout.json`, `REBUILD.md` ordered build spec, heading line-breaks, split rehydration budget, rotation re-sample). Full spec: `docs/plans/2026-09-29-fidelity-pack.md`.
+ - CF21–CF24 video capture (lazy-media sweep incl. facade shadow roots, native `<video>` force-play, local autoplay Chrome flags, three-tier facade capture — autoplay-first, isolated motion-polled render, streamless-only click fallback — carousel pager with stream-URL dedup, `maxVideoShots: 12`, placement-aware client compositing of playing frames into sections, per-facade outcome warnings). Full spec: `docs/plans/2026-09-30-video-capture.md`. figma.com Vimeo grid partially verified (4/6 cards); remainder open pending throttle-window retest.
 - PRD-record compliance: every multi-page record carries `selected`, `sections`, `observedInteractions`, and `limitations`; section-clipped homepage screenshots (max 6, byte-budgeted) and mobile capture for the homepage plus one representative page (max 2) are implemented; CSS parsing respects the 3MB per-page cap.
 - Budget and safety hardening: total screenshot bytes never exceed 6 MB (per-capture remaining-budget enforcement), redirect landings are checked for blocked hosts, disallowed ports, and non-HTTP(S) protocols, unexpected errors no longer leak internal detail, and discovery no longer duplicates mixed-case homepage paths.
 - Package integrity: client-generated JSON is validated before download; page observations expose collection counts/caps/truncation; screenshot manifest binary flags are validated against ZIP paths; ZIP CRC32 checksums are verified against the known vector.
 - `npm run typecheck` passes with zero errors.
 - Screenshot fidelity: capture scrolls in 0.8-viewport bands with 350ms painted pauses, waits for images to finish decoding, then settles fonts plus video first-frames, with extended pauses on video/canvas pages before settling at the top for capture, so scroll-triggered reveals and lazy media are included. Full-page height cap is 16000px (Chrome's ~16384px canvas ceiling), and local previews inline every shot up to the 6MB byte cap.
-- Vitest suite passes with 230 tests across 16 test files; local live-site verification is not evidence of hosted Free-tier compliance.
+- Vitest suite passes with 330 tests across 19 test files; local live-site verification is not evidence of hosted Free-tier compliance.
 
 Open or next milestones:
 
-- All CF01–CF12 implemented. Hosted smoke-verified via `npm run dev:remote -w worker` (Browser Rendering) on 2026-09-25: `backend: cloudflare`, schema 0.2.0, extraction parity with local runs (64 blocks / 30 controls / 15 colors on the reference homepage), mobile capture metadata-only (Trap 4 holds remotely), zero Error 1102s, zero issues. One transient remote navigation timeout observed on a fast host; succeeded on immediate retry with identical evidence.
+- All CF01–CF24 implemented. Hosted smoke-verified via `npm run dev:remote -w worker` (Browser Rendering) on 2026-09-25: `backend: cloudflare`, schema 0.2.0, extraction parity with local runs (64 blocks / 30 controls / 15 colors on the reference homepage), mobile capture metadata-only (Trap 4 holds remotely), zero Error 1102s, zero issues. One transient remote navigation timeout observed on a fast host; succeeded on immediate retry with identical evidence.
 - **Deploy pipeline live 2026-09-25** via GitHub Actions (`.github/workflows/deploy.yml`: typecheck → test → deploy Worker → deploy Pages UI on push to `master`, green): API at `https://site-stripper-api.momo00roro.workers.dev`, canonical UI at `https://site-stripper-ui.pages.dev` with `api-base` wired to the Worker. CI uses repo-pinned Wrangler v4 on Node 22 with `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` repo secrets, plus `--branch master` on the Pages step so CI's detached HEAD still promotes production. Cloudflare Git integration intentionally unconnected (Direct Upload via CI only — avoids double-deploy races and keeps the test gate). Public end-to-end verified 2026-09-26 (GMT+8): `https://example.com` max pages 1 → ZIP downloaded to gitignored `.examples/2026-09-26__example.com/`. Note: per-deploy hashes (e.g. `fdcbe66a`, `59fbd3cb`) are snapshots, not production — verify the canonical domain.
 - Deferred (require the real runtime to test): per-IP cooldown rate limiting, Cache API discovery caching, and the Turnstile bot barrier from the cost-control section.
-- Specified, not built: CF13 asset rehydration (SVG-only download at capture time, 512 KB total cap) — closes the rebuild-fidelity gap proven by the 2026-09-27 dogfood experiments.
 - Deliberate deviation: screenshot and critical-asset *binaries* are not embedded in the hosted package. Encoding multi-MB images in the Worker violates Trap 4 (10 ms CPU), and a client cannot reliably read cross-origin image bytes. Hosted responses therefore return screenshot metadata plus `screenshots/manifest.json`, and asset URLs in `data/assets.json`; the local dev path inlines screenshot base64 via the Node encoder. `report.json.limitations` and package warnings state this explicitly. Introducing R2 or a Deflate path would be required to ship binaries.
 
 The previously noted test expectation used a comma in the data URL, not a colon. That issue is resolved.

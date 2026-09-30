@@ -1,6 +1,39 @@
 # Evidence-First Website Documentation Implementation Plan
 
 > **Implementation complete (2026-09-23):** `npm run typecheck -w worker` passes; `npm test -w worker` passes with 200 tests across 16 files. Local Browser/ZIP smoke checks were performed against sold.com.sg. Hosted Browser Rendering verification remains pending.
+>
+> **Merged 2026-09-30:** the companion design RFC
+> (`2026-09-23-documentation-fidelity-design.md`, approved same day) is folded
+> into the summary below; the original file was removed (full text in git
+> history).
+
+## Design RFC summary (approved 2026-09-23, implemented as below)
+
+**Goal:** accurate, useful, verifiable analysis packages whose JSON records
+preserve bounded source observations and whose Markdown/theme files render
+from that single source. An AI-ready analysis, not an offline clone —
+observations distinguish seen from inferred from omitted-by-cap.
+
+**Data flow (the core decision, still current):** (1) Chromium captures one
+selected page per tab into a bounded versioned observation record; (2) the
+Worker validates, sequences, enforces budgets, aggregates report metadata —
+it renders no second copy of the documentation; (3) the UI renders canonical
+observations into JSON/Markdown/CSS and assembles the ZIP client-side;
+(4) package generation + ZIP validation run in the browser, with the manifest
+recording per-shot binary inclusion. `data/pages.json` is authoritative;
+Markdown is a projection, never a second source.
+
+**Non-negotiables (still current):** Free-tier Pages + Workers + Browser
+Rendering only; no Worker-side screenshot encoding, ZIP, Markdown, or
+unbounded transforms; 350 KB warn / 512 KB hard per-page payload; extractor
+self-contained for serialization, all DOM/CSS work in Chromium; never click
+controls, submit forms, or replay source-page behavior.
+
+**Honesty rules (still current):** unknown schema versions fail loudly, never
+as a complete-looking ZIP; missing captures / blocked CSS / pruned payloads /
+missing binaries are explicit limitations; report integrity (valid package)
+and completeness (partial observations) are separate fields; over-cap files
+are refused with exact paths, never silently sliced or stubbed.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 

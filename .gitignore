@@ -4,3 +4,6 @@ dist/
 .dev.vars
 *.log
 .examples/
+.testing/
+temp-*.png
+screenshot-localhost-*.png

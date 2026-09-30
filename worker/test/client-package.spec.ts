@@ -152,6 +152,55 @@ describe("client documentation generation", () => {
     expect(issues).toContain("Unindexed screenshot binary: screenshots/desktop/extra.webp");
   });
 
+  it("ships playing-state video clips under screenshots/videos with manifest cover", () => {
+    const analysis = fixture();
+    (analysis.pages[0] as Record<string, unknown>).videoShots = [
+      { kind: "webp", bytes: 9, width: 1440, height: 450, label: "video: Demo" },
+    ];
+    const screenshotFiles = {
+      "screenshots/desktop/home.webp": new Uint8Array([1]),
+      "screenshots/mobile/home.webp": new Uint8Array([2]),
+      "screenshots/sections/home-1.webp": new Uint8Array([3]),
+      "screenshots/videos/home-1.webp": new Uint8Array([4]),
+    };
+    const { files } = buildDocumentationFiles(analysis, screenshotFiles);
+
+    expect(files["screenshots/manifest.json"]).toContain("screenshots/videos/home-1.webp");
+    expect(files["imagery-and-video.md"]).toContain("Playing-state captures");
+    expect(files["imagery-and-video.md"]).toContain("screenshots/videos/home-1.webp");
+    const pageJson = JSON.parse(files["data/pages.json"]);
+    expect(pageJson[0].videoShots[0].label).toBe("video: Demo");
+    expect(pageJson[0].videoShots[0].dataUrl).toBeUndefined();
+    expect(validateDocumentationPackage(files, screenshotFiles)).toEqual([]);
+  });
+
+  it("tags playing-state clips with their layout section for compositing", () => {
+    const analysis = fixture();
+    (analysis.pages[0] as Record<string, unknown>).videoShots = [
+      { kind: "webp", bytes: 9, width: 1440, height: 450, y: 1200, label: "video: Demo" },
+      { kind: "webp", bytes: 9, width: 1440, height: 450, label: "video: Noplace" },
+    ];
+    (analysis.pages[0] as Record<string, unknown>).sectionLayouts = [
+      { y: 0, height: 1000 },
+      { y: 1000, height: 800 },
+    ];
+    const screenshotFiles = {
+      "screenshots/desktop/home.webp": new Uint8Array([1]),
+      "screenshots/mobile/home.webp": new Uint8Array([2]),
+      "screenshots/sections/home-1.webp": new Uint8Array([3]),
+      "screenshots/videos/home-1.webp": new Uint8Array([4]),
+      "screenshots/videos/home-2.webp": new Uint8Array([5]),
+    };
+    const { files } = buildDocumentationFiles(analysis, screenshotFiles);
+
+    expect(files["imagery-and-video.md"]).toContain("belongs in section 2");
+    expect(files["imagery-and-video.md"]).toContain("screenshots/videos/home-1.webp");
+    // A clip with no placeable rect stays untagged rather than misattributed.
+    const lines = (files["imagery-and-video.md"] as string).split("\n").filter((line) => line.includes("screenshots/videos/home-"));
+    expect(lines.filter((line) => line.includes("belongs in section"))).toHaveLength(1);
+    expect(validateDocumentationPackage(files, screenshotFiles)).toEqual([]);
+  });
+
   it("filters non-token values and maps rebuild roles", () => {
     const analysis = fixture();
     analysis.pages[0].tokens.colors.push(

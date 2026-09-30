@@ -17,6 +17,10 @@ export const LIMITS = {
   maxDesktopScreenshots: 10,
   maxMobileScreenshots: 2,
   maxSectionScreenshots: 6,
+  // Carousel-paged grids hold 7+ facades but hydrate a few cards at a time;
+  // the pager (CF24) turns next-arrows to discover them. Affordable since
+  // isolated renders cost ~4-10s per facade versus ~30s for doomed clicks.
+  maxVideoShots: 12,
   maxTotalScreenshotBytes: 6 * 1024 * 1024,
   maxAssetManifestEntries: 300,
   maxAssetDownloadBytesPerFile: 50 * 1024,

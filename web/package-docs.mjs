@@ -17,6 +17,33 @@ const fence = (text) => {
 };
 
 const json = (value) => JSON.stringify(value, null, 2);
+// Base64 dataUrl payload back to bytes. Runs in browsers (atob) and in Node
+// tests (Buffer); the file stays dependency-free either way.
+const dataUrlBytes = (dataUrl) => {
+  if (typeof dataUrl !== "string") return null;
+  const comma = dataUrl.indexOf(",");
+  if (comma === -1 || !/^data:[^,;]+;base64$/i.test(dataUrl.slice(0, comma))) return null;
+  const body = dataUrl.slice(comma + 1);
+  try {
+    if (typeof atob === "function") {
+      const binary = atob(body);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    }
+  } catch { return null; }
+  try {
+    if (typeof Buffer === "function") return Uint8Array.from(Buffer.from(body, "base64"));
+  } catch { return null; }
+  return null;
+};
+// Heading text with rendered line-breaks marked: headings[].breaks holds the
+// word indices starting each new line, so insert a ⏎ marker before them.
+const withBreaks = (heading) => {
+  const words = String(heading?.text ?? "").split(" ");
+  const marks = new Set(Array.isArray(heading?.breaks) ? heading.breaks : []);
+  return words.map((word, index) => (marks.has(index) && index > 0 ? "⏎ " : "") + word).join(" ");
+};
 const slug = (path, fallback = "page") => {
   if (path === "/") return "home";
   return String(path || "").replace(/^\/+|\/+$/g, "").replace(/[^a-zA-Z0-9/_-]+/g, "-").replace(/\/+?/g, "-").toLowerCase().slice(0, 60) || fallback;
@@ -37,6 +64,7 @@ function cleanPage(page) {
     screenshot: page.screenshot ? Object.fromEntries(Object.entries(page.screenshot).filter(([key]) => key !== "dataUrl")) : null,
     mobileScreenshot: page.mobileScreenshot ? Object.fromEntries(Object.entries(page.mobileScreenshot).filter(([key]) => key !== "dataUrl")) : null,
     sectionShots: (page.sectionShots || []).map((shot) => Object.fromEntries(Object.entries(shot).filter(([key]) => key !== "dataUrl"))),
+    videoShots: (page.videoShots || []).map((shot) => Object.fromEntries(Object.entries(shot).filter(([key]) => key !== "dataUrl"))),
   };
 }
 
@@ -143,7 +171,86 @@ function shotPath(page, variant, index, shot) {
   const ext = shotExt(shot.kind);
   if (variant === "desktop") return `screenshots/desktop/${base}.${ext}`;
   if (variant === "mobile") return `screenshots/mobile/${base}.${ext}`;
+  if (variant === "video") return `screenshots/videos/${base}-${index + 1}.${ext}`;
   return `screenshots/sections/${base}-${index + 1}.${ext}`;
+}
+
+// Placement: which layout section a playing-state frame belongs to, so a
+// rebuild can composite it over the blank video band in section screenshots.
+function sectionIndexForShot(layouts, y) {
+  const top = Number(y);
+  if (!Number.isFinite(top) || !Array.isArray(layouts)) return -1;
+  for (let i = 0; i < layouts.length; i += 1) {
+    const layout = layouts[i] || {};
+    const ly = Number(layout.y);
+    const lh = Number(layout.height);
+    if (!Number.isFinite(ly) || !Number.isFinite(lh) || lh <= 0) continue;
+    if (top >= ly && top < ly + lh) return i;
+  }
+  return -1;
+}
+
+// CF16: machine-readable section layout — geometry, alignment, columns,
+// background, and media/form/table boxes per section, so a rebuild knows
+// composition without eyeballing screenshots.
+function buildLayout(pages) {
+  return {
+    pages: pages.map((page) => {
+      const sections = page.content?.sections || [];
+      const layouts = page.sectionLayouts || [];
+      return {
+        path: page.path,
+        viewport: page.viewport || null,
+        sections: sections.slice(0, 20).map((section, index) => {
+          const layout = layouts[index] || {};
+          return {
+            order: index,
+            heading: section.heading || layout.heading || "",
+            y: layout.y ?? null,
+            height: layout.height ?? null,
+            textAlign: layout.textAlign || "",
+            columns: layout.columns || "",
+            background: layout.background || "",
+            components: (layout.components || []).slice(0, 12),
+          };
+        }),
+      };
+    }),
+  };
+}
+
+// CF17: ordered agent build spec — global theme, then sections in order with
+// copy, layout, assets, and behaviors, then explicit known gaps.
+function buildRebuildMd(analysis, pages, assets) {
+  const lines = [`# Rebuild guide — ${md(analysis.request.hostname)}`, ""];
+  lines.push(`Source: ${md(analysis.request.url)}. Rebuild desktop-first at ${pages[0]?.viewport?.width || 1440}px, then verify at 390px where mobile captures exist. Apply \`theme.css\` values first (prefer \`observed\` confidence). Heading wraps (⏎) are marked in \`information-architecture.md\`; raw indices in \`data/pages.json\` \`headings[].breaks\`.`, "");
+  pages.forEach((page) => {
+    const sections = page.content?.sections || [];
+    const layouts = page.sectionLayouts || [];
+    const pageAssets = assets.filter((asset) => asset && asset.usedOn === page.url);
+    sections.slice(0, 20).forEach((section, index) => {
+      const layout = layouts[index] || {};
+      lines.push(`## Section ${index + 1}: ${md(section.heading || "Untitled")}`, "");
+      const copy = (page.content?.blocks || []).filter((block) => block.sectionIndex === index).slice(0, 8);
+      lines.push(`Copy: ${copy.map((block) => md(block.text).slice(0, 120)).join(" / ") || "(see pages/*.md for verbatim text)"}`);
+      const comps = (layout.components || []).map((c) => `${c.kind} ${c.w}x${c.h}`).join(", ");
+      lines.push(`Layout: ${layout.y ?? "?"}+${layout.height ?? "?"}px, align ${md(layout.textAlign || "left")}, columns \`${code(layout.columns || "single")}\`, bg ${md(layout.background || "transparent")}${comps ? `; media: ${comps}` : ""}`);
+      const local = pageAssets.filter((asset) => asset.source === "downloaded" && asset.localPath);
+      const refs = pageAssets.filter((asset) => asset.source !== "downloaded").length;
+      lines.push(`Assets: ${local.map((asset) => `prefer \`${code(asset.localPath)}\``).join(", ") || "no downloaded assets"}${refs > 0 ? `; ${refs} URL reference(s) — recreate, do not hotlink` : ""}`);
+      const tabs = (page.content?.tabSets || []).map((set) => set.tabs.map((tab) => `${tab.label}${tab.selected ? "*" : ""}`).join("/")).join("; ");
+      if (tabs) lines.push(`Tabs: ${md(tabs)} (* = default; show all panels unless only one is visible)`);
+      lines.push("");
+    });
+  });
+  const skipped = assets.filter((asset) => asset && asset.source !== "downloaded");
+  const reasons = {};
+  for (const asset of skipped) reasons[asset.skipReason || "unknown"] = (reasons[asset.skipReason || "unknown"] || 0) + 1;
+  lines.push("## Known gaps", "");
+  lines.push(`- ${skipped.length} reference-only asset(s): ${Object.entries(reasons).map(([reason, count]) => `${count}× ${reason}`).join(", ") || "none"}.`);
+  for (const line of analysis.limitations || []) lines.push(`- Limitation: ${md(line).slice(0, 200)}`);
+  lines.push("", "Verify each section against `data/layout.json` and `screenshots/` before calling the rebuild done.");
+  return lines.join("\n");
 }
 
 function shotManifest(pages, binaryPaths) {
@@ -156,6 +263,7 @@ function shotManifest(pages, binaryPaths) {
     add(page, "desktop", null, page.screenshot, page.screenshot ? shotPath(page, "desktop", null, page.screenshot) : "");
     add(page, "mobile", null, page.mobileScreenshot, page.mobileScreenshot ? shotPath(page, "mobile", null, page.mobileScreenshot) : "");
     (page.sectionShots || []).forEach((shot, index) => add(page, "section", index, shot, shotPath(page, "section", index, shot)));
+    (page.videoShots || []).forEach((shot, index) => add(page, "video", index, shot, shotPath(page, "video", index, shot)));
   }
   return { shots, note: "hasBinary reflects the screenshot binary present in this downloaded client-side ZIP; false means metadata-only capture." };
 }
@@ -241,8 +349,7 @@ function coverageList(page) {
   return out;
 }
 
-function pageMarkdown(page) {
-  const blocks = page.content?.blocks || [];
+function pageMarkdown(page) {  const blocks = page.content?.blocks || [];
   const hiddenBlocks = page.content?.hiddenBlocks || [];
   const content = blocks.map((block) => {
     const text = `${md(block.text)}${block.truncated ? " _(clipped at the observed text cap)_" : ""}`;
@@ -272,7 +379,7 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
   const allBlocks = pages.flatMap((page) => (page.content?.blocks || []).map((block) => block.kind === "code" ? `### ${md(page.path)} — ${md(block.kind)}\n\n${fence(code(block.text))}` : block.kind === "table" ? `### ${md(page.path)} — ${md(block.kind)}\n\n${block.text}` : `### ${md(page.path)} — ${md(block.kind)}\n\n${md(block.text)}`));
   const hiddenBlocks = pages.flatMap((page) => (page.content?.hiddenBlocks || []).map((block) => `### ${md(page.path)} — ${md(block.initialState)} ${md(block.kind)}\n\n${md(block.text)}`));
   const interactions = pages.flatMap((page) => (page.observedInteractions || []).map((item) => `- ${md(page.path)} — ${md(item.kind)}: ${md(item.detail)}`));
-  const motion = pages.map((page) => `## ${md(page.path)}\n\nTransitions:\n${(page.motion?.transitions || []).map((item) => `- ${md(item.property)} — ${md(item.duration)} ${md(item.easing)} delay ${md(item.delay)}`).join("\n") || "- none observed"}\n\nAnimations:\n${(page.motion?.animations || []).map((item) => `- ${md(item.name)} — ${md(item.duration)} ${md(item.easing)} delay ${md(item.delay)}`).join("\n") || "- none observed"}\n\nKeyframes: ${(page.motion?.keyframes || []).map(md).join(", ") || "none observed"}`).join("\n\n");
+  const motion = pages.map((page) => `## ${md(page.path)}\n\nTransitions:\n${(page.motion?.transitions || []).map((item) => `- ${md(item.property)} — ${md(item.duration)} ${md(item.easing)} delay ${md(item.delay)}`).join("\n") || "- none observed"}\n\nAnimations:\n${(page.motion?.animations || []).map((item) => `- ${md(item.name)} — ${md(item.duration)} ${md(item.easing)} delay ${md(item.delay)}`).join("\n") || "- none observed"}\n\nKeyframes: ${(page.motion?.keyframes || []).map(md).join(", ") || "none observed"}\n\nRotating text (heading re-sample ~5s later):\n${(page.content?.rotatingText || []).map((item) => `- ${md(item.label)}: "${md(item.before)}" → "${md(item.after)}" — cycle through these variants on a timer, do not ship a static headline`).join("\n") || "- no heading-text rotation observed"}`).join("\n\n");
   const hover = pages.map((page) => `## ${md(page.path)}\n\n${(page.hoverStates || []).map((state) => `- ${code(state.trigger)} \`${code(state.selector)}\` → ${(state.changedProperties || []).map(code).join(", ") || "unspecified changes"}`).join("\n") || "- no hover/focus/active rules observed"}`).join("\n\n");
   const responsive = pages.map((page) => {
     const comparison = page.responsiveComparison;
@@ -280,17 +387,27 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
   }).join("\n\n");
   const assetLines = assets.map((asset) => `- [${md(asset.kind)}] ${md(asset.url)} — ${md(asset.alt)} (used on ${md(asset.usedOn)})${asset.source === "downloaded" && asset.localPath ? ` — downloaded to \`${code(asset.localPath)}\`` : ""}${(asset.kind === "video" || asset.kind === "audio") && asset.readyState != null && asset.readyState < 2 ? " — first frame not ready at capture" : ""}`);
   const downloadedAssets = assets.filter((asset) => asset && asset.source === "downloaded" && typeof asset.localPath === "string");
+  const downloadedPosters = downloadedAssets.filter((asset) => asset.kind === "poster");
+  const downloadedSvgs = downloadedAssets.filter((asset) => asset.kind !== "poster");
   const embedLines = pages.flatMap((page) => (page.embeds || []).map((embed) => `- [${md(embed.kind)}] ${md(embed.domain)} — ${md(embed.url)}${embed.title ? ` — "${md(embed.title)}"` : ""} (embedded on ${md(page.path)})`));
+  const videoLines = pages.flatMap((page) => (page.videos || []).map((video) => `- ${md(page.path)}: \`${code(video.url || "inline")}\`${video.poster ? ` — poster \`${code(video.poster)}\`` : " — no poster captured"}${video.autoplay ? " — autoplay" : ""}${video.muted ? " muted" : ""}${video.loop ? " loop" : ""}${video.playsinline ? " playsinline" : ""} — render the poster frame; wire tap/click-to-play, never a blank band`));
+  const playingLines = pages.flatMap((page) => (page.videoShots || []).map((shot, index) => {
+    const section = sectionIndexForShot(page.sectionLayouts, shot.y);
+    const place = section >= 0
+      ? ` — belongs in section ${section + 1}; composite over the blank video band near page y≈${shot.y}px`
+      : "";
+    return `- ${md(page.path)}: \`${code(shotPath(page, "video", index, shot))}\` (${shot.width}×${shot.height})${shot.label ? ` — ${md(shot.label)}` : ""} — motion-verified playing-state frame (in-page autoplay, click-to-play, or isolated player render); paused reference, wire tap-to-replay${place}`;
+  }));
   const pageEmbeds = pages.flatMap((page) => (page.embeds || []).map((embed) => ({ ...embed, embeddedOn: page.path })));
   const coverage = pages.flatMap((page) => coverageList(page).map(([key, item]) => `- ${md(page.path)} / ${md(key)}: ${item.emittedCount}/${item.sourceCount}; cap ${item.cap}${item.deduplicatedCount ? `; ${item.deduplicatedCount} collapsed` : ""}; ${item.truncated ? `partial (${md(item.reason || "truncated")})` : "complete within cap"}`));
   const docs = {
     "README.md": `# Website analysis — ${md(analysis.request.hostname)}\n\nSource: ${md(analysis.request.url)}  \nPages: ${analysis.pagesAnalyzed}/${analysis.pagesSelected} selected; ${analysis.pagesDiscovered} discovered  \nScreenshot captures: ${analysis.screenshotsCaptured}; binaries included: ${manifest.shots.filter((shot) => shot.hasBinary).length}/${manifest.shots.length}  \nBrowser time: ${analysis.browserSecondsUsed}s  \nObservation status: ${analysis.integrityPassed ? "valid" : "partial/failed"}\n\n## Analyzed pages\n\n${pageRows.join("\n")}\n\n## Important interpretation\n\nJSON records are canonical bounded observations. Samples are evidence, not exhaustive CSS or interaction replay. See \`data/report.json\` for caps, omissions, warnings, and confidence.\n`,
     "website-overview.md": `# Website overview\n\n${md(pages[0]?.title || analysis.request.hostname)} at ${md(analysis.request.url)}.\n${pages[0]?.social?.ogTitle ? `\nShare title: ${md(pages[0].social.ogTitle)}\n` : ""}${pages[0]?.social?.ogDescription ? `\nShare description: ${md(pages[0].social.ogDescription)}\n` : ""}${stackInfo.marks.length > 0 || stackInfo.generator ? `\nDetected stack: ${stackInfo.marks.join("; ") || "unknown"}${stackInfo.generator && !stackInfo.marks.join(" ").toLowerCase().includes(stackGenFirst.toLowerCase()) ? ` — generator meta: ${md(stackInfo.generator)}` : ""}\n` : ""}${pages[0]?.social?.themeColor ? `\nTheme color: \`${code(pages[0].social.themeColor)}\`\n` : ""}\n${pageRows.join("\n")}\n\nObserved primary navigation is in \`data/navigation.json\`; observed affordances are in \`data/interactions.json\`.\n`,
-    "information-architecture.md": `# Information architecture\n\n${pages.map((page) => `## ${md(page.title)} (\`${code(page.path)}\`)\n\n${(page.headings || []).map((heading) => `${"#".repeat(Math.min(Math.max(heading.level, 1), 6))} ${md(heading.text)}${heading.truncated ? " _(heading clipped; see capture coverage)_" : ""}`).join("\n")}\n`).join("\n")}`,
+    "information-architecture.md": `# Information architecture\n\n⏎ marks where a heading wraps to a new rendered line at the captured viewport — reproduce these breaks (raw word indices in \`data/pages.json\` \`headings[].breaks\`).\n\n${pages.map((page) => `## ${md(page.title)} (\`${code(page.path)}\`)\n\n${(page.headings || []).map((heading) => `${"#".repeat(Math.min(Math.max(heading.level, 1), 6))} ${md(withBreaks(heading))}${heading.truncated ? " _(heading clipped; see capture coverage)_" : ""}`).join("\n")}\n`).join("\n")}`,
     "design-tokens.md": `# Design tokens\n\nTokens are frequency-ranked observations across the selected pages, with source/confidence. Values are not asserted to be a complete design system.\n\n## Key observed roles\n\n${keyRoles(pages, inventory).join("\n") || "No semantic style samples observed."}\n\n## All observed values\n\n${categoryRows.join("\n")}\n\n${tokenRows.join("\n") || "No token values observed."}\n\nSemantic samples by page/role are in \`data/tokens.json\`.\n`,
     "typography.md": `# Typography\n\nTypeface usage is ranked from computed-style sampling (inferred confidence); \`@font-face\` declarations are observed where stylesheets are accessible.\n\n${pages.map((page) => `## ${md(page.path)}\n\nFont faces:\n${(page.typography?.fontFaces || []).map((face) => `- ${md(face.family)} — ${md(face.weight)}; ${md(face.src)}`).join("\n") || "- none observed"}\n\nTypefaces in use:\n${(page.typography?.fontFamilies || []).map((entry) => `- \`${code(entry.value)}\` — ${entry.count} sampled elements; ${code(entry.confidence)}`).join("\n") || "- none observed"}\n\nSemantic samples:\n${(page.semanticStyles || []).map((sample) => `- ${md(sample.role)}: ${md(sample.fontFamily)} ${md(sample.fontSize)} / ${md(sample.lineHeight)}, weight ${md(sample.fontWeight)}, tracking ${md(sample.letterSpacing)}`).join("\n") || "- none observed"}`).join("\n\n")}\n`,
     "content-style.md": `# Content and voice\n\nTone summaries are page-level heuristics. Verbatim visible text is below; inspect \`data/pages.json\` for order, roles, controls, and per-collection completeness. Initially hidden/collapsed DOM copy is separately labelled and was not treated as visible or activated.\n\n${allBlocks.join("\n\n") || "No content blocks observed."}\n\n## Initially hidden or collapsed copy\n\n${hiddenBlocks.join("\n\n") || "No hidden semantic copy observed."}\n`,
-    "imagery-and-video.md": `# Imagery and video\n\nAssets (${assets.length} listed of ${analysis.assetCount} observed):\n\n${assetLines.join("\n") || "No media assets observed."}\n\n${downloadedAssets.length > 0 ? `${downloadedAssets.length} SVG asset(s) were downloaded at capture time and ship under \`assets/\` — prefer the local copy, with the remote URL as fallback: ${downloadedAssets.map((asset) => `\`${code(asset.localPath)}\``).join(", ")}. ` : "No SVG assets were downloaded at capture time. "}Remaining media entries are URL references only; raster binaries were not fetched. Motion note: videos are URL references and canvas scenes are single static frames — treat screenshots of those regions as posters, not the experience.\n\n## Embedded frames\n\n${embedLines.join("\n") || "No embedded frames observed."}\n`,
+    "imagery-and-video.md": `# Imagery and video\n\nAssets (${assets.length} listed of ${analysis.assetCount} observed):\n\n${assetLines.join("\n") || "No media assets observed."}\n\n${downloadedSvgs.length > 0 ? `${downloadedSvgs.length} SVG asset(s) were downloaded at capture time and ship under \`assets/\` — prefer the local copy, with the remote URL as fallback: ${downloadedSvgs.map((asset) => `\`${code(asset.localPath)}\``).join(", ")}. ` : "No SVG assets were downloaded at capture time. "}${downloadedPosters.length > 0 ? `${downloadedPosters.length} poster asset(s) (video frames) were downloaded at capture time and ship under \`assets/\`: ${downloadedPosters.map((asset) => `\`${code(asset.localPath)}\``).join(", ")}. ` : ""}Remaining media entries are URL references only; raster binaries were not fetched. Motion note: videos are URL references and canvas scenes are single static frames — treat screenshots of those regions as posters, not the experience.\n\n## Videos\n\n${videoLines.join("\n") || "No video elements observed."}\n\n## Playing-state captures\n\n${playingLines.join("\n") || "No playing-state captures (facades never played in-page or isolated, or the run predates video capture)."}\n\n## Embedded frames\n\n${embedLines.join("\n") || "No embedded frames observed."}\n`,
     "motion-and-interactions.md": `# Motion and interactions\n\nTransitions, animations, and keyframe names are computed/CSSOM observations; JavaScript-driven interactions were not replayed.\n\n${motion}\n\n## Hover and focus states\n\nDeclared hover/focus/active rules are static CSS evidence of state changes; nothing was hovered or activated during capture.\n\n${hover}\n\n## Interaction affordances\n\n${interactions.join("\n") || "None detected."}\n\nBehavior was not clicked or replayed. Structured controls and ARIA relationships are in \`data/interactions.json\`.\n`,
     "responsive-behavior.md": `# Responsive behavior\n\nEvidence is limited to CSS media queries plus actual desktop/mobile observations where mobile capture succeeded.\n\nMobile comparison with screenshots: ${pages.filter((page) => page.responsiveComparison?.status === "captured").map((page) => `\`${code(page.path)}\``).join(", ") || "none"}. DOM-only comparison (extract-only 390px pass, no screenshot): ${pages.filter((page) => page.responsiveComparison?.status === "dom-only").map((page) => `\`${code(page.path)}\``).join(", ") || "none"}. No comparison: ${pages.filter((page) => page.responsiveComparison?.status !== "captured" && page.responsiveComparison?.status !== "dom-only").map((page) => `\`${code(page.path)}\` (${code(page.responsiveComparison?.status || "unknown")})`).join(", ") || "none"}. Screenshot binaries are limited to the homepage plus one representative page by the Free-tier screenshot budget; DOM-only passes cost browser time instead of bytes.\n\n${pages.map((page) => `## ${md(page.path)}\n\n${(page.breakpoints?.mediaQueries || []).map((entry) => `- ${md(entry.query)} → ${entry.changedProperties.map(md).join(", ")}`).join("\n") || "No accessible media-query rules observed."}`).join("\n\n")}\n\n${responsive}\n`,
     "implementation-plan.md": `# Reconstruction guidance\n\nSource: ${md(analysis.request.url)}. Rebuild desktop-first at 1440px, then verify at 390px where mobile captures exist.\n\n## 1. Apply the observed theme\n\n- Paste \`theme.css\` (or \`tailwind.config.js\`) values; every value carries source/confidence — prefer \`observed\` over \`inferred\`.\n- Body text/background and heading/button roles are mapped in \`design-tokens.md\` under "Key observed roles".\n\n## 2. Rebuild pages in priority order\n\n${pages.map((page) => {
@@ -305,9 +422,11 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
     "data/navigation.json": json({ homepage: analysis.request.url, selectedPages: (analysis.selection?.candidates || []).filter((candidate) => candidate.selected).map((candidate) => ({ path: candidate.path, url: candidate.url, label: candidate.label, priority: candidate.priority, reason: candidate.reason })), observed: pages.map((page) => ({ path: page.path, header: page.nav?.header || [], primary: page.nav?.primary || [], footer: page.nav?.footer || [] })) }),
     "data/selection.json": json(analysis.selection || { maxPages: analysis.request.maxPages, pagesDiscovered: analysis.pagesDiscovered, pagesSelected: analysis.pagesSelected, candidates: [] }),
     "data/interactions.json": json({ schemaVersion: analysis.schemaVersion, pages: pages.map((page) => ({ path: page.path, affordances: page.observedInteractions || [], hoverStates: page.hoverStates || [], controls: page.content?.controls || [], formActions: page.formActions || [], coverage: { controls: page.content?.coverage?.controls || null, interactions: page.content?.coverage?.interactions || null }, limitation: "Static DOM affordances and declared CSS state rules only; no source JavaScript behavior was replayed, no form was submitted." })) }),
-    "data/assets.json": json({ assets, count: assets.length, sourceCount: analysis.assetCount, complete: assets.length === analysis.assetCount, embeds: pageEmbeds, embedCount: pageEmbeds.length }),
+    "data/assets.json": json({ assets: assets.map((asset) => asset && (asset.content instanceof Uint8Array || typeof asset.dataUrl === "string") ? { ...asset, content: undefined, dataUrl: undefined } : asset), count: assets.length, sourceCount: analysis.assetCount, complete: assets.length === analysis.assetCount, embeds: pageEmbeds, embedCount: pageEmbeds.length }),
     "data/report.json": json({ schemaVersion: analysis.schemaVersion, sourceUrl: analysis.request.url, pagesDiscovered: analysis.pagesDiscovered, pagesSelected: analysis.pagesSelected, pagesAnalyzed: analysis.pagesAnalyzed, screenshotsCaptured: analysis.screenshotsCaptured, screenshotBytesCaptured: analysis.screenshotBytesTotal, screenshotBinariesIncluded: manifest.shots.filter((shot) => shot.hasBinary).length, browserSecondsUsed: analysis.browserSecondsUsed, issues: analysis.issues, warnings: analysis.warnings, limitations: analysis.limitations, coverage, observationIntegrityPassed: analysis.integrityPassed, packageIntegrityPassed: true }),
     "screenshots/manifest.json": json(manifest),
+    "data/layout.json": json(buildLayout(pages)),
+    "REBUILD.md": buildRebuildMd(analysis, pages, assets),
   };
   const { theme, tailwind } = themeFiles(inventory, pages);
   docs["theme.css"] = theme;
@@ -328,21 +447,31 @@ export function buildDocumentationFiles(analysis, screenshotFiles = {}) {
   // full entries, content included) and is fanned out here into inert
   // assets/ files for the ZIP. Strings are valid file contents: the ZIP
   // writers (worker createStoreZip, web vendor mirror) UTF-8 encode them.
+  // CF14: downloaded poster rasters ride as Uint8Array bytes (never
+  // text-decoded); the ZIP writer stores raw bytes. data/assets.json keeps
+  // metadata only so binaries are never duplicated into JSON.
+  // Poster bytes cannot cross the JSON API as Uint8Array, so the pipeline
+  // re-encodes them as dataUrl strings (local dev, like screenshots); decode
+  // them back here. data/assets.json strips dataUrl for the same reason it
+  // strips raw bytes.
+  const sizeOf = (contents) => contents instanceof Uint8Array ? contents.byteLength : new TextEncoder().encode(contents).byteLength;
   for (const asset of assets) {
-    if (asset && asset.source === "downloaded" && typeof asset.localPath === "string" && typeof asset.content === "string") {
+    if (asset && asset.source === "downloaded" && typeof asset.localPath === "string" && (typeof asset.content === "string" || asset.content instanceof Uint8Array)) {
       files[asset.localPath] = asset.content;
+    } else if (asset && asset.source === "downloaded" && typeof asset.localPath === "string" && typeof asset.dataUrl === "string") {
+      const bytes = dataUrlBytes(asset.dataUrl);
+      if (bytes) files[asset.localPath] = bytes;
     }
   }
   const validationIssues = validateDocumentationPackage(files, screenshotFiles);
   if (validationIssues.length > 0) throw new Error(`Generated documentation failed validation: ${validationIssues.join("; ")}`);
-  const byteLength = new TextEncoder().encode(Object.values(files).join("")).byteLength;
+  const byteLength = Object.values(files).reduce((total, contents) => total + sizeOf(contents), 0);
   if (byteLength > MAX_DOCUMENTATION_BYTES) {
     // Failure-path-only accounting: rank files so the error tells the user
     // WHERE the weight is (usually data/pages.json + content-style.md +
     // data/selection.json on news-scale sites), not just the total.
-    const encoder = new TextEncoder();
     const ranked = Object.entries(files)
-      .map(([name, contents]) => [name, encoder.encode(contents).byteLength])
+      .map(([name, contents]) => [name, sizeOf(contents)])
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([name, bytes]) => `${name} (${(bytes / 1024 / 1024).toFixed(1)} MiB)`)
@@ -354,7 +483,7 @@ export function buildDocumentationFiles(analysis, screenshotFiles = {}) {
 
 export function validateDocumentationPackage(files, screenshotFiles = {}) {
   const issues = [];
-  const required = ["data/pages.json", "data/tokens.json", "data/selection.json", "data/components.json", "data/navigation.json", "data/interactions.json", "data/assets.json", "data/report.json", "screenshots/manifest.json", "theme.css", "tailwind.config.js", "README.md"];
+  const required = ["data/pages.json", "data/tokens.json", "data/selection.json", "data/components.json", "data/navigation.json", "data/interactions.json", "data/assets.json", "data/report.json", "data/layout.json", "REBUILD.md", "screenshots/manifest.json", "theme.css", "tailwind.config.js", "README.md"];
   for (const name of required) if (!(name in files)) issues.push(`Missing required package file: ${name}`);
   for (const [name, contents] of Object.entries(files)) {
     if (name.endsWith(".json")) {
@@ -376,6 +505,19 @@ export function validateDocumentationPackage(files, screenshotFiles = {}) {
       }
     }
     const manifest = JSON.parse(files["screenshots/manifest.json"] || "{}");
+    const layout = JSON.parse(files["data/layout.json"] || "{}");
+    const rebuild = files["REBUILD.md"] || "";
+    for (const page of pages) {
+      // buildLayout caps sections at 20 per page; mirror the cap here, and
+      // skip pages from captures that predate sectionLayouts entirely.
+      const expected = Math.min((page.content?.sections || []).length, 20);
+      const got = (layout.pages || []).find((entry) => entry.path === page.path);
+      if (got && page.sectionLayouts && got.sections.length !== expected) issues.push(`Layout section count mismatch for ${page.path}: layout.json has ${got.sections.length}, pages.json has ${expected}.`);
+    }
+    const headers = (rebuild.match(/^## Section \d+: /gm) || []).length;
+    // buildRebuildMd caps sections at 20 per page, like buildLayout.
+    const wanted = pages.reduce((total, page) => total + Math.min((page.content?.sections || []).length, 20), 0);
+    if (headers !== wanted) issues.push(`REBUILD.md has ${headers} section headers for ${wanted} content sections.`);
     const binaryPaths = new Set(Object.keys(screenshotFiles));
     for (const shot of manifest.shots || []) {
       const exists = binaryPaths.has(shot.zipPath);
