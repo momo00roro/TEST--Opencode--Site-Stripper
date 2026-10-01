@@ -201,6 +201,39 @@ describe("client documentation generation", () => {
     expect(validateDocumentationPackage(files, screenshotFiles)).toEqual([]);
   });
 
+  it("lists fetched fallback thumbnails with section placement, never as playing frames", () => {
+    const analysis = fixture();
+    (analysis.pages[0] as Record<string, unknown>).videoThumbnails = [
+      { kind: "jpeg", bytes: 8, width: 1440, height: 400, y: 1200, label: "thumbnail: Grid 0", dataUrl: "data:image/jpeg;base64,VEhVTUI=", placement: { x: 100, y: 1200, width: 600, height: 400 } },
+    ];
+    (analysis.pages[0] as Record<string, unknown>).sectionLayouts = [
+      { y: 0, height: 1000 },
+      { y: 1000, height: 800 },
+    ];
+    (analysis as Record<string, unknown>).assets = [
+      ...(analysis.assets as unknown[]),
+      { url: "https://i.vimeocdn.com/video/1_640.jpg", kind: "poster", alt: "Fetched video thumbnail for 'Grid 0'", width: null, height: null, usedOn: "/", source: "downloaded", localPath: "assets/03-grid-0.jpg", bytes: 8, contentType: "image/jpeg", content: new Uint8Array([9]) },
+    ];
+    const screenshotFiles = {
+      "screenshots/desktop/home.webp": new Uint8Array([1]),
+      "screenshots/mobile/home.webp": new Uint8Array([2]),
+      "screenshots/sections/home-1.webp": new Uint8Array([3]),
+    };
+    const { files } = buildDocumentationFiles(analysis, screenshotFiles);
+
+    expect(files["imagery-and-video.md"]).toContain("## Fallback thumbnails");
+    expect(files["imagery-and-video.md"]).toContain("thumbnail: Grid 0");
+    expect(files["imagery-and-video.md"]).toContain("belongs in section 2");
+    expect(files["imagery-and-video.md"]).toContain("not a playing-state frame");
+    expect(files["imagery-and-video.md"]).toContain("assets/03-grid-0.jpg");
+    expect(files["imagery-and-video.md"]).not.toContain("motion-verified playing-state frame (in-page autoplay");
+    const pageJson = JSON.parse(files["data/pages.json"]);
+    expect(pageJson[0].videoThumbnails[0].label).toBe("thumbnail: Grid 0");
+    expect(pageJson[0].videoThumbnails[0].dataUrl).toBeUndefined();
+    expect(files["assets/03-grid-0.jpg"]).toBeInstanceOf(Uint8Array);
+    expect(validateDocumentationPackage(files, screenshotFiles)).toEqual([]);
+  });
+
   it("filters non-token values and maps rebuild roles", () => {
     const analysis = fixture();
     analysis.pages[0].tokens.colors.push(

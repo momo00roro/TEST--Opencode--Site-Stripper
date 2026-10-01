@@ -20,32 +20,38 @@ function finiteNumber(value) {
 
 /**
  * Pure: match placed video frames to the section shots containing them.
- * Returns [{ sectionIndex, videoIndex, dest }] with dest in section-image
- * page pixels (x/y relative to the section origin).
+ * Covers motion-verified videoShots AND fetched-fallback videoThumbnails
+ * (CF25): both carry placement boxes; plans are marked so the compositor can
+ * draw from the right list and report them honestly.
+ * Returns [{ sectionIndex, videoIndex, thumb, dest }] with dest in
+ * section-image page pixels (x/y relative to the section origin).
  */
 export function planComposites(page) {
   const plans = [];
   const sections = page?.sectionShots || [];
-  const videos = page?.videoShots || [];
-  videos.forEach((video, videoIndex) => {
-    if (!video?.dataUrl) return;
-    const p = video?.placement;
-    if (!p) return;
-    const px = finiteNumber(p.x);
-    const py = finiteNumber(p.y);
-    const pw = finiteNumber(p.width);
-    const ph = finiteNumber(p.height);
-    if (px === null || py === null || pw === null || ph === null || pw <= 0 || ph <= 0) return;
-    const center = py + ph / 2;
-    sections.forEach((section, sectionIndex) => {
-      if (!section?.dataUrl) return;
-      const sy = finiteNumber(section?.y);
-      const sh = finiteNumber(section?.height);
-      if (sy === null || sh === null || sh <= 0) return;
-      if (center < sy || center >= sy + sh) return;
-      plans.push({ sectionIndex, videoIndex, dest: { x: px, y: py - sy, w: pw, h: ph } });
+  const planList = (videos, thumb) => {
+    (videos || []).forEach((video, videoIndex) => {
+      if (!video?.dataUrl) return;
+      const p = video?.placement;
+      if (!p) return;
+      const px = finiteNumber(p.x);
+      const py = finiteNumber(p.y);
+      const pw = finiteNumber(p.width);
+      const ph = finiteNumber(p.height);
+      if (px === null || py === null || pw === null || ph === null || pw <= 0 || ph <= 0) return;
+      const center = py + ph / 2;
+      sections.forEach((section, sectionIndex) => {
+        if (!section?.dataUrl) return;
+        const sy = finiteNumber(section?.y);
+        const sh = finiteNumber(section?.height);
+        if (sy === null || sh === null || sh <= 0) return;
+        if (center < sy || center >= sy + sh) return;
+        plans.push({ sectionIndex, videoIndex, thumb, dest: { x: px, y: py - sy, w: pw, h: ph } });
+      });
     });
-  });
+  };
+  planList(page?.videoShots, false);
+  planList(page?.videoThumbnails, true);
   return plans;
 }
 
@@ -104,7 +110,7 @@ function browserDeps() {
  * stats.skipped with reasons.
  */
 export async function compositeSectionStills(analysis, deps) {
-  const stats = { composited: 0, skipped: [], total: Number(analysis?.__compositedTotal) || 0 };
+  const stats = { composited: 0, thumbnails: 0, skipped: [], total: Number(analysis?.__compositedTotal) || 0 };
   try {
     if (!analysis || analysis.__composited) {
       stats.cached = true;
@@ -152,7 +158,8 @@ export async function compositeSectionStills(analysis, deps) {
           let drew = 0;
           for (const item of items) {
             try {
-              const video = page.videoShots[item.videoIndex];
+              const source = item.thumb ? page.videoThumbnails : page.videoShots;
+              const video = source[item.videoIndex];
               const frame = await resolved.loadImage(video.dataUrl);
               const fw = Number(frame?.width) || 0;
               const fh = Number(frame?.height) || 0;
@@ -173,6 +180,7 @@ export async function compositeSectionStills(analysis, deps) {
               }
               ctx.drawImage(frame, crop.sx, crop.sy, crop.sw, crop.sh, dst.x, dst.y, dst.w, dst.h);
               drew += 1;
+              if (item.thumb) stats.thumbnails += 1;
             } catch {
               stats.skipped.push({ section: sectionIndex, video: item.videoIndex, reason: "frame-failed" });
             }

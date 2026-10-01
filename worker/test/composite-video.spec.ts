@@ -153,6 +153,34 @@ describe("compositeSectionStills", () => {
     expect(again.cached).toBe(true);
   });
 
+  it("draws a fetched thumbnail from the thumbnail list and reports it", async () => {
+    const thumb = {
+      kind: "jpeg",
+      bytes: 8,
+      width: 1440,
+      height: 400,
+      y: 1200,
+      label: "thumbnail: Grid 0",
+      dataUrl: "data:image/jpeg;base64,VEhVTUI=",
+      placement: { x: 100, y: 1200, width: 600, height: 400 },
+    };
+    const analysis: { pages: any[] } = {
+      pages: [pageWith({ videoShots: [], videoThumbnails: [thumb] })],
+    };
+    const deps = fakeDeps({
+      "data:image/webp;base64,AAA=": { width: 1440, height: 800 },
+      "data:image/jpeg;base64,VEhVTUI=": { width: 640, height: 427 },
+    });
+
+    const stats = await compositeSectionStills(analysis, deps);
+
+    expect(stats.composited).toBe(1);
+    expect(stats.thumbnails).toBe(1);
+    expect(analysis.pages[0].sectionShots[0].composited).toBe(true);
+    expect(deps.canvases).toHaveLength(1);
+    expect(deps.canvases[0]?.ops).toHaveLength(2);
+  });
+
   it("skips sections whose pixels do not match page pixels", async () => {
     const analysis: { pages: any[] } = { pages: [pageWith()] };
     const deps = fakeDeps({
@@ -165,5 +193,38 @@ describe("compositeSectionStills", () => {
     expect(stats.composited).toBe(0);
     expect(stats.skipped).toMatchObject([{ section: 0, video: 0, reason: "scale-mismatch" }]);
     expect(analysis.pages[0].sectionShots[0].dataUrl).toBe("data:image/webp;base64,AAA=");
+  });
+});
+
+describe("CF25 fallback thumbnails", () => {
+  const THUMB = {
+    kind: "jpeg",
+    bytes: 8,
+    width: 1440,
+    height: 400,
+    y: 1200,
+    label: "thumbnail: Grid 0",
+    dataUrl: "data:image/jpeg;base64,VEhVTUI=",
+    placement: { x: 100, y: 1200, width: 600, height: 400 },
+  };
+
+  it("plans fetched thumbnails exactly like placed frames, marked as fallback", () => {
+    const page = pageWith({ videoShots: [], videoThumbnails: [{ ...THUMB }] });
+
+    const plans = planComposites(page);
+
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({
+      sectionIndex: 0,
+      videoIndex: 0,
+      thumb: true,
+      dest: { x: 100, y: 200, w: 600, h: 400 },
+    });
+  });
+
+  it("draws fetched thumbnails alongside motion-verified plans", () => {
+    const plans = planComposites(pageWith({ videoThumbnails: [{ ...THUMB }] }));
+
+    expect(plans.map((plan) => plan.thumb)).toEqual([false, true]);
   });
 });

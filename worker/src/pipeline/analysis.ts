@@ -24,7 +24,7 @@ import { discoverCandidates } from "../discovery/discover";
 import type { DiscoveryResult } from "../discovery/types";
 import { humanizeSegment } from "../discovery/paths";
 import { ApiError } from "../http/errors";
-import { rehydrateAssets } from "./rehydrate-assets";
+import { fetchVimeoThumbnailUrl, rehydrateAssets, vimeoVideoId } from "./rehydrate-assets";
 import { buildSelection, type SelectionReport } from "../ranking/key-pages";
 import type { AnalyzeRequest } from "../validation/analyze-request";
 import { assertPublicTarget, parseHttpUrl } from "../validation/url";
@@ -51,6 +51,21 @@ export interface AnalysisScreenshot {
 export interface AnalysisNavLink {
   text: string;
   href: string;
+}
+
+/**
+ * CF25: a deferred video facade that never produced a playing-state clip.
+ * Carries the facade placement rect so a fetched thumbnail can stand in over
+ * the blank band in section shots.
+ */
+export interface VideoPlaceholder {
+  label: string;
+  streamUrl: string;
+  rectX: number;
+  rectY: number;
+  rectWidth: number;
+  rectHeight: number;
+  reason: "wall" | "bytes" | "load" | "motion";
 }
 
 export interface AnalysisNav {
@@ -91,6 +106,12 @@ export interface AnalysisPage {
   sectionShots: AnalysisScreenshot[];
   /** Playing-state clips of video facades, autoplay-first (CF21, homepage only). */
   videoShots: AnalysisScreenshot[];
+  /**
+   * Fetched fallback thumbnails for facades that never played (CF25,
+   * homepage only). Honest stand-ins, never motion-verified: composited over
+   * blank bands and labeled `thumbnail:`, not `video:`.
+   */
+  videoThumbnails: AnalysisScreenshot[];
   warnings: string[];
   tokens: SnapshotTokens;
   typography: SnapshotTypography;
@@ -175,6 +196,11 @@ export interface AnalysisOptions {
   onProgress?: (event: AnalysisProgress) => void;
   /** Homepage rotation re-sample delay in ms; unset disables the check. */
   detectRotationMs?: number;
+  /**
+   * Override for the total analysis wall budget in ms (tests force
+   * wall-skips with 0). Production omits it and the LIMITS default applies.
+   */
+  wallBudgetMs?: number;
 }
 
 // Bot-verification challenges (CAPTCHAs, sliders, rate walls) are never
@@ -233,6 +259,8 @@ export async function runAnalysis(
   let discovery: DiscoveryResult | null = null;
   let selection: SelectionReport | null = null;
   let homepageSnapshot: PageSnapshot | null = null;
+  let homepagePlaceholders: VideoPlaceholder[] = [];
+  let homepagePath = "/";
   let screenshotBytesTotal = 0;
   let screenshotsCaptured = 0;
   let budgetNotice = false;
@@ -256,11 +284,14 @@ export async function runAnalysis(
         maxSectionShots: LIMITS.maxSectionScreenshots,
         maxVideoShots: LIMITS.maxVideoShots,
         analysisStartedAt: startedAt,
+        ...(options.wallBudgetMs !== undefined ? { wallBudgetMs: options.wallBudgetMs } : {}),
         // Rotation re-sample is opt-in (costs browser seconds): the API
         // route enables it; unit tests leave it off for speed.
         ...(options.detectRotationMs !== undefined ? { detectRotationMs: options.detectRotationMs } : {}),
       });
       homepageSnapshot = homepage.capture.snapshot;
+      homepagePlaceholders = homepage.videoPlaceholders;
+      homepagePath = homepage.path;
       screenshotBytesTotal += homepage.screenshotBytes;
       screenshotsCaptured += homepage.screenshotCount;
       desktopTaken += homepage.screenshotCount;
@@ -637,6 +668,45 @@ export async function runAnalysis(
       if (assets.length >= LIMITS.maxAssetManifestEntries) break;
     }
 
+    // CF25: fetched thumbnails for uncaptured facades. Facades that never
+    // played AND captured no poster would leave blank bands; Vimeo oEmbed
+    // resolves a thumbnail_url with one tiny JSON fetch each (zero
+    // browser-minutes). Resolved URLs ride the existing poster pipeline as
+    // synthetic assets (shared caps, lowest priority), so shipping, docs,
+    // and validation need no new paths.
+    const placeholders = homepagePlaceholders;
+    const homepageVideos = homepageSnapshot?.videos ?? [];
+    const thumbnailFor = new Map<string, (typeof placeholders)[number]>();
+    if (placeholders.length > 0) {
+      const posterByVideoId = new Map<string, string>();
+      for (const video of homepageVideos) {
+        const id = vimeoVideoId(video.url);
+        if (id && !posterByVideoId.has(id)) posterByVideoId.set(id, video.poster ?? "");
+      }
+      for (const item of placeholders.slice(0, LIMITS.maxVideoShots)) {
+        const id = vimeoVideoId(item.streamUrl);
+        if (!id) continue;
+        if ((posterByVideoId.get(id) ?? "") !== "") continue;
+        if (assets.length >= LIMITS.maxAssetManifestEntries) break;
+        try {
+          const thumbUrl = await fetchVimeoThumbnailUrl(item.streamUrl, fetchImpl);
+          if (thumbUrl && !thumbnailFor.has(thumbUrl)) {
+            thumbnailFor.set(thumbUrl, item);
+            assets.push({
+              url: thumbUrl,
+              kind: "poster",
+              alt: `Fetched video thumbnail for '${item.label.slice(0, 80)}'`,
+              width: null,
+              height: null,
+              usedOn: homepagePath,
+            });
+          }
+        } catch {
+          // One unresolvable thumbnail never fails the analysis.
+        }
+      }
+    }
+
     // CF13: rehydrate eligible SVGs (logo/icon/hero) with plain fetch
     // subrequests, batched after page analysis. Shortfall is recorded on the
     // entries and in limitations, never thrown. Entries are replaced with new
@@ -690,6 +760,41 @@ export async function runAnalysis(
     } catch {
       assets = assets.map((asset) => ({ ...asset, source: "reference-only" as const, skipReason: "rehydration-error" }));
       limitations.push("Asset rehydration was skipped after an unexpected error; all assets remain URL references.");
+    }
+
+    // CF25: downloaded thumbnails become composited stand-ins on the homepage
+    // record (placement from the uncaptured facade). Local dev inlines the
+    // dataUrl the poster path already produced; hosted stays metadata-only.
+    // Thumbnails are asset bytes, not screenshot bytes — never double-counted.
+    if (thumbnailFor.size > 0 && pages[0]) {
+      const homePage = pages[0];
+      let thumbnailed = 0;
+      for (const entry of assets) {
+        const item = entry.url ? thumbnailFor.get(entry.url) : undefined;
+        if (!item || entry.source !== "downloaded" || typeof entry.dataUrl !== "string") continue;
+        const kind = entry.dataUrl.startsWith("data:image/") ? entry.dataUrl.slice(11).split(";")[0]! : "webp";
+        homePage.videoThumbnails.push({
+          kind,
+          bytes: entry.bytes ?? 0,
+          width: LIMITS.desktopViewportWidth,
+          height: item.rectHeight > 0 ? item.rectHeight : 720,
+          y: item.rectY,
+          label: `thumbnail: ${item.label}`,
+          dataUrl: entry.dataUrl,
+          ...(item.rectWidth > 0 && item.rectHeight > 0
+            ? { placement: { x: item.rectX, y: item.rectY, width: item.rectWidth, height: item.rectHeight } }
+            : {}),
+        });
+        thumbnailed += 1;
+      }
+      const labels = [...thumbnailFor.values()].map((item) => item.label.slice(0, 60)).join("; ");
+      limitations.push(
+        `Video thumbnails: ${thumbnailed} fetched thumbnail(s) stand in for ${thumbnailFor.size} uncaptured facade(s) (${labels}); facades without a resolvable thumbnail keep their embed details in imagery-and-video.md.`,
+      );
+    } else if (homepagePlaceholders.length > 0) {
+      limitations.push(
+        `Video thumbnails: no fetched thumbnail resolved for ${homepagePlaceholders.length} uncaptured facade(s); those regions keep their embed details in imagery-and-video.md.`,
+      );
     }
 
     // PRD fidelity model: known product limits are always disclosed, but only
@@ -793,6 +898,8 @@ async function captureOne(
      * the remaining wall budget against it and skips honestly when exhausted.
      */
     analysisStartedAt?: number;
+    /** Wall-budget override in ms (tests); defaults to LIMITS. */
+    wallBudgetMs?: number;
   },
 ): Promise<{
   url: string;
@@ -804,12 +911,19 @@ async function captureOne(
   sectionShotBytes: number;
   videoShots: AnalysisScreenshot[];
   videoShotBytes: number;
+  /**
+   * CF25: deferred facades that never became playing-state clips (wall/byte
+   * skips, load failures, no-motion renders), with their facade placement
+   * rects so packaging can substitute fetched thumbnails over the blank bands.
+   */
+  videoPlaceholders: VideoPlaceholder[];
   extractionBytes: number;
   warnings: string[];
 }> {
   // Trap 3: one tab at a time, closed before the next page opens.
   const page = await session.newPage();
   const warnings: string[] = [];
+  const videoPlaceholders: VideoPlaceholder[] = [];
 
   try {
     const capture = await capturePage(page, {
@@ -834,22 +948,42 @@ async function captureOne(
       let used = (capture.screenshot?.byteLength ?? 0)
         + capture.sectionShots.reduce((total, shot) => total + shot.bytes, 0)
         + capture.videoShots.reduce((total, shot) => total + shot.bytes, 0);
-      const deadline = (options.analysisStartedAt ?? Date.now()) + LIMITS.totalAnalysisWallBudgetMs;
+      const deadline = (options.analysisStartedAt ?? Date.now()) + (options.wallBudgetMs ?? LIMITS.totalAnalysisWallBudgetMs);
+      // CF25 honesty: "cover art stands in" is only true when a poster was
+      // captured; otherwise packaging substitutes a fetched thumbnail where
+      // one resolves (see imagery-and-video.md for the actual outcome).
+      const fallbackNote = "packaging substitutes a fetched thumbnail where one resolves (see imagery-and-video.md)";
+      const toPlaceholder = (
+        item: { label: string; streamUrl: string; rectX: number; rectY: number; rectWidth: number; rectHeight: number },
+        reason: VideoPlaceholder["reason"],
+      ): void => {
+        videoPlaceholders.push({
+          label: item.label,
+          streamUrl: item.streamUrl,
+          rectX: item.rectX,
+          rectY: item.rectY,
+          rectWidth: item.rectWidth,
+          rectHeight: item.rectHeight,
+          reason,
+        });
+      };
       for (let pi = 0; pi < pending.length; pi += 1) {
         const item = pending[pi]!;
         if (used >= maxBytes) {
-          warnings.push(`Isolated render for video '${item.label}' dropped: byte budget exhausted.`);
+          warnings.push(`Isolated render for video '${item.label}' dropped: byte budget exhausted; ${fallbackNote}.`);
+          toPlaceholder(item, "bytes");
           break;
         }
         if (Date.now() > deadline) {
           warnings.push(
-            `Skipped isolated render for video '${item.label}': wall budget exhausted; its cover art stands in.`,
+            `Skipped isolated render for video '${item.label}': wall budget exhausted; ${fallbackNote}.`,
           );
           for (let qi = pi + 1; qi < pending.length; qi += 1) {
             warnings.push(
-              `Skipped isolated render for video '${pending[qi]!.label}': wall budget exhausted; its cover art stands in.`,
+              `Skipped isolated render for video '${pending[qi]!.label}': wall budget exhausted; ${fallbackNote}.`,
             );
           }
+          for (let qi = pi; qi < pending.length; qi += 1) toPlaceholder(pending[qi]!, "wall");
           break;
         }
         let shot: Awaited<ReturnType<typeof renderIsolatedVideoShot>> = null;
@@ -859,14 +993,16 @@ async function captureOne(
           shot = null;
         }
         if (!shot) {
-          warnings.push(`Isolated render for video '${item.label}' failed to load; its cover art stands in.`);
+          warnings.push(`Isolated render for video '${item.label}' failed to load; ${fallbackNote}.`);
+          toPlaceholder(item, "load");
           continue;
         }
         // Per-facade outcome (bounded: one line each, at most the video cap):
         // repeated labels here mean duplicate deferrals upstream; distinct
         // failing labels mean distinct gated streams.
         if (!shot.started) {
-          warnings.push(`Isolated render for video '${item.label}' showed no motion; its cover art stands in.`);
+          warnings.push(`Isolated render for video '${item.label}' showed no motion; ${fallbackNote}.`);
+          toPlaceholder(item, "motion");
           continue;
         }
         if (used + shot.bytes > maxBytes) {
@@ -931,6 +1067,7 @@ async function captureOne(
       sectionShotBytes: capture.sectionShots.reduce((total, shot) => total + shot.bytes, 0),
       videoShots,
       videoShotBytes: capture.videoShots.reduce((total, shot) => total + shot.bytes, 0),
+      videoPlaceholders,
       extractionBytes,
       warnings,
     };
@@ -1096,6 +1233,7 @@ function toRecord(
     mobileScreenshot: null,
     sectionShots: [],
     videoShots: [],
+    videoThumbnails: [],
     warnings: captured.warnings,
     tokens: snapshot.tokens,
     typography: snapshot.typography,

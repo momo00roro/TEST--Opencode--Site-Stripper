@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SnapshotAsset } from "../src/browser/snapshot-script";
 import type { SessionLauncher } from "../src/browser/types";
 import { LIMITS } from "../src/config/limits";
-import { rehydrateAssets, unwrapOptimizerUrl } from "../src/pipeline/rehydrate-assets";
+import { fetchVimeoThumbnailUrl, rehydrateAssets, unwrapOptimizerUrl, vimeoOEmbedUrl, vimeoVideoId } from "../src/pipeline/rehydrate-assets";
 import { runAnalysis } from "../src/pipeline/analysis";
 import type { AnalyzeRequest } from "../src/validation/analyze-request";
 import { buildDocumentationFiles, validateDocumentationPackage } from "../../web/package-docs.mjs";
@@ -856,5 +856,67 @@ describe("package-docs (CF13)", () => {
 
     expect(JSON.parse(files["data/layout.json"]).pages[0].sections).toHaveLength(20);
     expect(validateDocumentationPackage(files, {})).toEqual([]);
+  });
+});
+
+describe("vimeoVideoId (CF25)", () => {
+  it("extracts the numeric id from watch and player URLs", () => {
+    expect(vimeoVideoId("https://vimeo.com/1202189218")).toBe("1202189218");
+    expect(vimeoVideoId("https://vimeo.com/1202195955?share=copy&fl=sv&fe=ci")).toBe("1202195955");
+    expect(vimeoVideoId("https://player.vimeo.com/video/1202189218?muted=1")).toBe("1202189218");
+  });
+
+  it("returns null for non-Vimeo or id-less URLs", () => {
+    expect(vimeoVideoId("https://www.youtube.com/watch?v=abc")).toBeNull();
+    expect(vimeoVideoId("https://vimeo.com/channels/staffpicks")).toBeNull();
+    expect(vimeoVideoId("not a url")).toBeNull();
+    expect(vimeoVideoId("")).toBeNull();
+  });
+});
+
+describe("vimeoOEmbedUrl (CF25)", () => {
+  it("builds the oEmbed lookup for a Vimeo URL", () => {
+    expect(vimeoOEmbedUrl("https://vimeo.com/1202189218?share=copy")).toBe(
+      "https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F1202189218",
+    );
+  });
+
+  it("returns null when no Vimeo id is present", () => {
+    expect(vimeoOEmbedUrl("https://example.com/video.mp4")).toBeNull();
+  });
+});
+
+describe("fetchVimeoThumbnailUrl (CF25)", () => {
+  const oembed = (thumb: string): Response =>
+    new Response(JSON.stringify({ thumbnail_url: thumb }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+
+  it("returns the thumbnail_url from oEmbed JSON", async () => {
+    const fetch = stubFetch({
+      "https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F1202189218": oembed(
+        "https://i.vimeocdn.com/video/12345_640.jpg",
+      ),
+    });
+    await expect(fetchVimeoThumbnailUrl("https://vimeo.com/1202189218", fetch)).resolves.toBe(
+      "https://i.vimeocdn.com/video/12345_640.jpg",
+    );
+  });
+
+  it("returns null on fetch failure, bad JSON, or missing thumbnail", async () => {
+    const fetch = stubFetch({
+      "https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F1": oembed(""),
+      "https://vimeo.com/api/oembed.json?url=https%3A%2F%2Fvimeo.com%2F2": new Response("nope", { status: 200 }),
+    });
+    await expect(fetchVimeoThumbnailUrl("https://vimeo.com/1", fetch)).resolves.toBeNull();
+    await expect(fetchVimeoThumbnailUrl("https://vimeo.com/2", fetch)).resolves.toBeNull();
+    await expect(fetchVimeoThumbnailUrl("https://vimeo.com/3", fetch)).resolves.toBeNull();
+    await expect(fetchVimeoThumbnailUrl("https://example.com/x.mp4", fetch)).resolves.toBeNull();
+  });
+
+  it("never throws when fetch rejects", async () => {
+    const fetch = async (): Promise<Response> => { throw new Error("down"); };
+    await expect(fetchVimeoThumbnailUrl("https://vimeo.com/1202189218", fetch)).resolves.toBeNull();
   });
 });

@@ -34,6 +34,63 @@ function resolveCrossOriginPosterTarget(raw: string): string | null {
 
 const SVG_CONTENT_TYPE = "image/svg+xml";
 
+// CF25 fallback thumbnails: facades that never played (wall/byte skips) and
+// captured no poster would leave blank bands. For Vimeo embeds the public
+// oEmbed endpoint yields a thumbnail_url with one tiny JSON fetch — zero
+// browser-minutes, plain Node fetch like every other rehydration download.
+
+/** Numeric Vimeo id from a watch or player URL, or null. */
+export function vimeoVideoId(raw: string): string | null {
+  try {
+    const parsed = new URL(String(raw ?? ""));
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    const host = parsed.hostname.toLowerCase();
+    const match = /^(?:www\.)?vimeo\.com$/.test(host)
+      ? parsed.pathname.match(/(?:^|\/)(\d+)(?:\/|$)/)
+      : host === "player.vimeo.com"
+        ? parsed.pathname.match(/^\/video\/(\d+)(?:\/|$)/)
+        : null;
+    return match ? match[1]! : null;
+  } catch {
+    return null;
+  }
+}
+
+/** oEmbed lookup URL for a Vimeo video URL, or null when it has no Vimeo id. */
+export function vimeoOEmbedUrl(videoUrl: string): string | null {
+  const id = vimeoVideoId(videoUrl);
+  if (!id) return null;
+  return `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(`https://vimeo.com/${id}`)}`;
+}
+
+export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+
+/**
+ * Resolve a Vimeo stream URL to its thumbnail_url via oEmbed. Returns null
+ * for non-Vimeo URLs, fetch failures, bad JSON, or missing/invalid
+ * thumbnails. Never throws — shortfall is the caller's honest skip.
+ */
+export async function fetchVimeoThumbnailUrl(streamUrl: string, fetchImpl: FetchLike): Promise<string | null> {
+  const lookup = vimeoOEmbedUrl(streamUrl);
+  if (!lookup) return null;
+  try {
+    const response = await fetchImpl(lookup, { headers: { accept: "application/json" } });
+    if (!response.ok) return null;
+    const body = await response.json().catch(() => null) as { thumbnail_url?: unknown } | null;
+    const thumb = typeof body?.thumbnail_url === "string" ? body.thumbnail_url : "";
+    if (!thumb) return null;
+    try {
+      const parsed = new URL(thumb);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+      return parsed.toString();
+    } catch {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 export interface RehydrateOptions {
   fetchImpl: (input: string, init?: RequestInit) => Promise<Response>;
   origin: string;

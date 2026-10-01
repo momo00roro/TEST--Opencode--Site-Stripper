@@ -585,6 +585,74 @@ describe("runAnalysis (CF06)", () => {
     expect(result.warnings.some((warning) => warning.includes("did not"))).toBe(false);
   }, 90_000);
 
+  it("substitutes fetched thumbnails for wall-skipped facades (CF25)", async () => {
+    const streams: Record<number, { status: string; x: number; y: number; label: string; streamUrl: string; rectY: number; rectHeight: number; rectX: number; rectWidth: number }> = {};
+    for (let i = 0; i < 2; i += 1) {
+      streams[i] = {
+        status: "target",
+        x: 720,
+        y: 500,
+        label: `Grid ${i}`,
+        streamUrl: `https://player.vimeo.com/video/${1202887330 + i}?autoplay=1&muted=1`,
+        rectY: 2000 + i * 500,
+        rectHeight: 400,
+        rectX: 100,
+        rectWidth: 600,
+      };
+    }
+    const thumb = (id: number): string => `https://i.vimeocdn.com/video/${id}_640.jpg`;
+    const oembed = (id: number): string =>
+      `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(`https://vimeo.com/${id}`)}`;
+    const fetchImpl = mockSiteFetchWithDoh(
+      {
+        [oembed(1202887330)]: { body: JSON.stringify({ thumbnail_url: thumb(1) }), contentType: "application/json" },
+        [oembed(1202887331)]: { body: JSON.stringify({ thumbnail_url: thumb(2) }), contentType: "application/json" },
+        [thumb(1)]: { body: "THUMBONE", contentType: "image/jpeg" },
+        [thumb(2)]: { body: "THUMBTWO", contentType: "image/jpeg" },
+      },
+      { a: ["93.184.216.34"] },
+    );
+    const { launcher } = makeFakeLauncher("fake", { videoTargetAt: streams });
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl,
+      encodeBase64: (bytes) => Buffer.from(bytes).toString("base64"),
+      wallBudgetMs: 0,
+    });
+
+    // Nothing played in-page and the isolated tier never ran: no clips, but
+    // honest per-facade warnings plus fetched thumbnail stand-ins.
+    expect(result.pages[0]?.videoShots).toEqual([]);
+    expect(result.warnings.filter((w) => w.includes("wall budget exhausted"))).toHaveLength(2);
+    expect(result.warnings.every((w) => !w.includes("cover art stands in"))).toBe(true);
+    const thumbs = result.pages[0]?.videoThumbnails ?? [];
+    expect(thumbs).toHaveLength(2);
+    expect(thumbs[0]).toMatchObject({
+      label: "thumbnail: Grid 0",
+      y: 2000,
+      height: 400,
+      placement: { x: 100, y: 2000, width: 600, height: 400 },
+    });
+    expect(thumbs[0]?.dataUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(result.limitations.some((line) => line.includes("Video thumbnails: 2 fetched"))).toBe(true);
+  });
+
+  it("reports honestly when no thumbnail resolves (CF25)", async () => {
+    const { launcher } = makeFakeLauncher("fake", {
+      videoTargetAt: {
+        0: { status: "target", x: 720, y: 500, label: "Grid 0", streamUrl: "https://player.vimeo.com/video/1202887330" },
+      },
+    });
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+      encodeBase64: (bytes) => Buffer.from(bytes).toString("base64"),
+      wallBudgetMs: 0,
+    });
+
+    expect(result.pages[0]?.videoShots).toEqual([]);
+    expect(result.pages[0]?.videoThumbnails).toEqual([]);
+    expect(result.limitations.some((line) => line.includes("no fetched thumbnail resolved for 1 uncaptured facade"))).toBe(true);
+  });
+
   it("records no video clips when facades never boot", async () => {
     const { launcher } = makeFakeLauncher("fake", {
       videoTarget: { status: "target", x: 720, y: 500, label: "Stuck" },

@@ -8,11 +8,15 @@ export interface CompositeDest {
 export interface CompositePlan {
   sectionIndex: number;
   videoIndex: number;
+  /** True when the plan draws a fetched fallback thumbnail (CF25), not a motion-verified frame. */
+  thumb: boolean;
   dest: CompositeDest;
 }
 
 export interface CompositeStats {
   composited: number;
+  /** Fetched fallback thumbnails drawn (CF25; counted within composited stills). */
+  thumbnails: number;
   skipped: Array<{ section: number; video: number; reason: string }>;
   total: number;
   cached?: boolean;

@@ -357,6 +357,16 @@ function collectShowcaseShots(pages) {
         tag: "video",
       });
     });
+    (page?.videoThumbnails || []).forEach((shot, index) => {
+      if (!shot?.dataUrl) return;
+      shots.push({
+        src: shot.dataUrl,
+        // Labels already carry the honest `thumbnail:` prefix (CF25 fallback,
+        // never motion-verified) — no `playing:` claim here.
+        label: `${path} - ${shot.label || `thumbnail ${index + 1}`}${sectionTagForShot(page, shot)}`,
+        tag: "video",
+      });
+    });
   }
   return shots;
 }
@@ -630,7 +640,8 @@ function renderPackage(body) {
       + (page?.screenshot?.dataUrl ? 1 : 0)
       + (page?.mobileScreenshot?.dataUrl ? 1 : 0)
       + (page?.sectionShots || []).filter((shot) => shot?.dataUrl).length
-      + (page?.videoShots || []).filter((shot) => shot?.dataUrl).length;
+      + (page?.videoShots || []).filter((shot) => shot?.dataUrl).length
+      + (page?.videoThumbnails || []).filter((shot) => shot?.dataUrl).length;
   }, 0);
   const screenshotCaptures = (body?.pages || []).reduce((total, page) => total
     + Number(Boolean(page?.screenshot))

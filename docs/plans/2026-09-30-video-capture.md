@@ -1,8 +1,8 @@
 # Video capture (CF21–CF24) — playing frames for facades, not blank bands
 
-Status: implemented 2026-09-30. `npm run test -w worker`: 330/330 passing.
+Status: implemented 2026-09-30, extended CF25 2026-10-01. `npm run test -w worker`: 343/343 passing.
 `npm run typecheck -w worker`: clean. Verified live (w3schools native
-`<video>` renders; figma.com Vimeo grid partially — see Open below).
+`<video>` renders; figma.com Vimeo grid fully covered — see CF25 + Resolution).
 
 ## Problem (proven by dogfood)
 
@@ -75,7 +75,30 @@ warnings, wall/byte skips enumerating the remainder, pager telemetry
 (`Paged the video carousel N time(s); M facades processed`), beyond-cap
 probe warning.
 
-## OPEN — figma.com section-6 grid remainder
+## CF25 — fetched thumbnail fallback (2026-10-01)
+
+Uncaptured facades with no poster left genuinely blank bands (and the old
+"its cover art stands in" warning was dishonest for them). `captureOne` now
+returns `videoPlaceholders` (label/streamUrl/facade rect/reason) for every
+deferred stream that never became a clip; `runAnalysis` resolves posterless
+Vimeo placeholders via oEmbed (`fetchVimeoThumbnailUrl`, one tiny JSON fetch
+each, zero browser-minutes) and rides the existing poster pipeline as
+synthetic assets (shared caps, lowest priority). Downloaded thumbnails become
+`page.videoThumbnails` (label `thumbnail:`, never `video:`), composited over
+blank bands by `composite-video.mjs` (plans marked `thumb`, `stats.thumbnails`
+reported), shown as viewer VIDEO cards, and listed under a new `## Fallback
+thumbnails` docs section. Warnings now say "packaging substitutes a fetched
+thumbnail where one resolves"; the rehydration limitation reports the actual
+fetched/unresolved counts. `wallBudgetMs` override added for deterministic
+tests. Live-verified on figma.com: 6 fetched thumbnails for 6 uncaptured
+facades, 343/343 tests, typecheck clean.
+
+## Resolution — figma.com section-6 grid (2026-10-01, CF25 live run)
+
+10/10 facades covered: 4 motion-verified playing frames (autoplay tier) + 6
+fetched Vimeo thumbnails composited into section 6. The pager turned once
+(10 facades processed, dedup clean); the remainder were honest wall-budget
+skips with thumbnails standing in. Original diagnostic notes preserved below.
 
 4/6 discovered cards render + composite; the grid holds 7+ `vimeo-video`
 cards (inspected: id 1202189218 "Variable type", declarative shadow DOM,
