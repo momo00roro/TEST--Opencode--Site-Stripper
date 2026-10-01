@@ -30,6 +30,36 @@ function wantsStream(request: Request): boolean {
   return accept.includes("application/x-ndjson");
 }
 
+/**
+ * CF26 spike: Worker-side base64 without node Buffer (no compat flags).
+ * Chunked binary-string btoa — its CPU cost is exactly what the spike
+ * measures via `wrangler tail`. Never throws on valid bytes.
+ */
+export function workerBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+/**
+ * CF26 spike opt-in: `POST /api/analyze?binaries=1` inlines screenshot
+ * binaries via Worker-side encoding so tail can measure the real CPU cost.
+ * Transport flag, not analysis input — read here, never in the validator.
+ * Defaults to the injected encoder, then to undefined (metadata-only).
+ */
+function spikeEncoder(request: Request, deps: AnalyzeRouteDeps): ((bytes: Uint8Array) => string) | undefined {
+  if (deps.encodeBase64) return deps.encodeBase64;
+  try {
+    if (new URL(request.url).searchParams.get("binaries") === "1") return workerBase64;
+  } catch {
+    // Unparseable URL: stay metadata-only rather than failing the run.
+  }
+  return undefined;
+}
+
 function errorPayload(error: unknown): { code: string; message: string } {
   if (error instanceof ApiError) return { code: error.code, message: error.message };
   return { code: "INTERNAL", message: "Unexpected server error." };
@@ -46,7 +76,7 @@ export async function handleAnalyze(
 
   if (!wantsStream(request)) {
     const result = await runAnalysis(launcher, parsed, {
-      encodeBase64: deps.encodeBase64,
+      encodeBase64: spikeEncoder(request, deps),
       fetchImpl,
       detectRotationMs: deps.detectRotationMs ?? 5000,
     });
@@ -70,7 +100,7 @@ export async function handleAnalyze(
       };
 
       runAnalysis(launcher, parsed, {
-        encodeBase64: deps.encodeBase64,
+        encodeBase64: spikeEncoder(request, deps),
         fetchImpl,
         onProgress,
         detectRotationMs: deps.detectRotationMs ?? 5000,

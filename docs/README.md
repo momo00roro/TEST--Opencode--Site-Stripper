@@ -27,6 +27,7 @@ The [`plans/`](./plans/) directory tracks design RFCs and implementation roadmap
 | **2026-09-27** | [`2026-09-27-cf13-asset-rehydration.md`](./plans/2026-09-27-cf13-asset-rehydration.md) | SVG download at capture, Next.js optimizer unwrap | **Completed** |
 | **2026-09-29** | [`2026-09-29-fidelity-pack.md`](./plans/2026-09-29-fidelity-pack.md) | CF14–CF20: posters, behaviors, layout.json, REBUILD.md, breaks, budget split, rotation | **Completed** |
 | **2026-09-30** | [`2026-09-30-video-capture.md`](./plans/2026-09-30-video-capture.md) | CF21–CF25: three-tier facade capture, pager, compositing, thumbnail fallback (figma 10/10) | **Completed** |
+| **2026-10-01** | [`2026-10-01-cf26-hosted-binaries-spike.md`](./plans/2026-10-01-cf26-hosted-binaries-spike.md) | CF26 spike: flag-gated Worker-side binary encoding, CPU measured via tail | *Specified* |
 
 ---
 

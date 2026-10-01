@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { handleRequest } from "../src/app";
+import { workerBase64 } from "../src/routes/analyze";
 import {
   jsonRequest,
   makeEnv,
@@ -104,6 +105,41 @@ describe("POST /api/analyze", () => {
     expect(final.type).toBe("result");
     expect(final.result.integrityPassed).toBe(true);
     expect(final.result.pages).toBeUndefined();
+  });
+
+  it("stays metadata-only without the flag and inlines binaries with ?binaries=1 (CF26 spike)", async () => {
+    const body = { url: "https://other.example/", maxPages: 1, includeMobile: false };
+    const spikeUrl = "https://api.example.test/api/analyze?binaries=1";
+    const spikeRequest = () => new Request(spikeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const deps = (extra = {}) => ({
+      launcher: makeFakeLauncher("fake").launcher,
+      fetchImpl: mockSiteFetchWithDoh({}, { a: ["93.184.216.34"] }),
+      detectRotationMs: 0,
+      ...extra,
+    });
+
+    const plainRes = await handleRequest(jsonRequest(body), makeEnv(), deps());
+    const plainBody = (await plainRes.json()) as Record<string, any>;
+    expect(plainBody.pages[0].screenshot.dataUrl).toBeUndefined();
+
+    const spikeRes = await handleRequest(spikeRequest(), makeEnv(), deps());
+    const spikeBody = (await spikeRes.json()) as Record<string, any>;
+    expect(spikeBody.pages[0].screenshot.dataUrl).toMatch(/^data:image\/webp;base64,/);
+
+    // An injected encoder always wins over the flag.
+    const injectedRes = await handleRequest(spikeRequest(), makeEnv(), deps({ encodeBase64: () => "INJECTED" }));
+    const injectedBody = (await injectedRes.json()) as Record<string, any>;
+    expect(injectedBody.pages[0].screenshot.dataUrl).toContain("INJECTED");
+  });
+
+  it("workerBase64 round-trips bytes identically to Buffer", () => {
+    const bytes = Uint8Array.from({ length: 70000 }, (_, i) => i % 256);
+    expect(workerBase64(bytes)).toBe(Buffer.from(bytes).toString("base64"));
+    expect(workerBase64(new Uint8Array([0]))).toBe(Buffer.from([0]).toString("base64"));
   });
 
   it("returns a structured 400 for invalid JSON", async () => {
