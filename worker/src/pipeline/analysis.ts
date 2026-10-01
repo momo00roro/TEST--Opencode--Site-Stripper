@@ -974,7 +974,7 @@ async function captureOne(
           toPlaceholder(item, "bytes");
           break;
         }
-        if (Date.now() > deadline) {
+        if (Date.now() >= deadline) {
           warnings.push(
             `Skipped isolated render for video '${item.label}': wall budget exhausted; ${fallbackNote}.`,
           );
