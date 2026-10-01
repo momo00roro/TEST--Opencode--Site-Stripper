@@ -40,7 +40,7 @@ describe("POST /api/analyze", () => {
     expect(body.pages[0].title).toBe("Example");
     expect(body.pages[0].navLinkCount).toBe(1);
     expect(body.pages[0].screenshot.kind).toBe("webp");
-    expect(body.pages[0].screenshot.dataUrl).toBeUndefined();
+    expect(body.pages[0].screenshot.dataUrl).toMatch(/^data:image\/webp;base64,/);
     expect(body.selection.pagesSelected).toBe(3);
     expect(body.selection.candidates[0].path).toBe("/");
     expect(body.selection.candidates[0].selectedBecause).toContain("homepage");
@@ -107,10 +107,9 @@ describe("POST /api/analyze", () => {
     expect(final.result.pages).toBeUndefined();
   });
 
-  it("stays metadata-only without the flag and inlines binaries with ?binaries=1 (CF26 spike)", async () => {
+  it("ships binaries by default and stays metadata-only with ?binaries=0 (CF26)", async () => {
     const body = { url: "https://other.example/", maxPages: 1, includeMobile: false };
-    const spikeUrl = "https://api.example.test/api/analyze?binaries=1";
-    const spikeRequest = () => new Request(spikeUrl, {
+    const optOut = () => new Request("https://api.example.test/api/analyze?binaries=0", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -124,14 +123,14 @@ describe("POST /api/analyze", () => {
 
     const plainRes = await handleRequest(jsonRequest(body), makeEnv(), deps());
     const plainBody = (await plainRes.json()) as Record<string, any>;
-    expect(plainBody.pages[0].screenshot.dataUrl).toBeUndefined();
+    expect(plainBody.pages[0].screenshot.dataUrl).toMatch(/^data:image\/webp;base64,/);
 
-    const spikeRes = await handleRequest(spikeRequest(), makeEnv(), deps());
-    const spikeBody = (await spikeRes.json()) as Record<string, any>;
-    expect(spikeBody.pages[0].screenshot.dataUrl).toMatch(/^data:image\/webp;base64,/);
+    const optOutRes = await handleRequest(optOut(), makeEnv(), deps());
+    const optOutBody = (await optOutRes.json()) as Record<string, any>;
+    expect(optOutBody.pages[0].screenshot.dataUrl).toBeUndefined();
 
     // An injected encoder always wins over the flag.
-    const injectedRes = await handleRequest(spikeRequest(), makeEnv(), deps({ encodeBase64: () => "INJECTED" }));
+    const injectedRes = await handleRequest(optOut(), makeEnv(), deps({ encodeBase64: () => "INJECTED" }));
     const injectedBody = (await injectedRes.json()) as Record<string, any>;
     expect(injectedBody.pages[0].screenshot.dataUrl).toContain("INJECTED");
   });

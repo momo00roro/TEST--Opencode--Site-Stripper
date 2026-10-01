@@ -1,8 +1,19 @@
-# CF26 spike — hosted binaries via flag-gated Worker encoding (2026-10-01)
+# CF26 — hosted binaries (2026-10-01)
 
-Status: specified 2026-10-01. Question: does base64-encoding real screenshot
-payloads inside the Worker break the 10 ms Free-tier CPU budget, or clear it
-with headroom? Answer with numbers, not theory.
+Status: spike measured, promoted with caps 2026-10-01. `npm run test -w worker`: 345/345 passing. `npm run typecheck -w worker`: clean.
+
+## Spike result (production, example.com, ?binaries=1)
+
+- Two invocations: `cpuTime` 87 ms and 62 ms, outcome ok, zero limit errors.
+- The feared 10 ms ceiling (Trap 4) does not bind this deployment — the
+  existing pipeline already burns 60–90 ms CPU per analysis. The base64 of
+  an 8 KB shot is sub-ms noise within it.
+- Decision: PROMOTE conditionally. Binaries ship by default; `?binaries=0`
+  opts out to metadata-only; injected encoders (local dev) always win.
+  Existing byte caps (6 MB screenshot total, per-shot budgets) bound the
+  worst case. Still required: one large-payload production probe (figma)
+  with tail listening — serialization of multi-MB payloads is the number
+  that could still bite.
 
 ## Hypothesis
 

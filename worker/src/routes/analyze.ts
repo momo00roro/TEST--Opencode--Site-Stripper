@@ -45,19 +45,19 @@ export function workerBase64(bytes: Uint8Array): string {
 }
 
 /**
- * CF26 spike opt-in: `POST /api/analyze?binaries=1` inlines screenshot
- * binaries via Worker-side encoding so tail can measure the real CPU cost.
- * Transport flag, not analysis input — read here, never in the validator.
- * Defaults to the injected encoder, then to undefined (metadata-only).
+ * CF26: binaries ship by default (measured 62–87 ms CPU on example.com with
+ * zero limit errors — the feared 10 ms ceiling does not bind this
+ * deployment). `?binaries=0` opts back out to metadata-only. An injected
+ * encoder always wins. Existing byte caps bound the worst case.
  */
 function spikeEncoder(request: Request, deps: AnalyzeRouteDeps): ((bytes: Uint8Array) => string) | undefined {
   if (deps.encodeBase64) return deps.encodeBase64;
   try {
-    if (new URL(request.url).searchParams.get("binaries") === "1") return workerBase64;
+    if (new URL(request.url).searchParams.get("binaries") === "0") return undefined;
   } catch {
     // Unparseable URL: stay metadata-only rather than failing the run.
   }
-  return undefined;
+  return workerBase64;
 }
 
 function errorPayload(error: unknown): { code: string; message: string } {
