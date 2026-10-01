@@ -113,3 +113,15 @@ shots AND blank section stills — sections capture BEFORE the video pass, so
 the video code cannot cause that; suspect figma/Vimeo throttling this IP
 after repeated runs. Control test (unrelated site) distinguishes a
 target-side block (wait ~1h, retest) from a browser-side fault.
+
+## Production verification - figma.com full pack (2026-10-01, budgets 150s/10MB)
+
+First production run at 90s wall: transient tab crash (Target closed), then a
+thin pack (1 playing-state clip, isolated tier wall-starved at ~95s browser
+time). After raising the wall to 150s and bytes to 10MB (commit dae548b,
+internal-tool sizing: 4 x 150s = 600s daily meter): 10/10 motion-verified
+frames (home-1..10, carousel paged once, section 6 all six), 18 binaries / 18
+captures, 6 stills composited, zero wall/byte-exhaustion warnings, no fallback
+thumbnails needed. Run cost ~3 min of the 10-min/day Browser Run meter
+(0.10h -> 0.15h). Production now matches the localhost 10/10 baseline. Local
+ZIP kept (gitignored) at .examples/2026-10-01__figma.com__cf/.
