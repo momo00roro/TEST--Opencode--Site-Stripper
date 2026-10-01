@@ -446,7 +446,7 @@ All limits are enforced by the backend and surfaced in reports or previews.
 | `maxPages` hard minimum | 1 |
 | Per-page navigation timeout | 12 seconds |
 | Per-page in-browser extraction budget | 3 seconds |
-| Total analysis wall budget | 90 seconds, hard |
+| Total analysis wall budget | 150 seconds, hard |
 | Browser session `keep_alive` | 10 minutes maximum, closed on completion |
 | Desktop viewport | 1440 px wide, automatic height, `deviceScaleFactor: 1` |
 | Mobile viewport | 390 px wide, automatic height, `deviceScaleFactor: 1` |

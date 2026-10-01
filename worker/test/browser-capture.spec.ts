@@ -3,6 +3,7 @@ import { assertSafeFinalUrl, awaitVideoPlayer, autoplayVideoScript, capturePage,
 import { collectPageSnapshot } from "../src/browser/snapshot-script";
 import type { BrowserPage, GotoOptions } from "../src/browser/types";
 import { makeFakePage, SAMPLE_SNAPSHOT } from "./helpers";
+import { LIMITS } from "../src/config/limits";
 
 describe("clampTimeout", () => {
   it("defaults, floors, and caps the timeout", () => {
@@ -76,7 +77,7 @@ describe("capturePage", () => {
   });
 
   it("drops an oversized screenshot", async () => {
-    const { page } = makeFakePage({ bytes: 10 * 1024 * 1024 });
+    const { page } = makeFakePage({ bytes: LIMITS.maxTotalScreenshotBytes + 1024 });
     const result = await capturePage(page, { url: "https://example.com/", viewportWidth: 1440 });
 
     expect(result.screenshot).toBeNull();

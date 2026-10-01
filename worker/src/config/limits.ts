@@ -5,7 +5,10 @@ export const LIMITS = {
   maxPagesDefault: 10,
   perPageNavigationTimeoutMs: 12_000,
   perPageExtractionBudgetMs: 3_000,
-  totalAnalysisWallBudgetMs: 90_000,
+  // Internal-tool sizing (2026-10-01): 150s wall x 4 runs/day = 600s, exactly
+  // the Workers Free 10-min/day browser meter. Light sites use seconds, so
+  // typical usage lands well under; the worst case only binds on all-heavy days.
+  totalAnalysisWallBudgetMs: 150_000,
   browserKeepAliveMs: 600_000,
   desktopViewportWidth: 1440,
   mobileViewportWidth: 390,
@@ -21,7 +24,7 @@ export const LIMITS = {
   // the pager (CF24) turns next-arrows to discover them. Affordable since
   // isolated renders cost ~4-10s per facade versus ~30s for doomed clicks.
   maxVideoShots: 12,
-  maxTotalScreenshotBytes: 6 * 1024 * 1024,
+  maxTotalScreenshotBytes: 10 * 1024 * 1024,
   maxAssetManifestEntries: 300,
   maxAssetDownloadBytesPerFile: 50 * 1024,
   maxAssetDownloadBytesTotal: 512 * 1024,

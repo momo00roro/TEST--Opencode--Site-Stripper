@@ -65,7 +65,7 @@ describe("POST /api/analyze", () => {
     expect(body.pages[0].content.blocks).toBeDefined();
     expect(body.pages[0].semanticStyles).toBeDefined();
     expect(body.pages[0].responsiveComparison.status).toBe("not-requested");
-    expect(body.screenshotBytesTotal).toBeLessThanOrEqual(6 * 1024 * 1024);
+    expect(body.screenshotBytesTotal).toBeLessThanOrEqual(10 * 1024 * 1024);
     expect(JSON.stringify(body).length).toBeLessThan(1024 * 1024);
   });
 
