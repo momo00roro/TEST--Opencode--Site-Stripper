@@ -39,7 +39,7 @@ Analyze a site from the form (up to 10 pages), inspect screenshots and raw JSON,
 
 ```sh
 npm run typecheck -w worker  # tsc --noEmit, must be clean
-npm test -w worker           # vitest, 343 tests across 19 files
+npm test -w worker           # vitest, 345 tests across 19 files
 npm run dev:remote -w worker # local code vs remote Cloudflare resources (hosted verification)
 npm run deploy -w worker     # deploy the Worker API (manual fallback)
 npm run deploy:ui            # deploy the Pages UI (manual fallback)
@@ -68,7 +68,7 @@ Both paths ship the same files. The difference is who runs the checks and how
 many deployers exist:
 
 - **GitHub Actions (what we use):** every push runs `typecheck` + the full
-  343-test suite first; a red suite blocks the deploy. One deployer (repo-pinned
+  345-test suite first; a red suite blocks the deploy. One deployer (repo-pinned
   Wrangler v4 on Node 22 via `npx`, in CI) pushes both the Worker and the Pages
   UI, including the `--branch master` flag so the upload promotes the
   production environment instead of a preview. Secrets live only as GitHub
@@ -88,7 +88,7 @@ is the one printer that only prints after homework passes.
 ### ELI10: the whole deployment, in 5 lines
 
 1. You `git push` your homework to GitHub.
-2. A robot (Actions) checks it: spelling (typecheck), then all 343 quiz answers (tests).
+2. A robot (Actions) checks it: spelling (typecheck), then all 345 quiz answers (tests).
 3. Fail = stop, nothing ships. Pass = keep going.
 4. Robot mails the brain (Worker API) then the face (Pages UI) to Cloudflare's computers.
 5. Your site updates at `site-stripper-ui.pages.dev`, talking to the brain at
@@ -115,7 +115,7 @@ npx --prefix worker wrangler tail         # live Worker logs (repo root)
 ```
 
 Monitor browser-minute usage at dash.cloudflare.com → **Compute → Browser Run**
-(free quota: 10 min/day, hard stop with 429s until UTC midnight).
+(free quota: 10 min/day, hard stop with 429s; quota resets daily at 00:00 UTC = 08:00 Singapore).
 
 ## Output package
 
@@ -138,12 +138,12 @@ website-analysis/
 |---|---|
 | Pages per analysis | 10 max (homepage + 9) |
 | Per-page extraction payload | 512 KB hard / 350 KB warn |
-| Screenshots | 10 desktop, 2 mobile, 6 homepage sections; 6 MB total |
+| Screenshots | 10 desktop, 2 mobile, 6 homepage sections; 10 MB total |
 | Video shots | 12 max (`maxVideoShots`): autoplay-first, isolated motion-polled render, streamless-only click fallback; carousel pager (3 turns, stream-URL dedup); playing frames composited into sections client-side |
 | Mobile | screenshots for homepage + 1 representative page; extract-only DOM comparisons for the rest |
-| Wall budget | 90 s, hard — partial reports beyond it |
+| Wall budget | 150 s, hard — partial reports beyond it |
 | Client documentation cap | 24 MiB (explicit error, never silent truncation) |
-| Browser budget | ~600 s/day shared → roughly 5–8 full analyses |
+| Browser budget | ~600 s/day shared → roughly 3–4 heavy analyses (figma-class ≈ 3 min; light sites seconds) |
 
 Never performed: form submits, control clicks, CAPTCHA solving, behavior replay. Bot-verification pages are recorded as evidence with remaining captures skipped.
 
@@ -171,6 +171,14 @@ The Pages UI speaks the stolen design language of `https://cline.bot`
 
 ## Status
 
-All CF01–CF25 implemented; `npm run typecheck` clean; 343/343 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
+All CF01–CF25 implemented; `npm run typecheck` clean; 345/345 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
 
 CF14–CF20 fidelity pack (2026-09-29): video posters, computed behaviors, `data/layout.json`, `REBUILD.md`, heading breaks, split rehydration budget, rotation re-sample. CF21–CF25 video capture (2026-09-30/10-01): facades render playing frames via autoplay → isolated render → click fallback, composited into section stills; uncaptured posterless facades get fetched Vimeo thumbnails (zero browser-minutes) instead of blank bands. figma.com Vimeo grid fully covered 2026-10-01 (4 motion-verified + 6 stills, 10/10 facades; see `docs/plans/2026-09-30-video-capture.md`).
+
+Production is fully functional (verified 2026-10-01, SGT): `https://figma.com`
+(max pages 1) returned the complete pack — 10/10 motion-verified video frames,
+18 binaries, 6 stills composited into sections, zero budget-exhaustion
+warnings. A heavy run costs ~3 browser-minutes, so the 10 min/day free quota
+supports ~3 such runs per day; the quota resets daily at 00:00 UTC (08:00
+Singapore). Light sites cost seconds. Localhost (`http://localhost:8917`) is
+unlimited and remains the heavier-use path.

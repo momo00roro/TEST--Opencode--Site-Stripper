@@ -1,6 +1,6 @@
 {
   "name": "site-stripper",
-  "version": "1.0.0-beta",
+  "version": "1.1.0-beta",
   "private": true,
   "description": "Cloudflare-only website analysis pack generator (free tier)",
   "workspaces": [

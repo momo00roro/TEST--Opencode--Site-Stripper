@@ -105,7 +105,7 @@ These are the limits that actually shape the hosted design. Verify them before e
 | Worker requests | 100,000 / day |
 | Subrequests (`fetch`) | 50 per request |
 | Simultaneous outgoing connections | 6 per request |
-| Browser Run duration | 10 browser-minutes / day, 600 seconds |
+| Browser Run duration | 10 browser-minutes / day, 600 seconds (resets 00:00 UTC = 08:00 Singapore) |
 | Concurrent browsers | 3 per account |
 | New browser instances | 1 every 20 seconds |
 | Browser inactivity timeout | 60 seconds, extendable to 10 minutes via `keep_alive` |
@@ -118,7 +118,7 @@ These are the limits that actually shape the hosted design. Verify them before e
 1. **10 ms Worker CPU is the hard design driver.** DOM traversal, CSS inspection, token aggregation, parsing, compression, base64 encoding, and large JSON transformation must not run in Worker JavaScript. They must run inside Chromium through `page.evaluate()`, in the client, or through streamed pass-through bytes.
 2. **ZIP assembly must be client-side.** `fflate` or equivalent code in the Pages UI builds the ZIP. The Worker must not buffer screenshots and compress them in a 128 MB isolate.
 3. **One browser session, sequential tabs.** Launch one browser per analysis, respecting the one-new-instance-per-20-seconds limit. Open a tab, capture and extract, close it immediately, then continue. Never retain all analyzed tabs concurrently.
-4. **Browser-minutes are the real budget.** 600 seconds per day divided by approximately 8–12 seconds per page supports roughly 50–75 page loads per day, or approximately 5–8 full analyses per day. State this in the UI.
+4. **Browser-minutes are the real budget.** 600 seconds per day divided by approximately 8–12 seconds per page supports roughly 50–75 page loads per day, or approximately 3–4 heavy analyses per day (figma-class ≈ 3 min each; light sites seconds). State this in the UI.
 5. **Screenshots must be bounded and Chromium-encoded.** Use `deviceScaleFactor: 1`, capped dimensions, bounded quality, byte caps, and Chromium-generated base64. Do not encode or transform screenshot binaries in Worker JavaScript.
 6. **Extraction payloads must be budgeted.** Large JSON deserialization in the Worker consumes CPU. In-page extraction must prune, deduplicate, summarize, and enforce payload limits before returning data.
 7. **Cache API is free and required.** Repeat or sibling analyses of the same host should reuse cached discovery data instead of spending browser-minutes again.
@@ -291,7 +291,7 @@ Required solution & behavior:
 - Direct Chromium to produce base64 directly: `page.screenshot({ type: "webp", quality: 70, encoding: "base64" })`.
 - This ensures all image encoding compute happens entirely inside the remote Chromium process, allowing the Worker to pass the base64 string directly with near-zero CPU time.
 - Fall back to JPEG if WebP is unsupported in the target environment.
-- Enforce the 6 MB total screenshot byte budget across all captured screenshots in the session.
+- Enforce the 10 MB total screenshot byte budget across all captured screenshots in the session.
 
 #### Trap 5: In-page script serialization & bundler artifacts
 
@@ -453,7 +453,7 @@ All limits are enforced by the backend and surfaced in reports or previews.
 | Maximum screenshot height | 16000 px, clip beyond (Chrome's ~16384px canvas ceiling) |
 | Screenshot format | WebP quality 70, JPEG fallback |
 | Maximum screenshots | 10 desktop, 2 mobile, 6 homepage sections |
-| Maximum total screenshot bytes | 6 MB |
+| Maximum total screenshot bytes | 10 MB |
 | Maximum asset manifest entries | 300 |
 | Maximum in-page headings collected | 200 |
 | Maximum in-page links collected | 500 |
@@ -494,7 +494,7 @@ The local browser may legitimately be faster or less constrained than Browser Re
 
 ## Cost control, rate limiting, and quota protection
 
-The account-wide limit of **10 browser-minutes (600 seconds) per day** requires active defense against budget exhaustion:
+The account-wide limit of **10 browser-minutes (600 seconds) per day** requires active defense against budget exhaustion. The quota resets daily at 00:00 UTC (08:00 Singapore); a heavy analysis costs ~3 minutes, so plan for ~3 such runs per day (internal-tool operating point, 2026-10-01):
 
 - **One browser session per analysis:** Use sequential tabs, not new browser instances.
 - **Immediate tab teardown:** Close each tab immediately after capture and extraction.
@@ -591,7 +591,7 @@ Status: implemented and verified by automated tests (manifest by URL reference; 
 
 Render every package document in the client from canonical observations, including `theme.css`, `tailwind.config.js`, W3C-format `data/tokens.json`, and structured `data/interactions.json`. Validate JSON and screenshot manifest membership before download. The Worker returns observations, not generated documents.
 
-Status: implemented client-side and verified by automated tests; hosted Browser Rendering verification remains pending.
+Status: implemented client-side and verified by automated tests; hosted Browser Rendering verification completed 2026-10-01 (figma.com full pack: 10/10 motion-verified frames, 18 binaries, zero exhaustion warnings).
 
 ### CF10 — Streaming bundle and client-side ZIP
 
@@ -661,20 +661,20 @@ Completed and verified by automated tests:
 - CF12 synthetic acceptance suite (11 scenarios + fidelity rubric at 1440/390).
  - CF13 asset rehydration (downloading critical SVGs via plain fetch into `assets/` in client ZIP, Next.js optimizer URL unwrapping, 50KB/512KB/40 caps).
  - CF14–CF20 fidelity pack (video poster/flag metadata + binary ship, computed-behavior pass, `data/layout.json`, `REBUILD.md` ordered build spec, heading line-breaks, split rehydration budget, rotation re-sample). Full spec: `docs/plans/2026-09-29-fidelity-pack.md`.
- - CF21–CF25 video capture (lazy-media sweep incl. facade shadow roots, native `<video>` force-play, local autoplay Chrome flags, three-tier facade capture — autoplay-first, isolated motion-polled render, streamless-only click fallback — carousel pager with stream-URL dedup, `maxVideoShots: 12`, placement-aware client compositing of playing frames into sections, fetched Vimeo thumbnail fallback for uncaptured posterless facades). Full spec: `docs/plans/2026-09-30-video-capture.md`. figma.com Vimeo grid fully covered 2026-10-01 (4 motion-verified frames + 6 fetched stills, 10/10 facades).
+ - CF21–CF25 video capture (lazy-media sweep incl. facade shadow roots, native `<video>` force-play, local autoplay Chrome flags, three-tier facade capture — autoplay-first, isolated motion-polled render, streamless-only click fallback — carousel pager with stream-URL dedup, `maxVideoShots: 12`, placement-aware client compositing of playing frames into sections, fetched Vimeo thumbnail fallback for uncaptured posterless facades). Full spec: `docs/plans/2026-09-30-video-capture.md`. figma.com Vimeo grid fully covered 2026-10-01 (localhost CF25 run: 4 motion-verified frames + 6 fetched stills; production at 150s/10MB: 10/10 motion-verified frames, 10/10 facades).
 - PRD-record compliance: every multi-page record carries `selected`, `sections`, `observedInteractions`, and `limitations`; section-clipped homepage screenshots (max 6, byte-budgeted) and mobile capture for the homepage plus one representative page (max 2) are implemented; CSS parsing respects the 3MB per-page cap.
-- Budget and safety hardening: total screenshot bytes never exceed 6 MB (per-capture remaining-budget enforcement), redirect landings are checked for blocked hosts, disallowed ports, and non-HTTP(S) protocols, unexpected errors no longer leak internal detail, and discovery no longer duplicates mixed-case homepage paths.
+- Budget and safety hardening: total screenshot bytes never exceed 10 MB (per-capture remaining-budget enforcement), redirect landings are checked for blocked hosts, disallowed ports, and non-HTTP(S) protocols, unexpected errors no longer leak internal detail, and discovery no longer duplicates mixed-case homepage paths.
 - Package integrity: client-generated JSON is validated before download; page observations expose collection counts/caps/truncation; screenshot manifest binary flags are validated against ZIP paths; ZIP CRC32 checksums are verified against the known vector.
 - `npm run typecheck` passes with zero errors.
-- Screenshot fidelity: capture scrolls in 0.8-viewport bands with 350ms painted pauses, waits for images to finish decoding, then settles fonts plus video first-frames, with extended pauses on video/canvas pages before settling at the top for capture, so scroll-triggered reveals and lazy media are included. Full-page height cap is 16000px (Chrome's ~16384px canvas ceiling), and local previews inline every shot up to the 6MB byte cap.
-- Vitest suite passes with 343 tests across 19 test files; local live-site verification is not evidence of hosted Free-tier compliance.
+- Screenshot fidelity: capture scrolls in 0.8-viewport bands with 350ms painted pauses, waits for images to finish decoding, then settles fonts plus video first-frames, with extended pauses on video/canvas pages before settling at the top for capture, so scroll-triggered reveals and lazy media are included. Full-page height cap is 16000px (Chrome's ~16384px canvas ceiling), and local previews inline every shot up to the 10MB byte cap.
+- Vitest suite passes with 345 tests across 19 test files; local live-site verification is not evidence of hosted Free-tier compliance.
 
 Open or next milestones:
 
 - All CF01–CF25 implemented. Hosted smoke-verified via `npm run dev:remote -w worker` (Browser Rendering) on 2026-09-25: `backend: cloudflare`, schema 0.2.0, extraction parity with local runs (64 blocks / 30 controls / 15 colors on the reference homepage), mobile capture metadata-only (Trap 4 holds remotely), zero Error 1102s, zero issues. One transient remote navigation timeout observed on a fast host; succeeded on immediate retry with identical evidence.
-- **Deploy pipeline live 2026-09-25** via GitHub Actions (`.github/workflows/deploy.yml`: typecheck → test → deploy Worker → deploy Pages UI on push to `master`, green): API at `https://site-stripper-api.momo00roro.workers.dev`, canonical UI at `https://site-stripper-ui.pages.dev` with `api-base` wired to the Worker. CI uses repo-pinned Wrangler v4 on Node 22 with `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` repo secrets, plus `--branch master` on the Pages step so CI's detached HEAD still promotes production. Cloudflare Git integration intentionally unconnected (Direct Upload via CI only — avoids double-deploy races and keeps the test gate). Public end-to-end verified 2026-09-26 (GMT+8): `https://example.com` max pages 1 → ZIP downloaded to gitignored `.examples/2026-09-26__example.com/`. Note: per-deploy hashes (e.g. `fdcbe66a`, `59fbd3cb`) are snapshots, not production — verify the canonical domain.
+- **Deploy pipeline live 2026-09-25** via GitHub Actions (`.github/workflows/deploy.yml`: typecheck → test → deploy Worker → deploy Pages UI on push to `master`, green): API at `https://site-stripper-api.momo00roro.workers.dev`, canonical UI at `https://site-stripper-ui.pages.dev` with `api-base` wired to the Worker. CI uses repo-pinned Wrangler v4 on Node 22 with `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` repo secrets, plus `--branch master` on the Pages step so CI's detached HEAD still promotes production. Cloudflare Git integration intentionally unconnected (Direct Upload via CI only — avoids double-deploy races and keeps the test gate). Public end-to-end verified 2026-09-26 (GMT+8): `https://example.com` max pages 1 → ZIP downloaded to gitignored `.examples/2026-09-26__example.com/`. Note: per-deploy hashes (e.g. `fdcbe66a`, `59fbd3cb`) are snapshots, not production — verify the canonical domain. Production full-pack verified 2026-10-01 (SGT): `https://figma.com` max pages 1 → 10/10 motion-verified video frames, 18 binaries, 6 stills composited, zero exhaustion warnings (~3 min of the daily meter; ZIP in gitignored `.examples/2026-10-01__figma.com__cf/`).
 - Deferred (require the real runtime to test): per-IP cooldown rate limiting, Cache API discovery caching, and the Turnstile bot barrier from the cost-control section.
-- Deliberate deviation: screenshot and critical-asset *binaries* are not embedded in the hosted package. Encoding multi-MB images in the Worker violates Trap 4 (10 ms CPU), and a client cannot reliably read cross-origin image bytes. Hosted responses therefore return screenshot metadata plus `screenshots/manifest.json`, and asset URLs in `data/assets.json`; the local dev path inlines screenshot base64 via the Node encoder. `report.json.limitations` and package warnings state this explicitly. Introducing R2 or a Deflate path would be required to ship binaries.
+- Deliberate deviation (superseded by CF26, 2026-10-01): screenshot binaries were once metadata-only on hosted because Worker-side encoding violated Trap 4. CF26 proved the chunked in-Worker base64 is sub-ms noise, so hosted responses now ship binaries by default (`?binaries=0` opts out to metadata-only). The local dev path still inlines via the Node encoder.
 
 The previously noted test expectation used a comma in the data URL, not a colon. That issue is resolved.
 

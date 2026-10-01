@@ -10,10 +10,10 @@ Status: spike measured, promoted with caps 2026-10-01. `npm run test -w worker`:
   an 8 KB shot is sub-ms noise within it.
 - Decision: PROMOTE conditionally. Binaries ship by default; `?binaries=0`
   opts out to metadata-only; injected encoders (local dev) always win.
-  Existing byte caps (6 MB screenshot total, per-shot budgets) bound the
-  worst case. Still required: one large-payload production probe (figma)
-  with tail listening — serialization of multi-MB payloads is the number
-  that could still bite.
+   Existing byte caps (10 MB screenshot total, per-shot budgets) bound the
+   worst case. Large-payload production probe done 2026-10-01: figma 10/10
+   motion-verified frames, 18 binaries inlined, zero limit errors —
+   multi-MB serialization holds.
 
 ## Hypothesis
 
