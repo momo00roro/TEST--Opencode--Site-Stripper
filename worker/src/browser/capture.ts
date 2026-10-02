@@ -1197,10 +1197,34 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
       return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl, rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}` };
     }
     // Let motion develop past fade-from-black intros (Canva-style players
-    // open on black; a 600ms settle kept catching the fade), then report
-    // VIEWPORT coordinates for the clip and DOCUMENT coordinates for
-    // compositing over section shots.
+    // open on black; a 600ms settle kept catching the fade), then re-anchor
+    // onto the element: the page may have moved under us since the pre-play
+    // scroll (snap points, Lenis glide, site scroll-into-view on play), and
+    // stale viewport coordinates clip the wrong band. Re-center, require
+    // scroll quiescence, and only then measure.
     await pause(1500);
+    try {
+      const r0 = el.getBoundingClientRect();
+      window.scrollTo(0, window.scrollY + r0.top + r0.height / 2 - Math.floor(window.innerHeight / 2));
+    } catch {
+      // Best effort; the quiescence check below still guards the measure.
+    }
+    try {
+      let lastY = window.scrollY;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        await pause(250);
+        let now = lastY;
+        try {
+          now = window.scrollY;
+        } catch {
+          break;
+        }
+        if (Math.abs(now - lastY) < 2) break;
+        lastY = now;
+      }
+    } catch {
+      // Best effort; measure anyway.
+    }
     try {
       const rect = el.getBoundingClientRect();
       const viewportW = Math.max(window.innerWidth, 1);
