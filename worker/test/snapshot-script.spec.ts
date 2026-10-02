@@ -1131,6 +1131,22 @@ describe("collectPageSnapshot", () => {
     ]);
   });
 
+  it("resolves video record URLs from source children and currentSrc (CF27)", () => {
+    const child = el("source", { attrs: { src: "https://example.com/child.mp4", type: "video/mp4" } });
+    const viaChild = el("video", { attrs: { autoplay: "", muted: "" } });
+    (viaChild as unknown as Record<string, unknown>).querySelector = (selector: string) =>
+      selector === "source" ? child : null;
+    const viaLive = el("video", {});
+    (viaLive as unknown as Record<string, unknown>).currentSrc = "https://example.com/live.mp4";
+    saved = installDom([viaChild, viaLive], "Video URL fallbacks");
+    const snapshot = collectPageSnapshot();
+
+    expect(snapshot.videos).toMatchObject([
+      { url: "https://example.com/child.mp4", autoplay: true, muted: true },
+      { url: "https://example.com/live.mp4", autoplay: false, muted: false },
+    ]);
+  });
+
   it("flags sticky/fixed rules as pin-scene evidence", () => {
     saved = installDom([el("p", { text: "Body" })], "Sticky");
     const stickyRule = {

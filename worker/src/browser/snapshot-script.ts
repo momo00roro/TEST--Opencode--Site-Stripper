@@ -1867,12 +1867,22 @@ export function collectPageSnapshot(): PageSnapshot {
     // (cap 6), so rebuilds show the poster frame and wire tap-to-play.
     const videoNodes = doc.querySelectorAll("video, vimeo-video");
     for (let index = 0; index < videoNodes.length && videoRecords.length < 6; index += 1) {
-      const node = videoNodes[index] as unknown as { getAttribute?: (name: string) => string | null };
+      const node = videoNodes[index] as unknown as {
+        getAttribute?: (name: string) => string | null;
+        querySelector?: (selectors: string) => { getAttribute?: (name: string) => string | null } | null;
+        currentSrc?: unknown;
+      };
       const get = (name: string): string | null => (node.getAttribute ? node.getAttribute(name) : null);
+      // CF27: builders (Canva-style) put the file on <source> children with
+      // no src attribute on <video> itself. Fall back to the first <source>
+      // child, then the live currentSrc property.
+      const sourceChild = node.querySelector ? node.querySelector("source") : null;
+      const sourceSrc = sourceChild && sourceChild.getAttribute ? sourceChild.getAttribute("src") || "" : "";
+      const liveSrc = typeof node.currentSrc === "string" ? node.currentSrc : "";
       const rect = embedRect(node);
       videoRecords.push({
-        url: resolveUrl(get("src") || ""),
-        poster: resolveUrl(get("poster") || ""),
+        url: resolveUrl(get("src") || sourceSrc || liveSrc || ""),
+        poster: resolveUrl(get("poster") || getAttr(node, "data-poster") || ""),
         autoplay: get("autoplay") !== null,
         muted: get("muted") !== null,
         loop: get("loop") !== null,
