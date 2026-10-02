@@ -1236,6 +1236,7 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
     try {
       const rect = el.getBoundingClientRect();
       const viewportW = Math.max(window.innerWidth, 1);
+      const viewportH = Math.max(window.innerHeight, 1);
       const vw = Math.round(rect.width);
       const vh = Math.round(rect.height);
       if (vw < 120 || vh < 120) {
@@ -1254,10 +1255,12 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
       return {
         status: "target",
         started: true,
-        x: Math.round(rect.left + rect.width / 2),
-        y: Math.round(rect.top + rect.height / 2),
-        width: Math.min(vw, viewportW),
-        height: vh,
+        // Clip origin is the TOP-LEFT (clipPlayer treats x/y as the clip
+        // origin, like the facade path) — never the center.
+        x: Math.max(Math.min(Math.round(rect.left), viewportW - 1), 0),
+        y: Math.max(Math.min(Math.round(rect.top), viewportH - 1), 0),
+        width: Math.min(vw, viewportW - Math.max(Math.min(Math.round(rect.left), viewportW - 1), 0)),
+        height: Math.min(vh, viewportH - Math.max(Math.min(Math.round(rect.top), viewportH - 1), 0)),
         label,
         streamUrl,
         rectY: pageY,
