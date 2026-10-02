@@ -802,7 +802,12 @@ export async function runAnalysis(
     limitations.push(
       "Custom fonts referenced by @font-face were not downloaded; text falls back to system stacks.",
     );
-    if (assets.some((asset) => asset.kind === "video")) {
+    // Claim "not captured" only when nothing playing was actually caught:
+    // video assets plus zero shots and zero thumbnails. A run with
+    // motion-verified frames must not carry the blanket shortfall.
+    const capturedVideo =
+      thumbnailFor.size > 0 || pages.some((page) => page.videoShots.length > 0);
+    if (assets.some((asset) => asset.kind === "video") && !capturedVideo) {
       limitations.push("Video content was referenced but not captured; see data/assets.json.");
     }
     if (
