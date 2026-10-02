@@ -62,3 +62,14 @@ New pass AFTER the facade while-loop, inside the existing
 
 Canvas-drawn motion (still single-static-frame by design); YouTube
 non-embed URLs; audible autoplay (never attempted).
+
+## Victory lap (production, fresh meter, 2026-10-02 ~14:10 UTC)
+
+`POST site-stripper-api.momo00roro.workers.dev/api/analyze`
+`{"url":"https://affinity.studio"}` → 8 pages, 19 screenshots,
+2.34MB screenshot bytes, 160.1 browser-seconds, integrity passed.
+Homepage: 4 `videoShots`, all distinct frames with placement, 6
+sectionShots. Stale-clip guard fired exactly 4× ("moved during
+capture; re-measured once" — one per native), confirming the CF28
+guard works in production, not just localhost. Raw pack archived at
+gitignored `.examples/2026-10-02__affinity.studio__cf-victory.json`.
