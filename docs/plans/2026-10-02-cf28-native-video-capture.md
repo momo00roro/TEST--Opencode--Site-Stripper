@@ -73,3 +73,21 @@ sectionShots. Stale-clip guard fired exactly 4× ("moved during
 capture; re-measured once" — one per native), confirming the CF28
 guard works in production, not just localhost. Raw pack archived at
 gitignored `.examples/2026-10-02__affinity.studio__cf-victory.json`.
+
+## Scale run: higgsfield.ai (localhost, 2026-10-02 ~23:10 SGT)
+
+Motion/video-heavy target, max pages 1 + mobile. Homepage: **12
+natives playing-state** (11 distinct frames, all placed, real CDN
+stream URLs), 6 sectionShots, full docs. Stale-clip guard fired
+~12×. Honest disclosures: 13 videos unstarted (cover art),
+22 images unloaded, 1 nav retry. Raw pack at gitignored
+`.examples/2026-10-02__higgsfield.ai/`. Affinity proved
+correctness; higgsfield proves scale (12 takes vs 4 vs figma 10).
+
+## Open follow-up (minor, not correctness)
+
+Same-stream double capture: higgsfield `home-10`/`home-11` are
+byte-identical takes of one CRUNCH commercial at y=4475. The
+`seenStreams` dedupe should skip the second take (likely a
+carousel-paged revisit of the same element). One wasted capture,
+no wrong content. Fix when touching the native loop next.
