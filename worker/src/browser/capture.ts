@@ -1170,9 +1170,11 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
     if (!started) {
       return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl, rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}` };
     }
-    // Let motion develop, then report VIEWPORT coordinates for the clip and
-    // DOCUMENT coordinates for compositing over section shots.
-    await pause(600);
+    // Let motion develop past fade-from-black intros (Canva-style players
+    // open on black; a 600ms settle kept catching the fade), then report
+    // VIEWPORT coordinates for the clip and DOCUMENT coordinates for
+    // compositing over section shots.
+    await pause(1500);
     try {
       const rect = el.getBoundingClientRect();
       const viewportW = Math.max(window.innerWidth, 1);
