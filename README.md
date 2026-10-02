@@ -171,7 +171,7 @@ The Pages UI speaks the stolen design language of `https://cline.bot`
 
 ## Status
 
-All CF01–CF25 implemented; `npm run typecheck` clean; 345/345 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
+All CF01–CF28 implemented; `npm run typecheck` clean; 350/350 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
 
 CF14–CF20 fidelity pack (2026-09-29): video posters, computed behaviors, `data/layout.json`, `REBUILD.md`, heading breaks, split rehydration budget, rotation re-sample. CF21–CF25 video capture (2026-09-30/10-01): facades render playing frames via autoplay → isolated render → click fallback, composited into section stills; uncaptured posterless facades get fetched Vimeo thumbnails (zero browser-minutes) instead of blank bands. figma.com Vimeo grid fully covered 2026-10-01 (4 motion-verified + 6 stills, 10/10 facades; see `docs/plans/2026-09-30-video-capture.md`).
 
@@ -182,3 +182,13 @@ warnings. A heavy run costs ~3 browser-minutes, so the 10 min/day free quota
 supports ~3 such runs per day; the quota resets daily at 00:00 UTC (08:00
 Singapore). Light sites cost seconds. Localhost (`http://localhost:8917`) is
 unlimited and remains the heavier-use path.
+
+CF26–CF28 native-video capture (2026-10-01/10-02): bare `<video>` elements
+force-play muted, clock-verified, composited into sections; stale-clip guard
+re-measures when the page shifts mid-capture. affinity.studio production
+victory lap (2026-10-02, fresh meter): 8 pages, 4/4 natives playing, guard
+fired 4×, integrity passed. higgsfield.ai localhost scale run: 12 natives
+playing (11 distinct frames), guard ~12×, 13 honest unstarted (see
+`docs/plans/2026-10-02-cf28-native-video-capture.md`). Known no-go archetype:
+magnific.com refuses all non-interactive clients at the Akamai edge (403 even
+to plain Chrome-UA fetch) — respected as operator opt-out, not bypassed.

@@ -28,6 +28,7 @@ The [`plans/`](./plans/) directory tracks design RFCs and implementation roadmap
 | **2026-09-29** | [`2026-09-29-fidelity-pack.md`](./plans/2026-09-29-fidelity-pack.md) | CF14–CF20: posters, behaviors, layout.json, REBUILD.md, breaks, budget split, rotation | **Completed** |
 | **2026-09-30** | [`2026-09-30-video-capture.md`](./plans/2026-09-30-video-capture.md) | CF21–CF25: three-tier facade capture, pager, compositing, thumbnail fallback (figma 10/10) | **Completed** |
 | **2026-10-01** | [`2026-10-01-cf26-hosted-binaries-spike.md`](./plans/2026-10-01-cf26-hosted-binaries-spike.md) | CF26: hosted binaries default-on (62–87 ms CPU measured, `?binaries=0` opts out) | **Completed** |
+| **2026-10-02** | [`2026-10-02-cf28-native-video-capture.md`](./plans/2026-10-02-cf28-native-video-capture.md) | CF28: native `<video>` muted force-play + stale-clip guard + top-left clip origin (affinity 4/4 production, higgsfield 12-take scale run) | **Completed** |
 
 ---
 
