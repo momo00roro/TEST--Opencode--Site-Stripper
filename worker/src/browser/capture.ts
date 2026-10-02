@@ -999,6 +999,222 @@ export function autoplayVideoScript(index: number, quick = false): string {
   return `var __name=function(f){return f};(${awaitAutoplayVideo.toString()})(${index},${quick ? "true" : "false"})`;
 }
 
+export interface NativeVideoTarget {
+  status: "none" | "target";
+  started: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string;
+  streamUrl: string;
+  rectY: number;
+  rectHeight: number;
+  rectX: number;
+  rectWidth: number;
+  uid: string;
+}
+
+/**
+ * Native-video capture, step 1 of 1 (CF28; self-contained: NO module-scope
+ * references, literals only — ships via nativeVideoScript with the video
+ * index baked in as a literal; NOTE: explicit scroll math here, no shared
+ * scroll helper — the mock backend routes evaluations by source markers).
+ *
+ * Bare native <video> elements never enter the facade loop (no click
+ * affordance, no Vimeo/YouTube stream to defer), so facade-only pages with
+ * laid-out players report zero video. This pass enumerates laid-out native
+ * videos site-wide, force-plays them MUTED (muted, so the
+ * ensureLazyMediaLoaded audio concern does not apply — unmuted autoplay is
+ * born blocked headless), and reports the playing rect in VIEWPORT
+ * coordinates when the clock actually advances. Node screenshots via the
+ * shared clipPlayer; unstarted videos count into the honest shortfall.
+ */
+export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
+  return (async () => {
+    const none = { status: "none", started: false, x: 0, y: 0, width: 0, height: 0, label: "", streamUrl: "", rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: "" } as NativeVideoTarget;
+    const pause = (ms: number): Promise<void> =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, ms);
+      });
+    let videos: HTMLVideoElement[] = [];
+    try {
+      const seen = new Set<HTMLVideoElement>();
+      const collect = (root: Document | ShadowRoot): void => {
+        let nodes: Array<Element> = [];
+        try {
+          nodes = Array.from(root.querySelectorAll("video") || []);
+        } catch {
+          return;
+        }
+        for (const node of nodes) {
+          const video = node as HTMLVideoElement;
+          if (seen.has(video)) continue;
+          seen.add(video);
+          try {
+            const rect = node.getBoundingClientRect();
+            if (!rect || rect.width < 120 || rect.height < 120) continue;
+          } catch {
+            continue;
+          }
+          videos.push(video);
+        }
+      };
+      collect(document);
+      const hosts = Array.from(
+        document.querySelectorAll("vimeo-video, lite-youtube-embed, lite-vimeo-embed, [data-video]") || [],
+      );
+      for (const host of hosts) {
+        try {
+          const shadow = (host as Element).shadowRoot;
+          if (shadow) collect(shadow as unknown as ShadowRoot);
+        } catch {
+          // Closed shadow roots throw on access; skip them.
+        }
+      }
+    } catch {
+      return none;
+    }
+    const el = videos[index];
+    if (!el) return none;
+    let label = `native video ${index + 1}`;
+    try {
+      const raw = el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("data-title") || label;
+      label = String(raw).slice(0, 60);
+    } catch {
+      // Keep the default label.
+    }
+    // Resolve the file: live currentSrc first (browser-resolved), then the
+    // src attribute, then the first <source> child (Canva-style builders).
+    let streamUrl = "";
+    try {
+      const live = el.currentSrc || "";
+      const attr = el.getAttribute("src") || "";
+      let child = "";
+      try {
+        const source = el.querySelector("source");
+        child = source ? source.getAttribute("src") || "" : "";
+      } catch {
+        // Ignore query failures.
+      }
+      streamUrl = String(live || attr || child || "");
+    } catch {
+      // Best effort; an empty stream still screenshots (no dedup key).
+    }
+    // Scroll into view + stabilize (same glide-guard as the facade path).
+    try {
+      const rect = el.getBoundingClientRect();
+      window.scrollTo(0, window.scrollY + rect.top + rect.height / 2 - Math.floor(window.innerHeight / 2));
+    } catch {
+      // Best effort; the poll below may still catch playback.
+    }
+    try {
+      document.documentElement.style.scrollBehavior = "auto";
+    } catch {
+      // Ignore.
+    }
+    try {
+      const calmAt = Date.now();
+      let lastY = window.scrollY;
+      let calm = 0;
+      while (Date.now() - calmAt < 1500) {
+        await pause(250);
+        let y = lastY;
+        try {
+          y = window.scrollY;
+        } catch {
+          break;
+        }
+        if (Math.abs(y - lastY) < 2) {
+          calm += 1;
+          if (calm >= 2) break;
+        } else {
+          calm = 0;
+        }
+        lastY = y;
+      }
+    } catch {
+      // Ignore stabilization failures; measure anyway.
+    }
+    // Force muted playback (unmuted autoplay is born blocked headless).
+    try {
+      el.muted = true;
+    } catch {
+      // Muting is best effort.
+    }
+    try {
+      const played = el.play();
+      if (played && typeof (played as Promise<void>).catch === "function") {
+        (played as Promise<void>).catch(() => undefined);
+      }
+    } catch {
+      // Play rejection (blocked): the poll below still checks the clock.
+    }
+    // The clock must actually advance: paused-at-frame covers must not pass.
+    let started = false;
+    try {
+      if (el.readyState >= 2) {
+        const first = el.currentTime;
+        await pause(800);
+        let second = first;
+        try {
+          second = el.currentTime;
+        } catch {
+          second = first;
+        }
+        started = second > first;
+      }
+    } catch {
+      started = false;
+    }
+    if (!started) {
+      return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl, rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}` };
+    }
+    // Let motion develop, then report VIEWPORT coordinates for the clip and
+    // DOCUMENT coordinates for compositing over section shots.
+    await pause(600);
+    try {
+      const rect = el.getBoundingClientRect();
+      const viewportW = Math.max(window.innerWidth, 1);
+      const vw = Math.round(rect.width);
+      const vh = Math.round(rect.height);
+      if (vw < 120 || vh < 120) {
+        return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl, rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}` };
+      }
+      let pageX = 0;
+      let pageY = 0;
+      try {
+        pageX = Math.max(Math.round(rect.left + window.scrollX), 0);
+        pageY = Math.max(Math.round(rect.top + window.scrollY), 0);
+      } catch {
+        // Keep zeros; the clip still lands, placement falls back to the player.
+      }
+      return {
+        status: "target",
+        started: true,
+        x: Math.round(rect.left + rect.width / 2),
+        y: Math.round(rect.top + rect.height / 2),
+        width: Math.min(vw, viewportW),
+        height: vh,
+        label,
+        streamUrl,
+        rectY: pageY,
+        rectHeight: vh,
+        rectX: pageX,
+        rectWidth: vw,
+        uid: `native-${index}`,
+      };
+    } catch {
+      return none;
+    }
+  })();
+}
+
+/** Builds the Trap-5-shimmed IIFE string for nativeVideoTarget(index). */
+export function nativeVideoScript(index: number): string {
+  return `var __name=function(f){return f};(${nativeVideoTarget.toString()})(${index})`;
+}
+
 export interface CarouselNextTarget {
   status: "none" | "target";
   x: number;
@@ -1881,7 +2097,9 @@ export async function capturePage(
   // list runs dry, the carousel pager (CF24) turns video-grid next-arrows
   // and re-scans for freshly hydrated facades (bounded turns). Facades that
   // never play keep their cover art; they are counted, not thrown. Local
-  // audio is muted at launch.
+  // audio is muted at launch. AFTER facades, the native pass (CF28)
+  // force-plays laid-out bare <video> elements muted (facade loop never
+  // sees them) and clips the playing ones via the same helper.
   const videoShots: SectionShot[] = [];
   const pendingVideoStreams: Array<{ label: string; streamUrl: string; rectY: number; rectHeight: number; rectX: number; rectWidth: number }> = [];
   const videoCap = Math.min(options.maxVideoShots ?? 0, LIMITS.maxVideoShots);
@@ -1900,6 +2118,67 @@ export async function capturePage(
     // for identical content, so element identity alone cannot stop it).
     let freshFound = true;
     let freshProcessed = 0;
+    // Viewport clip WITHOUT captureBeyondViewport: player rects arrive
+    // in viewport coordinates (scrolled into view in-page), and
+    // out-of-process iframes can composite blank in beyond-viewport
+    // captures while painting fine in viewport ones. Returns "taken" when
+    // a shot was stored (or the rect was too small to bother), "dropped"
+    // when the byte budget gave out (caller breaks the facade loop).
+    // Stored y/height are the facade's PAGE placement rect (for compositing
+    // over section shots), not the viewport clip rect used below. Shared
+    // by the facade loop and the CF28 native pass.
+    const clipPlayer = async (
+      player: BootedVideoPlayer,
+      label: string,
+      target: FacadeClickTarget,
+    ): Promise<"taken" | "dropped"> => {
+      const clipY = Math.min(player.y, clipHeight - 1);
+      const clipH = Math.min(player.height, clipHeight - clipY);
+      if (clipH < 50) return "taken";
+      const clipX = Math.max(Math.min(player.x, options.viewportWidth - 1), 0);
+      const clipW = Math.min(player.width, options.viewportWidth - clipX);
+      let taken: Uint8Array | null = null;
+      let takenKind: ScreenshotKind | null = null;
+      const fallbackTypes: ScreenshotKind[] = Array.from(
+        new Set<ScreenshotKind>([screenshotKind ?? "webp", "jpeg"]),
+      );
+      for (const type of fallbackTypes) {
+        try {
+          const buffer = await page.screenshot({
+            type,
+            quality,
+            clip: { x: clipX, y: clipY, width: clipW, height: clipH },
+          });
+          taken = toBytes(buffer);
+          takenKind = type;
+          break;
+        } catch {
+          warnings.push(`Playing-state video screenshot ${vi + 1} as ${type} failed.`);
+        }
+      }
+      if (taken && takenKind && taken.byteLength <= videoBudget) {
+        const facadeBox = Number.isFinite(target.rectY) && Number.isFinite(target.rectX)
+          && target.rectHeight > 0 && target.rectWidth > 0;
+        videoShots.push({
+          kind: takenKind,
+          bytes: taken.byteLength,
+          y: Number.isFinite(target.rectY) ? target.rectY : player.y,
+          height: target.rectHeight > 0 ? target.rectHeight : player.height,
+          heading: `video: ${label}`,
+          data: taken,
+          ...(facadeBox
+            ? { placement: { x: target.rectX, y: target.rectY, width: target.rectWidth, height: target.rectHeight } }
+            : {}),
+        });
+        videoBudget -= taken.byteLength;
+        return "taken";
+      }
+      if (taken) {
+        warnings.push(`Playing-state video screenshot ${vi + 1} dropped: byte budget exhausted.`);
+        return "dropped";
+      }
+      return "taken";
+    };
     // Hard iteration bound (real lists end via "none"; keeps pathological
     // ever-growing DOMs from spinning).
     let guard = videoCap * 4 + 8;
@@ -1951,66 +2230,6 @@ export async function capturePage(
       if (fstream !== "") seenStreams.add(fstream);
       freshFound = true;
       freshProcessed += 1;
-      // Viewport clip WITHOUT captureBeyondViewport: player rects arrive
-      // in viewport coordinates (scrolled into view in-page), and
-      // out-of-process iframes can composite blank in beyond-viewport
-      // captures while painting fine in viewport ones. Returns "taken" when
-      // a shot was stored (or the rect was too small to bother), "dropped"
-      // when the byte budget gave out (caller breaks the facade loop).
-      // Stored y/height are the facade's PAGE placement rect (for compositing
-      // over section shots), not the viewport clip rect used below.
-      const clipPlayer = async (
-        player: BootedVideoPlayer,
-        label: string,
-        target: FacadeClickTarget,
-      ): Promise<"taken" | "dropped"> => {
-        const clipY = Math.min(player.y, clipHeight - 1);
-        const clipH = Math.min(player.height, clipHeight - clipY);
-        if (clipH < 50) return "taken";
-        const clipX = Math.max(Math.min(player.x, options.viewportWidth - 1), 0);
-        const clipW = Math.min(player.width, options.viewportWidth - clipX);
-        let taken: Uint8Array | null = null;
-        let takenKind: ScreenshotKind | null = null;
-        const fallbackTypes: ScreenshotKind[] = Array.from(
-          new Set<ScreenshotKind>([screenshotKind ?? "webp", "jpeg"]),
-        );
-        for (const type of fallbackTypes) {
-          try {
-            const buffer = await page.screenshot({
-              type,
-              quality,
-              clip: { x: clipX, y: clipY, width: clipW, height: clipH },
-            });
-            taken = toBytes(buffer);
-            takenKind = type;
-            break;
-          } catch {
-            warnings.push(`Playing-state video screenshot ${vi + 1} as ${type} failed.`);
-          }
-        }
-        if (taken && takenKind && taken.byteLength <= videoBudget) {
-          const facadeBox = Number.isFinite(target.rectY) && Number.isFinite(target.rectX)
-            && target.rectHeight > 0 && target.rectWidth > 0;
-          videoShots.push({
-            kind: takenKind,
-            bytes: taken.byteLength,
-            y: Number.isFinite(target.rectY) ? target.rectY : player.y,
-            height: target.rectHeight > 0 ? target.rectHeight : player.height,
-            heading: `video: ${label}`,
-            data: taken,
-            ...(facadeBox
-              ? { placement: { x: target.rectX, y: target.rectY, width: target.rectWidth, height: target.rectHeight } }
-              : {}),
-          });
-          videoBudget -= taken.byteLength;
-          return "taken";
-        }
-        if (taken) {
-          warnings.push(`Playing-state video screenshot ${vi + 1} dropped: byte budget exhausted.`);
-          return "dropped";
-        }
-        return "taken";
-      };
       // Autoplay-first: no click, no modal, no dismiss needed. Facades with
       // a resolvable stream earn only a quick probe: the full poll never
       // succeeds on bot-gated players, and the isolated tier renders the
@@ -2078,9 +2297,47 @@ export async function capturePage(
       }
       vi += 1;
     }
+    // Native-video pass (CF28): bare <video> elements never enter the
+    // facade loop above (no click affordance, no deferrable stream), so
+    // facade-only pages with laid-out players report zero video. After
+    // facades are exhausted, force-play laid-out natives muted and clip
+    // the playing ones. Shares the cap, byte budget, stream dedup, and
+    // clip helper with the facade path; silence when absent.
+    if (videoShots.length + pendingVideoStreams.length < videoCap) {
+      let ni = 0;
+      let nativeTaken = 0;
+      let nativeGuard = videoCap * 2 + 4;
+      while (videoShots.length + pendingVideoStreams.length < videoCap && nativeGuard > 0) {
+        nativeGuard -= 1;
+        if (videoBudget <= 0) break;
+        let native: NativeVideoTarget | null = null;
+        try {
+          native = await evaluateWithTimeout<NativeVideoTarget | null>(page, nativeVideoScript(ni), 20_000);
+        } catch {
+          warnings.push(`Native video ${ni + 1} lookup timed out; its cover art stands in.`);
+          break;
+        }
+        if (!native || native.status === "none") break;
+        ni += 1;
+        const nstream = String(native.streamUrl || "");
+        if (nstream !== "" && seenStreams.has(nstream)) continue;
+        if (nstream !== "") seenStreams.add(nstream);
+        if (!native.started || native.width < 120 || native.height < 120) {
+          unstarted += 1;
+          continue;
+        }
+        if ((await clipPlayer(native, native.label, native)) === "dropped") break;
+        nativeTaken += 1;
+      }
+      if (nativeTaken > 0) {
+        warnings.push(
+          `${nativeTaken} native video(s) captured playing-state via muted force-play; composited over their bands in section screenshots.`,
+        );
+      }
+    }
     if (unstarted > 0) {
       warnings.push(
-        `${unstarted} video(s) did not start (autoplay or click-to-play); those regions show their cover art, not playing frames.`,
+        `${unstarted} video(s) did not start (autoplay, click-to-play, or native force-play); those regions show their cover art, not playing frames.`,
       );
     }
     if (turns > 0) {

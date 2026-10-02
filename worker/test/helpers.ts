@@ -194,6 +194,12 @@ export interface FakePageOptions {
    */
   facadeCount?: number;
   /**
+   * Index-pinned native-video answers for the CF28 pass (models laid-out
+   * bare <video> elements). Absent indexes (or an absent map) report
+   * status "none", ending the native pass silently.
+   */
+  nativeVideoAt?: Record<number, { status: string; started?: boolean; x?: number; y?: number; width?: number; height?: number; label?: string; streamUrl?: string; rectY?: number; rectHeight?: number; rectX?: number; rectWidth?: number; uid?: string }>;
+  /**
    * Fill each screenshot with its call index so consecutive shots differ
    * (simulates motion for the isolated two-frame check). Default screenshots
    * are zero-filled and therefore identical.
@@ -241,6 +247,15 @@ export function makeFakePage(options: FakePageOptions = {}): {
       }
       if (src.includes("collectHeadingTexts")) {
         return (options.headingTexts ?? []) as unknown as T;
+      }
+      if (src.includes("nativeVideoTarget")) {
+        // The native index rides as the trailing literal: ...(fn)(N).
+        // Absent fixtures report "none" so the pass ends silently.
+        const at = /\((\d+)\)$/.exec(src)?.[1];
+        const nativeIndex = at === undefined ? 0 : Number(at);
+        const pinned = options.nativeVideoAt?.[nativeIndex];
+        if (pinned) return pinned as unknown as T;
+        return { status: "none", started: false, x: 0, y: 0, width: 0, height: 0, label: "", streamUrl: "", rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: "" } as unknown as T;
       }
       if (src.includes("facadeClickTarget")) {
         if (facadeQueue.length > 0) {

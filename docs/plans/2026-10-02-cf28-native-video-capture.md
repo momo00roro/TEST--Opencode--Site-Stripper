@@ -1,0 +1,48 @@
+# CF28 — native video capture (2026-10-02)
+
+Status: implemented and verified 2026-10-02. `npm run test -w worker`: 348/348 passing. `npm run typecheck -w worker`: clean.
+
+## Problem
+
+The capture loop is facade-only (`vimeo-video`, `[data-video]`, lite
+embeds). Bare native `<video>` elements never enter the autoplay poll,
+click path, or isolated tier. affinity.studio (Canva SPA, self-hosted
+h264 MP4s on `<source>` children): 6 laid-out videos, CF27 records carry
+real URLs, yet 0 facades → 0 shots. Proven by localhost probe
+(`affinity-local2.json`): records resolved, shots zero.
+
+## Design
+
+New pass AFTER the facade while-loop, inside the existing
+`screenshotKind && videoCap > 0` gate, sharing `videoBudget`,
+`seenStreams`, `clipPlayer`, and the `vi` warning counter:
+
+- In-page `nativeVideoTarget(index)` (Trap-5-shimmed, mock-routed by
+  function-name marker like the other passes): enumerate
+  `document.querySelectorAll("video")` + open shadow roots of custom
+  hosts; keep rect >= 120x120; resolve src via
+  `currentSrc || src attr || first <source> child`; scroll into view +
+  stabilize; force `muted = true` + `play()` (muted, so the
+  ensureLazyMediaLoaded audio concern does not apply); poll clock
+  advancement (`readyState >= 2`, `currentTime` advances, ~2s bound);
+  return viewport + page rects, label, streamUrl, started flag.
+- Node loop over indices until `status: "none"`, cap/guard bounded:
+  skip empty/unstarted (count into existing `unstarted`), skip
+  `seenStreams` duplicates (facade already deferred the same file),
+  screenshot started players via the EXISTING `clipPlayer` with a
+  synthesized FacadeClickTarget. Distinct warning on native takes.
+- Honesty preserved: nothing found → no new warnings, no behavior
+  change for facade-only pages (one fast `status: "none"` evaluate).
+
+## Tests
+
+- Fake backend routes `nativeVideoTarget` by trailing index literal to
+  a new `nativeVideoAt` fixture map (default: `status: "none"` so all
+  46 existing browser-capture tests gain exactly one fast no-op).
+- New specs: muted force-play natives become `video:` shots with
+  placement; same-stream-as-facade dedup; silence when absent.
+
+## Out of scope
+
+Canvas-drawn motion (still single-static-frame by design); YouTube
+non-embed URLs; audible autoplay (never attempted).

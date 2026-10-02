@@ -265,6 +265,44 @@ describe("capturePage", () => {
     expect(state.keys).toEqual(["Escape"]);
   });
 
+  it("captures muted force-play native videos after facades run dry (CF28)", async () => {
+    const { page, state } = makeFakePage({
+      facadeCount: 0,
+      nativeVideoAt: {
+        0: { status: "target", started: true, x: 720, y: 600, width: 800, height: 450, label: "Hero loop", streamUrl: "https://example.com/hero.mp4", rectY: 900, rectHeight: 450, rectX: 320, rectWidth: 800, uid: "native-0" },
+        1: { status: "target", started: true, x: 720, y: 1500, width: 640, height: 400, label: "Showcase", streamUrl: "https://example.com/show.mp4", rectY: 2400, rectHeight: 400, rectX: 400, rectWidth: 640, uid: "native-1" },
+      },
+    });
+    const result = await capturePage(page, { url: "https://example.com/", viewportWidth: 1440, maxVideoShots: 4 });
+
+    expect(result.videoShots).toHaveLength(2);
+    expect(result.videoShots[0]).toMatchObject({ kind: "webp", heading: "video: Hero loop", placement: { x: 320, y: 900, width: 800, height: 450 } });
+    expect(result.videoShots[1]).toMatchObject({ heading: "video: Showcase" });
+    expect(result.warnings.some((warning) => warning.includes("native video(s) captured playing-state"))).toBe(true);
+    // Native force-play needs no trusted clicks and no Escape dismissals.
+    expect(state.clicks).toEqual([]);
+    expect(state.keys).toEqual([]);
+  });
+
+  it("skips native videos whose stream a facade already deferred (CF28)", async () => {
+    const streamUrl = "https://player.vimeo.com/video/1202887330?autoplay=1&muted=1";
+    const { page, state } = makeFakePage({
+      videoTargetAt: {
+        0: { status: "target", x: 720, y: 500, label: "Demo", streamUrl, rectY: 2000, rectHeight: 765, rectX: 100, rectWidth: 348 },
+      },
+      facadeCount: 1,
+      autoplayPlayer: { started: false, x: 0, y: 0, width: 0, height: 0 },
+      nativeVideoAt: {
+        0: { status: "target", started: true, x: 720, y: 600, width: 800, height: 450, label: "Demo", streamUrl, rectY: 2000, rectHeight: 765, rectX: 100, rectWidth: 348, uid: "native-0" },
+      },
+    });
+    const result = await capturePage(page, { url: "https://example.com/", viewportWidth: 1440, maxVideoShots: 4 });
+
+    expect(result.pendingVideoStreams).toHaveLength(1);
+    expect(result.videoShots).toEqual([]);
+    expect(state.clicks).toEqual([]);
+  });
+
   it("defers stream-resolvable facades to isolated render instead of clicking", async () => {
     const card = (index: number, id: number) => ({
       status: "target",
@@ -305,7 +343,7 @@ describe("capturePage", () => {
     const result = await capturePage(page, { url: "https://example.com/", viewportWidth: 1440, maxVideoShots: 2 });
 
     expect(result.videoShots).toEqual([]);
-    expect(result.warnings.some((warning) => warning.includes("2 video(s) did not start (autoplay or click-to-play)"))).toBe(true);
+    expect(result.warnings.some((warning) => warning.includes("2 video(s) did not start (autoplay, click-to-play, or native force-play)"))).toBe(true);
     expect(state.clicks).toHaveLength(2);
   });
 
