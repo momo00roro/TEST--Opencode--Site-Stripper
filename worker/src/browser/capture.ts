@@ -1147,6 +1147,21 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
     } catch {
       // Ignore stabilization failures; measure anyway.
     }
+    // Reachability: carousel duplicates (Canva-style tracks) keep full
+    // layout rects while translated off-viewport inside overflow tracks —
+    // window scrolling can never bring them into view, so clips come out
+    // black. Only the instance actually on screen earns force-play; the
+    // rest report unstarted with NO stream URL so they neither screenshot
+    // nor poison stream dedup for the visible duplicate.
+    try {
+      const r = el.getBoundingClientRect();
+      const reachable = r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
+      if (!reachable) {
+        return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl: "", rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}` };
+      }
+    } catch {
+      return none;
+    }
     // Force muted playback (unmuted autoplay is born blocked headless).
     try {
       el.muted = true;
@@ -2336,7 +2351,10 @@ export async function capturePage(
         if (nstream !== "" && seenStreams.has(nstream)) continue;
         if (nstream !== "") seenStreams.add(nstream);
         if (!native.started || native.width < 120 || native.height < 120) {
-          unstarted += 1;
+          // Reachable-but-stalled players count into the honest shortfall;
+          // unreachable duplicates (empty stream) skip silently so the
+          // visible instance for the same file still gets its turn.
+          if (nstream !== "") unstarted += 1;
           continue;
         }
         if ((await clipPlayer(native, native.label, native)) === "dropped") break;

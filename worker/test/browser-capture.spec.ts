@@ -303,6 +303,21 @@ describe("capturePage", () => {
     expect(state.clicks).toEqual([]);
   });
 
+  it("silently skips unreachable native duplicates without shortfall noise (CF28)", async () => {
+    const { page } = makeFakePage({
+      facadeCount: 0,
+      nativeVideoAt: {
+        0: { status: "target", started: false, label: "Hidden dup", streamUrl: "" },
+        1: { status: "target", started: true, x: 720, y: 600, width: 800, height: 450, label: "Visible", streamUrl: "https://example.com/show.mp4", rectY: 900, rectHeight: 450, rectX: 320, rectWidth: 800, uid: "native-1" },
+      },
+    });
+    const result = await capturePage(page, { url: "https://example.com/", viewportWidth: 1440, maxVideoShots: 4 });
+
+    expect(result.videoShots).toHaveLength(1);
+    expect(result.videoShots[0]).toMatchObject({ heading: "video: Visible" });
+    expect(result.warnings.some((warning) => warning.includes("did not start"))).toBe(false);
+  });
+
   it("defers stream-resolvable facades to isolated render instead of clicking", async () => {
     const card = (index: number, id: number) => ({
       status: "target",
