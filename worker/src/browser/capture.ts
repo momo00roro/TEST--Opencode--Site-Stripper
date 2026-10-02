@@ -1057,6 +1057,17 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
           } catch {
             continue;
           }
+          // Paint check: visibility:hidden / opacity:0 instances keep full
+          // layout rects (Canva-style duplicate preloads) but paint nothing,
+          // so clips come out flat black. Only players that actually paint.
+          try {
+            const style = window.getComputedStyle(node);
+            if (!style || style.visibility === "hidden" || style.display === "none") continue;
+            const opacity = Number(style.opacity);
+            if (Number.isFinite(opacity) && opacity <= 0) continue;
+          } catch {
+            continue;
+          }
           videos.push(video);
         }
       };
