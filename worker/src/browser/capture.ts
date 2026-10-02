@@ -1013,6 +1013,14 @@ export interface NativeVideoTarget {
   rectX: number;
   rectWidth: number;
   uid: string;
+  /**
+   * window.scrollY at measure time (CF28 follow-up). Node re-reads scrollY
+   * just before clipping: a mismatch means the page moved between measure
+   * and screenshot (snap points, SPA scroll-into-view on play), so the
+   * viewport coordinates are stale and the clip would land on the wrong
+   * band. Absent (tests) disables the check.
+   */
+  scrollY: number;
 }
 
 /**
@@ -1032,7 +1040,7 @@ export interface NativeVideoTarget {
  */
 export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
   return (async () => {
-    const none = { status: "none", started: false, x: 0, y: 0, width: 0, height: 0, label: "", streamUrl: "", rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: "" } as NativeVideoTarget;
+    const none = { status: "none", started: false, x: 0, y: 0, width: 0, height: 0, label: "", streamUrl: "", rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: "", scrollY: 0 } as NativeVideoTarget;
     const pause = (ms: number): Promise<void> =>
       new Promise<void>((resolve) => {
         setTimeout(resolve, ms);
@@ -1157,7 +1165,7 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
       const r = el.getBoundingClientRect();
       const reachable = r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
       if (!reachable) {
-        return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl: "", rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}` };
+        return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl: "", rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}`, scrollY: 0 };
       }
     } catch {
       return none;
@@ -1194,7 +1202,7 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
       started = false;
     }
     if (!started) {
-      return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl, rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}` };
+      return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl, rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}`, scrollY: 0 };
     }
     // Let motion develop past fade-from-black intros (Canva-style players
     // open on black; a 600ms settle kept catching the fade), then re-anchor
@@ -1231,13 +1239,15 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
       const vw = Math.round(rect.width);
       const vh = Math.round(rect.height);
       if (vw < 120 || vh < 120) {
-        return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl, rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}` };
+        return { status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl, rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}`, scrollY: 0 };
       }
       let pageX = 0;
       let pageY = 0;
+      let measuredScroll = 0;
       try {
         pageX = Math.max(Math.round(rect.left + window.scrollX), 0);
         pageY = Math.max(Math.round(rect.top + window.scrollY), 0);
+        measuredScroll = window.scrollY;
       } catch {
         // Keep zeros; the clip still lands, placement falls back to the player.
       }
@@ -1255,6 +1265,7 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
         rectX: pageX,
         rectWidth: vw,
         uid: `native-${index}`,
+        scrollY: measuredScroll,
       };
     } catch {
       return none;
@@ -1265,6 +1276,14 @@ export function nativeVideoTarget(index: number): Promise<NativeVideoTarget> {
 /** Builds the Trap-5-shimmed IIFE string for nativeVideoTarget(index). */
 export function nativeVideoScript(index: number): string {
   return `var __name=function(f){return f};(${nativeVideoTarget.toString()})(${index})`;
+}
+
+/**
+ * Tiny scrollY read backing the CF28 stale-clip guard (mock-routed by the
+ * function-name marker, like the other passes).
+ */
+export function nativeScrollScript(): string {
+  return `var __name=function(f){return f};((function nativeScrollY() { try { return window.scrollY; } catch { return 0; } })())`;
 }
 
 export interface CarouselNextTarget {
@@ -2373,7 +2392,6 @@ export async function capturePage(
         ni += 1;
         const nstream = String(native.streamUrl || "");
         if (nstream !== "" && seenStreams.has(nstream)) continue;
-        if (nstream !== "") seenStreams.add(nstream);
         if (!native.started || native.width < 120 || native.height < 120) {
           // Reachable-but-stalled players count into the honest shortfall;
           // unreachable duplicates (empty stream) skip silently so the
@@ -2382,6 +2400,43 @@ export async function capturePage(
           continue;
         }
         if ((await clipPlayer(native, native.label, native)) === "dropped") break;
+        // Stale-clip guard: the page may have moved between measure and
+        // screenshot (snap points, SPA scroll-on-play), landing the clip on
+        // the wrong band. Re-read scrollY; on a move, discard the
+        // mis-framed shot (refunding bytes) and take one fresh attempt with
+        // re-measured coordinates. Skipped when the target carries no
+        // scroll reading (unit fixtures).
+        const measuredScroll = Number(native.scrollY);
+        if (Number.isFinite(measuredScroll)) {
+          let scrolled = measuredScroll;
+          try {
+            const check = await evaluateWithTimeout<number | null>(page, nativeScrollScript(), 10_000);
+            if (typeof check === "number" && Number.isFinite(check)) scrolled = check;
+          } catch {
+            // An unreadable scroll is not evidence of a move; keep the shot.
+          }
+          if (Math.abs(scrolled - measuredScroll) > 2) {
+            const popped = videoShots.pop();
+            if (popped) videoBudget += popped.bytes;
+            warnings.push(`Native video '${native.label.slice(0, 60)}' moved during capture; re-measured once.`);
+            let retry: NativeVideoTarget | null = null;
+            try {
+              retry = await evaluateWithTimeout<NativeVideoTarget | null>(page, nativeVideoScript(ni - 1), 20_000);
+            } catch {
+              retry = null;
+            }
+            if (retry && retry.status !== "none" && retry.started && retry.width >= 120 && retry.height >= 120) {
+              const rstream = String(retry.streamUrl || "");
+              if (rstream !== "") seenStreams.add(rstream);
+              if ((await clipPlayer(retry, retry.label, retry)) === "dropped") break;
+              nativeTaken += 1;
+            } else {
+              unstarted += 1;
+            }
+            continue;
+          }
+        }
+        if (nstream !== "") seenStreams.add(nstream);
         nativeTaken += 1;
       }
       if (nativeTaken > 0) {

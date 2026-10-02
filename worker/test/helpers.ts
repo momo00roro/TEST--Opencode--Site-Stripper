@@ -198,7 +198,13 @@ export interface FakePageOptions {
    * bare <video> elements). Absent indexes (or an absent map) report
    * status "none", ending the native pass silently.
    */
-  nativeVideoAt?: Record<number, { status: string; started?: boolean; x?: number; y?: number; width?: number; height?: number; label?: string; streamUrl?: string; rectY?: number; rectHeight?: number; rectX?: number; rectWidth?: number; uid?: string }>;
+  nativeVideoAt?: Record<number, { status: string; started?: boolean; x?: number; y?: number; width?: number; height?: number; label?: string; streamUrl?: string; rectY?: number; rectHeight?: number; rectX?: number; rectWidth?: number; uid?: string; scrollY?: number }>;
+  /**
+   * Answer for the CF28 stale-clip guard's scroll re-read. Defaults to 0;
+   * fixtures carrying scrollY set it to a different value to simulate a
+   * page move between measure and screenshot.
+   */
+  nativeScrollY?: number;
   /**
    * Fill each screenshot with its call index so consecutive shots differ
    * (simulates motion for the isolated two-frame check). Default screenshots
@@ -247,6 +253,9 @@ export function makeFakePage(options: FakePageOptions = {}): {
       }
       if (src.includes("collectHeadingTexts")) {
         return (options.headingTexts ?? []) as unknown as T;
+      }
+      if (src.includes("nativeScrollY")) {
+        return (options.nativeScrollY ?? 0) as unknown as T;
       }
       if (src.includes("nativeVideoTarget")) {
         // The native index rides as the trailing literal: ...(fn)(N).
