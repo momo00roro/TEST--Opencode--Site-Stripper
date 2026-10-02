@@ -1,6 +1,22 @@
 # CF28 — native video capture (2026-10-02)
 
-Status: implemented and verified 2026-10-02. `npm run test -w worker`: 348/348 passing. `npm run typecheck -w worker`: clean.
+Status: implemented and verified 2026-10-02. `npm run test -w worker`: 350/350 passing. `npm run typecheck -w worker`: clean.
+
+## Verification (affinity.studio, localhost + production)
+
+Stable across runs: 3–4 playing-state natives per run (media clocks
+verified advancing), 1 honest unstarted (Fast-AF hero duplicate), zero
+facades (correct — none exist). Follow-up hardening from the
+investigation, all shipped: extended post-start settle (fade-from-black),
+paint + reachability filters (hidden/track duplicates), re-anchor +
+scroll quiescence, stale-clip guard with retry, top-left clip origin
+(center was shifting every clip by half size).
+
+Known limitation, closed as best-effort: the y4023–4781 band is a
+ROTATING carousel — crop-vs-clip comparison at identical rects showed
+different slides seconds apart. No screenshot pipeline can freeze a
+rotating showcase deterministically; stills are correctly framed
+captures of a moving target, and warnings disclose exactly this.
 
 ## Problem
 
