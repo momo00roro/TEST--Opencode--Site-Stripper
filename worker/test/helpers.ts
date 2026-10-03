@@ -257,6 +257,15 @@ export function makeFakePage(options: FakePageOptions = {}): {
       if (src.includes("nativeScrollY")) {
         return (options.nativeScrollY ?? 0) as unknown as T;
       }
+      if (src.includes("nativeVideoRemeasure")) {
+        // CF29 H2: stale-clip retry re-measures the same index without
+        // re-playing; route it to the same nativeVideoAt fixtures.
+        const at = /\((\d+)\)$/.exec(src)?.[1];
+        const nativeIndex = at === undefined ? 0 : Number(at);
+        const pinned = options.nativeVideoAt?.[nativeIndex];
+        if (pinned) return pinned as unknown as T;
+        return { status: "none", started: false, x: 0, y: 0, width: 0, height: 0, label: "", streamUrl: "", rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: "", scrollY: 0 } as unknown as T;
+      }
       if (src.includes("nativeVideoTarget")) {
         // The native index rides as the trailing literal: ...(fn)(N).
         // Absent fixtures report "none" so the pass ends silently.

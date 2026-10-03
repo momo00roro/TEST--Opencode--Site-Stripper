@@ -1323,6 +1323,190 @@ export function nativeVideoScript(index: number): string {
 }
 
 /**
+ * CF29 H2: lightweight re-measure backing the stale-clip retry. The target
+ * already passed the clock check in the first pass; only its FRAMING is in
+ * doubt after the page moved (measured up to 517px on higgsfield). This
+ * re-enumerates videos exactly like nativeVideoTarget (so the same index
+ * maps to the same element), re-anchors, waits for a LONGER stable scroll
+ * window than the in-pass measure, and returns fresh rects — with NO
+ * re-play, NO 800ms clock poll, and NO 1500ms fade pause. Self-contained
+ * (Trap-5): ships via nativeVideoRemeasureScript; mock-routed by marker.
+ */
+export function nativeVideoRemeasure(index: number): Promise<NativeVideoTarget> {
+  return (async () => {
+    const none = { status: "none", started: false, x: 0, y: 0, width: 0, height: 0, label: "", streamUrl: "", rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: "", scrollY: 0 } as NativeVideoTarget;
+    const paused = (label: string, streamUrl: string): NativeVideoTarget => ({ status: "target", started: false, x: 0, y: 0, width: 0, height: 0, label, streamUrl, rectY: 0, rectHeight: 0, rectX: 0, rectWidth: 0, uid: `native-${index}`, scrollY: 0 });
+    const pause = (ms: number): Promise<void> =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, ms);
+      });
+    let videos: HTMLVideoElement[] = [];
+    try {
+      const seen = new Set<HTMLVideoElement>();
+      const collect = (root: Document | ShadowRoot): void => {
+        let nodes: Array<Element> = [];
+        try {
+          nodes = Array.from(root.querySelectorAll("video") || []);
+        } catch {
+          return;
+        }
+        for (const node of nodes) {
+          const video = node as HTMLVideoElement;
+          if (seen.has(video)) continue;
+          seen.add(video);
+          try {
+            const rect = node.getBoundingClientRect();
+            if (!rect || rect.width < 120 || rect.height < 120) continue;
+          } catch {
+            continue;
+          }
+          try {
+            const style = window.getComputedStyle(node);
+            if (!style || style.visibility === "hidden" || style.display === "none") continue;
+            const opacity = Number(style.opacity);
+            if (Number.isFinite(opacity) && opacity <= 0) continue;
+          } catch {
+            continue;
+          }
+          videos.push(video);
+        }
+      };
+      collect(document);
+      const hosts = Array.from(
+        document.querySelectorAll("vimeo-video, lite-youtube-embed, lite-vimeo-embed, [data-video]") || [],
+      );
+      for (const host of hosts) {
+        try {
+          const shadow = (host as Element).shadowRoot;
+          if (shadow) collect(shadow as unknown as ShadowRoot);
+        } catch {
+          // Closed shadow roots throw on access; skip them.
+        }
+      }
+    } catch {
+      return none;
+    }
+    const el = videos[index];
+    if (!el) return none;
+    let label = `native video ${index + 1}`;
+    try {
+      const raw = el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("data-title") || label;
+      label = String(raw).slice(0, 60);
+    } catch {
+      // Keep the default label.
+    }
+    let streamUrl = "";
+    try {
+      const live = el.currentSrc || "";
+      const attr = el.getAttribute("src") || "";
+      let child = "";
+      try {
+        const source = el.querySelector("source");
+        child = source ? source.getAttribute("src") || "" : "";
+      } catch {
+        // Ignore query failures.
+      }
+      streamUrl = String(live || attr || child || "");
+    } catch {
+      // Best effort; an empty stream still screenshots (no dedup key).
+    }
+    // Re-anchor, then require three consecutive calm 250ms samples (~750ms
+    // stable) before trusting the measure — the first attempt already proved
+    // the page glides, so a single calm sample is not enough.
+    try {
+      const rect = el.getBoundingClientRect();
+      window.scrollTo(0, window.scrollY + rect.top + rect.height / 2 - Math.floor(window.innerHeight / 2));
+    } catch {
+      // Best effort; the quiescence check below still guards the measure.
+    }
+    try {
+      document.documentElement.style.scrollBehavior = "auto";
+    } catch {
+      // Ignore.
+    }
+    try {
+      let lastY = window.scrollY;
+      let calm = 0;
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await pause(250);
+        let now = lastY;
+        try {
+          now = window.scrollY;
+        } catch {
+          break;
+        }
+        if (Math.abs(now - lastY) < 2) {
+          calm += 1;
+          if (calm >= 3) break;
+        } else {
+          calm = 0;
+        }
+        lastY = now;
+      }
+    } catch {
+      // Best effort; measure anyway.
+    }
+    try {
+      const r = el.getBoundingClientRect();
+      const reachable = r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
+      if (!reachable) return paused(label, "");
+    } catch {
+      return none;
+    }
+    // Cheap liveness: the first pass already verified clock advancement; do
+    // NOT re-poll. If the page paused the element, report it unstarted.
+    let started = false;
+    try {
+      started = el.readyState >= 2 && !el.paused;
+    } catch {
+      started = false;
+    }
+    if (!started) return paused(label, streamUrl);
+    try {
+      const rect = el.getBoundingClientRect();
+      const viewportW = Math.max(window.innerWidth, 1);
+      const viewportH = Math.max(window.innerHeight, 1);
+      const vw = Math.round(rect.width);
+      const vh = Math.round(rect.height);
+      if (vw < 120 || vh < 120) return paused(label, streamUrl);
+      let pageX = 0;
+      let pageY = 0;
+      let measuredScroll = 0;
+      try {
+        pageX = Math.max(Math.round(rect.left + window.scrollX), 0);
+        pageY = Math.max(Math.round(rect.top + window.scrollY), 0);
+        measuredScroll = window.scrollY;
+      } catch {
+        // Keep zeros; the clip still lands, placement falls back to the player.
+      }
+      return {
+        status: "target",
+        started: true,
+        x: Math.max(Math.min(Math.round(rect.left), viewportW - 1), 0),
+        y: Math.max(Math.min(Math.round(rect.top), viewportH - 1), 0),
+        width: Math.min(vw, viewportW - Math.max(Math.min(Math.round(rect.left), viewportW - 1), 0)),
+        height: Math.min(vh, viewportH - Math.max(Math.min(Math.round(rect.top), viewportH - 1), 0)),
+        label,
+        streamUrl,
+        rectY: pageY,
+        rectHeight: vh,
+        rectX: pageX,
+        rectWidth: vw,
+        uid: `native-${index}`,
+        scrollY: measuredScroll,
+      };
+    } catch {
+      return none;
+    }
+  })();
+}
+
+/** Builds the Trap-5-shimmed IIFE string for nativeVideoRemeasure(index). */
+export function nativeVideoRemeasureScript(index: number): string {
+  return `var __name=function(f){return f};(${nativeVideoRemeasure.toString()})(${index})`;
+}
+
+/**
  * Tiny scrollY read backing the CF28 stale-clip guard (mock-routed by the
  * function-name marker, like the other passes).
  */
@@ -2500,7 +2684,7 @@ export async function capturePage(
             nativeRemasures += 1;
             let retry: NativeVideoTarget | null = null;
             try {
-              retry = await evaluateWithTimeout<NativeVideoTarget | null>(page, nativeVideoScript(ni - 1), 20_000);
+              retry = await evaluateWithTimeout<NativeVideoTarget | null>(page, nativeVideoRemeasureScript(ni - 1), 20_000);
             } catch {
               retry = null;
             }

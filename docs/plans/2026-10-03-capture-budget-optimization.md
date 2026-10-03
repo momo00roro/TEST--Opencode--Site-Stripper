@@ -114,6 +114,33 @@ Open decision for the next session: pursue (1) or (2) first. Both
 touch the guard's timing, so each needs an outcome check (12 distinct
 placed frames) on the higgsfield baseline, not just a seconds number.
 
+### H2 fix result — lightweight retry (2026-10-03)
+
+Implemented option (1): the stale-clip retry now calls a new
+`nativeVideoRemeasure(index)` (re-enumerate + re-anchor + three-stable-
+sample quiescence + fresh rects) instead of the full
+`nativeVideoTarget` — no re-play, no 800ms clock poll, no 1500ms fade
+pause. `nativeVideoRemeasureScript` is mock-routed via the same
+`nativeVideoAt` fixtures.
+
+Higgsfield localhost, same request:
+
+| Metric | before (Phase 0) | after (H2) |
+| :-- | --: | --: |
+| `browserSecondsUsed` | 221.11 s | **173.79 s (−21%)** |
+| native pass | 151,664 ms | **101,323 ms (−33%)** |
+| videoShots | 12 | 12 (all placed) |
+| guard fires / max px | 11 / 517 | 8 / 516 |
+
+The guard still fires (movement is real) and still re-measures, so
+framing correctness is preserved; only the retry got cheap.
+
+Caveat: distinct frames were 10/12 this sample (two identical-byte
+duplicate pairs), i.e. the **pre-existing intermittent duplicate-
+capture issue** (CF28 follow-up), not new mis-framing — the same
+`nativeVideoTarget` lives in the first pass only. Worth fixing next;
+it also costs wasted seconds and pollutes the distinctness metric.
+
 ## Hypotheses (ranked by expected saving)
 
 - **H1 — nav wait waste (~6%).** Every higgsfield run logs
