@@ -917,6 +917,7 @@ function sumCaptureTimings(list: CaptureTimings[]): CaptureTimings | undefined {
     facadeVideoMs: 0,
     nativeVideoMs: 0,
     nativeRemasures: 0,
+    nativeRemasureMaxPx: 0,
     isolatedVideoMs: 0,
     totalMs: 0,
   };
@@ -931,6 +932,7 @@ function sumCaptureTimings(list: CaptureTimings[]): CaptureTimings | undefined {
     total.facadeVideoMs += t.facadeVideoMs;
     total.nativeVideoMs += t.nativeVideoMs;
     total.nativeRemasures += t.nativeRemasures;
+    total.nativeRemasureMaxPx = Math.max(total.nativeRemasureMaxPx, t.nativeRemasureMaxPx);
     total.isolatedVideoMs += t.isolatedVideoMs;
     total.totalMs += t.totalMs;
   }

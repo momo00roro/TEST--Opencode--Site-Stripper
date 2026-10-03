@@ -81,11 +81,38 @@ Findings that re-rank the hypotheses:
 - **Settle + section shots ≈ 18%** combined and are fidelity-critical;
   treat as last. Facade pass is negligible on native-only pages.
 
-Verdict: optimize the native pass first (H2 then H3), then H1. Do not
-touch the guard's correctness — the goal is to stop it firing on
-*false* movement, not to weaken it.
+Verdict: optimize the native pass first (H2 then H3), then H1.
 
+### H2 diagnostic — the re-measures are REAL, not false positives
 
+Added `nativeRemasureMaxPx` (largest |scrollY delta| that tripped the
+guard). Re-ran higgsfield localhost:
+
+- `nativeRemasures` 9, **`nativeRemasureMaxPx` = 517 px**.
+
+A 517 px move is most of a video band — that clip *would* have been
+mis-framed. So the guard is doing its job; the movement is real
+(almost certainly site scroll-on-play / smooth-scroll glide after the
+measure). This **inverts the plan's H2 premise**: we must NOT simply
+loosen the guard threshold, or the CF28 wrong-band bug returns.
+
+Revised H2 direction (correctness-preserving, needs a decision):
+
+1. **Cheapen the retry, don't remove it.** On retry the video is
+   already playing; re-running the full `nativeVideoTarget` (re-play +
+   800 ms clock poll + 1500 ms fade pause + settle) is wasted. A
+   lightweight "re-anchor + re-measure rect only" probe would keep the
+   guard's correctness at a fraction of the cost.
+2. **Prevent the post-measure move.** The post-play quiescence loop
+   breaks on the *first* calm 250 ms sample (next to the stricter
+   pre-play loop, which needs two). Requiring a longer stable window
+   before measuring may stop the page gliding under the screenshot in
+   the first place — but risks a page that never fully settles.
+3. Leave the 2 px detection threshold alone.
+
+Open decision for the next session: pursue (1) or (2) first. Both
+touch the guard's timing, so each needs an outcome check (12 distinct
+placed frames) on the higgsfield baseline, not just a seconds number.
 
 ## Hypotheses (ranked by expected saving)
 

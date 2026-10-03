@@ -75,6 +75,12 @@ export interface CaptureTimings {
   nativeVideoMs: number;
   /** Stale-clip re-measures taken in the native pass (CF28 guard). */
   nativeRemasures: number;
+  /**
+   * Largest |scrollY delta| that tripped the stale-clip guard this capture
+   * (px). Diagnostic for CF29 H2: distinguishes tiny smooth-scroll glide
+   * from real wrong-band movement.
+   */
+  nativeRemasureMaxPx: number;
   /** Isolated video-tier renders (CF22); set by the pipeline, 0 here. */
   isolatedVideoMs: number;
   /** Total wall time inside this capturePage call. */
@@ -1941,6 +1947,7 @@ export async function capturePage(
   let facadeVideoMs = 0;
   let nativeVideoMs = 0;
   let nativeRemasures = 0;
+  let nativeRemasureMaxPx = 0;
 
   await page.setViewport({
     width: options.viewportWidth,
@@ -2485,6 +2492,8 @@ export async function capturePage(
             // An unreadable scroll is not evidence of a move; keep the shot.
           }
           if (Math.abs(scrolled - measuredScroll) > 2) {
+            const movedBy = Math.abs(scrolled - measuredScroll);
+            if (movedBy > nativeRemasureMaxPx) nativeRemasureMaxPx = movedBy;
             const popped = videoShots.pop();
             if (popped) videoBudget += popped.bytes;
             warnings.push(`Native video '${native.label.slice(0, 60)}' moved during capture; re-measured once.`);
@@ -2567,6 +2576,7 @@ export async function capturePage(
       facadeVideoMs,
       nativeVideoMs,
       nativeRemasures,
+      nativeRemasureMaxPx,
       isolatedVideoMs: 0,
       totalMs: Date.now() - captureStartedAt,
     },
