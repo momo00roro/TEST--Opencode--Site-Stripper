@@ -84,6 +84,22 @@ stream URLs), 6 sectionShots, full docs. Stale-clip guard fired
 `.examples/2026-10-02__higgsfield.ai/`. Affinity proved
 correctness; higgsfield proves scale (12 takes vs 4 vs figma 10).
 
+## Production scale run: higgsfield.ai (2026-10-03, fresh meter)
+
+`https://site-stripper-ui.pages.dev` → higgsfield.ai, max pages 1 +
+mobile, real Cloudflare Browser Rendering under 150s/10MB budgets.
+**12 videoShots, all 12 distinct (zero duplicates)**, 4 videos
+unstarted (cover art), 2 images unloaded, 6 sectionShots, 19
+screenshots, 1.68MB, `browserSecondsUsed` 186.83 (dashboard 3:04),
+observation + package integrity passed. Beats the localhost 10-02
+run on every honesty metric (11/12 distinct, 13 unstarted, 22
+unloaded). Caveat: higgsfield rotates/A-B-tests its carousel, so the
+captured set differs (`Genjutsu Restyle`, `native video 11–17`) from
+localhost (`native video 5–7`) — same count, not frame-comparable.
+Double-capture follow-up did **not** reproduce here → intermittent
+(carousel-timing), not systematic. Raw pack at gitignored
+`.examples/2026-10-03__higgsfield.ai/`.
+
 ## Open follow-up (minor, not correctness)
 
 Same-stream double capture: higgsfield `home-10`/`home-11` are
