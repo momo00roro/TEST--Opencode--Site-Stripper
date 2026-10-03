@@ -164,6 +164,22 @@ unmeasurable today — the baseline itself decayed.** H1 stays reverted
 (its ceiling is only ~6% and it risks under-hydrating SPAs), but the
 decision is provisional, not proven.
 
+#### H1 re-test on a recovered baseline
+
+Once the throttle eased (unloaded back to ~14), a clean A/B:
+
+| | navMs | unloaded | videoShots (distinct) |
+| :-- | --: | --: | :-- |
+| without H1 | 13,112 | 14 | 12 (12) |
+| with H1 | 7,114 | 50 | 12 (12) |
+
+H1 delivers exactly the designed ~6 s nav saving, but unloaded images
+jumped 14 → 50. Even allowing for residual noise, a 6% time win that
+risks blanking 30+ more images is the wrong trade for a fidelity-first
+tool. **H1 reverted for good** — the nav stall is the price of
+hydration, and the settle pass cannot always recover assets whose
+loading never began.
+
 **H2 is the one validated result** because it was measured while the
 baseline was still healthy (12 shots, both before/after runs).
 
