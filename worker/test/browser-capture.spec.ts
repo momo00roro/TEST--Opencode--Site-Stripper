@@ -269,6 +269,7 @@ describe("capturePage", () => {
   it("captures muted force-play native videos after facades run dry (CF28)", async () => {
     const { page, state } = makeFakePage({
       facadeCount: 0,
+      variedShots: true,
       nativeVideoAt: {
         0: { status: "target", started: true, x: 720, y: 600, width: 800, height: 450, label: "Hero loop", streamUrl: "https://example.com/hero.mp4", rectY: 900, rectHeight: 450, rectX: 320, rectWidth: 800, uid: "native-0" },
         1: { status: "target", started: true, x: 720, y: 1500, width: 640, height: 400, label: "Showcase", streamUrl: "https://example.com/show.mp4", rectY: 2400, rectHeight: 400, rectX: 400, rectWidth: 640, uid: "native-1" },
@@ -283,6 +284,23 @@ describe("capturePage", () => {
     // Native force-play needs no trusted clicks and no Escape dismissals.
     expect(state.clicks).toEqual([]);
     expect(state.keys).toEqual([]);
+  });
+
+  it("drops byte-identical duplicate native frames (CF29)", async () => {
+    const { page } = makeFakePage({
+      facadeCount: 0,
+      nativeVideoAt: {
+        0: { status: "target", started: true, x: 720, y: 600, width: 800, height: 450, label: "A", streamUrl: "https://example.com/a.mp4", rectY: 900, rectHeight: 450, rectX: 320, rectWidth: 800, uid: "native-0" },
+        1: { status: "target", started: true, x: 720, y: 1500, width: 640, height: 400, label: "B", streamUrl: "https://example.com/b.mp4", rectY: 2400, rectHeight: 400, rectX: 400, rectWidth: 640, uid: "native-1" },
+      },
+    });
+    // Default fake bytes are identical for every screenshot, so the second
+    // native is a byte-for-byte duplicate of the first and is dropped rather
+    // than counted against the cap.
+    const result = await capturePage(page, { url: "https://example.com/", viewportWidth: 1440, maxVideoShots: 4 });
+
+    expect(result.videoShots).toHaveLength(1);
+    expect(result.videoShots[0]).toMatchObject({ heading: "video: A" });
   });
 
   it("skips native videos whose stream a facade already deferred (CF28)", async () => {

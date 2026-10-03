@@ -195,6 +195,24 @@ needs test-fixture rework (or native-scoped dedup + ~4 specs). Deferred
 until the duplicate reproduces **with provenance**, so the dedup key is
 chosen from evidence rather than guessed.
 
+#### Resolved — native byte-duplicate guard (2026-10-03)
+
+Reproduced with provenance: the duplicate pairs carried **different
+stream URLs but byte-identical frames** (real, detailed images — not
+blanks). So it was never the same video twice; two different natives
+resolved to the *same captured image* after page churn, and
+`seenStreams` (which keys on URL) could not catch it.
+
+Fix: a native-pass guard that compares each new clip's bytes against
+the existing native shots and **drops a byte-identical repeat** —
+refunding the byte budget, recording the stream, and continuing so the
+`maxVideoShots` cap funds distinct content instead of a repeat. Scoped
+to the native pass (facades never showed the problem). New spec:
+duplicate-natives fixture → expects 1 shot.
+
+Higgsfield localhost re-run: **12 videoShots, 12/12 distinct, zero
+byte-duplicates** (was 10/12). Suite **351/351**, typecheck clean.
+
 ## Hypotheses (ranked by expected saving)
 
 - **H1 — nav wait waste (~6%).** Every higgsfield run logs

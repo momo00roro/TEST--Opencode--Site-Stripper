@@ -117,6 +117,15 @@ function toBytes(input: Uint8Array | ArrayBuffer): Uint8Array {
   return input instanceof Uint8Array ? input : new Uint8Array(input);
 }
 
+/** Byte-for-byte image comparison backing the CF29 native duplicate guard. */
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+  for (let i = 0; i < a.byteLength; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 export function clampTimeout(value: number | undefined): number {
   const fallback = LIMITS.perPageNavigationTimeoutMs;
   if (value === undefined) return fallback;
@@ -2663,6 +2672,21 @@ export async function capturePage(
           continue;
         }
         if ((await clipPlayer(native, native.label, native)) === "dropped") break;
+        // CF29 duplicate guard: two different natives can resolve to the same
+        // captured image after page churn (index drift / carousel re-entry).
+        // Drop the byte-identical repeat so the cap funds distinct content.
+        const justClipped = videoShots[videoShots.length - 1];
+        if (
+          justClipped &&
+          videoShots.slice(0, -1).some(
+            (shot) => shot.bytes === justClipped.bytes && bytesEqual(shot.data, justClipped.data),
+          )
+        ) {
+          videoShots.pop();
+          videoBudget += justClipped.bytes;
+          if (nstream !== "") seenStreams.add(nstream);
+          continue;
+        }
         // Stale-clip guard: the page may have moved between measure and
         // screenshot (snap points, SPA scroll-on-play), landing the clip on
         // the wrong band. Re-read scrollY; on a move, discard the
@@ -2695,7 +2719,18 @@ export async function capturePage(
               const rstream = String(retry.streamUrl || "");
               if (rstream !== "") seenStreams.add(rstream);
               if ((await clipPlayer(retry, retry.label, retry)) === "dropped") break;
-              nativeTaken += 1;
+              const justRetried = videoShots[videoShots.length - 1];
+              if (
+                justRetried &&
+                videoShots.slice(0, -1).some(
+                  (shot) => shot.bytes === justRetried.bytes && bytesEqual(shot.data, justRetried.data),
+                )
+              ) {
+                videoShots.pop();
+                videoBudget += justRetried.bytes;
+              } else {
+                nativeTaken += 1;
+              }
             } else {
               unstarted += 1;
             }
