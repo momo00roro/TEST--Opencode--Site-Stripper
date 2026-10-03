@@ -268,3 +268,32 @@ byte-duplicates** (was 10/12). Suite **351/351**, typecheck clean.
 If micro-optimization still binds after Phase 0, the **$5/mo Paid
 tier** removes the 600 s cap entirely and makes this whole problem
 moot — revisit then.
+
+## Production CPU-limit incident + rollback A/B (2026-10-03)
+
+Production higgsfield runs on the CF29 build failed with **error 1102**
+(Observability: `Worker exceeded CPU time limit`) for both
+`POST /api/analyze` and `?binaries=0`. The killed runs orphan the
+browser session (dashboard showed 7:59 / 3:42 "Other") which keeps
+burning the daily meter. This morning's **pre-CF29** build succeeded on
+the same site.
+
+Yet the isolate-side CF29 diff (`capture.ts` +318, `analysis.ts` +68)
+contains **no CPU hotspot**: a bounded byte compare (<= 12 x ~30 KB), a
+<= 5-item timings sum, one URL string per clip, and `nativeVideoRemeasure`
+which runs in the **browser**, not the isolate. A 13,000 px page with 19
+inlined screenshots plus a 122 KB snapshot sits right at the free-plan
+CPU ceiling, so the morning-vs-now gap may be content variance rather
+than code.
+
+Action taken: rolled production back to the pre-CF29 version
+`9b427660-7cd8-4c60-8ade-3d98780670d0` (2026-10-02T16:10Z) via
+`wrangler rollback`. Repo stays on CF29.
+
+A/B test (fresh meter, next day):
+
+1. Run higgsfield on the rolled-back build (A). Success => the CF29
+   build is implicated; then bisect the four CF29 code commits.
+2. Redeploy CF29 (`wrangler rollback 0970dc86-...` or push) and run (B).
+   If both fail => not our code; it is the free-plan CPU ceiling and the
+   fix is the $5/mo Paid plan (30 s CPU) or trimming captured output.
