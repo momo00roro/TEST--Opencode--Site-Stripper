@@ -141,6 +141,36 @@ capture issue** (CF28 follow-up), not new mis-framing — the same
 `nativeVideoTarget` lives in the first pass only. Worth fixing next;
 it also costs wasted seconds and pollutes the distinctness metric.
 
+### H1 — tried, reverted; and a measurement-validity warning
+
+H1 (cap the first `networkidle2` attempt at 6 s) was implemented and
+looked like a clean ~6% win (`navMs` 13.2 s → 7.0 s). But the run that
+included it also captured only 9 shots with 32 unloaded images.
+
+Crucially, reverting H1 did **not** restore the baseline: the clean
+H2-only re-run gave **8 shots / 58 unloaded images** (navMs back to
+13.2 s). Across today's successive runs the same IP degraded steadily:
+
+| run | shots | images unloaded |
+| :-- | --: | --: |
+| Phase 0 | 12 | 11 |
+| H2 | 12 | (clean) |
+| H2+H1 | 9 | 32 |
+| H2-only re-run | 8 | 58 |
+
+This is the CF28-documented IP-throttling pattern (figma returned zero
+video on a later same-IP run). **Conclusion: H1's effect is
+unmeasurable today — the baseline itself decayed.** H1 stays reverted
+(its ceiling is only ~6% and it risks under-hydrating SPAs), but the
+decision is provisional, not proven.
+
+**H2 is the one validated result** because it was measured while the
+baseline was still healthy (12 shots, both before/after runs).
+
+Operational note for next session: do optimization measurement on a
+**fresh IP / fresh day**, and treat capture-count as the primary
+signal — a declining shot count means the environment, not the code.
+
 ## Hypotheses (ranked by expected saving)
 
 - **H1 — nav wait waste (~6%).** Every higgsfield run logs

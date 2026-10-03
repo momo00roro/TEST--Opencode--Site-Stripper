@@ -21,7 +21,7 @@ describe("capturePage", () => {
 
     expect(state.viewports[0]).toEqual({ width: 1440, height: 900, deviceScaleFactor: 1 });
     expect(state.gotos[0]?.url).toBe("https://example.com/");
-    expect(state.gotos[0]?.options?.timeout).toBe(12_000);
+    expect(state.gotos[0]?.options?.timeout).toBe(LIMITS.perPageNavigationTimeoutMs);
     expect(state.scrolls).toBe(1);
     expect(state.screenshots[0]?.type).toBe("webp");
     expect(state.screenshots[0]?.clip?.height).toBe(3000);
@@ -56,6 +56,7 @@ describe("capturePage", () => {
     const result = await capturePage(slowPage, { url: "https://example.com/", viewportWidth: 1440 });
 
     expect(state.gotos.map((g) => g.options?.waitUntil)).toEqual(["networkidle2", "domcontentloaded"]);
+    expect(state.gotos.every((g) => g.options?.timeout === LIMITS.perPageNavigationTimeoutMs)).toBe(true);
     expect(result.snapshot.title).toBe("Example");
     expect(result.warnings.some((w) => w.includes("domcontentloaded"))).toBe(true);
   });
