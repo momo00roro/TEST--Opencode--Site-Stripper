@@ -48,6 +48,39 @@ export interface SectionShot {
   placement?: { x: number; y: number; width: number; height: number };
 }
 
+/**
+ * CF29 Phase 0: per-phase wall-time attribution for one capturePage call.
+ * Measurement only — no capture behavior depends on these numbers. This is
+ * the "measure before optimize" step of the budget investigation: find where
+ * the browser seconds actually go before changing anything.
+ */
+export interface CaptureTimings {
+  /** Navigation goto, including any networkidle2 → domcontentloaded retry. */
+  navMs: number;
+  /** Pre-capture paced scroll / media settle / fonts / first-frame pass. */
+  settleMs: number;
+  /** DOM snapshot extraction. */
+  snapshotMs: number;
+  /** Homepage rotation re-sample delay (opt-in). */
+  rotationMs: number;
+  /** Lazy-media settle sweep (`ensureLazyMediaLoaded`). */
+  lazySweepMs: number;
+  /** Full-page screenshot encode. */
+  fullPageShotMs: number;
+  /** Section-clipped screenshots. */
+  sectionShotsMs: number;
+  /** Facade video pass, including carousel page-turns. */
+  facadeVideoMs: number;
+  /** Native `<video>` force-play pass (CF28) plus post-video probes. */
+  nativeVideoMs: number;
+  /** Stale-clip re-measures taken in the native pass (CF28 guard). */
+  nativeRemasures: number;
+  /** Isolated video-tier renders (CF22); set by the pipeline, 0 here. */
+  isolatedVideoMs: number;
+  /** Total wall time inside this capturePage call. */
+  totalMs: number;
+}
+
 export interface CaptureResult {
   snapshot: PageSnapshot;
   screenshot: Uint8Array | null;
@@ -68,6 +101,8 @@ export interface CaptureResult {
   warnings: string[];
   rotatingText: SnapshotRotatingText[];
   rotationChecked: boolean;
+  /** CF29 Phase 0 per-phase wall-time attribution. */
+  timings: CaptureTimings;
 }
 
 function toBytes(input: Uint8Array | ArrayBuffer): Uint8Array {
@@ -1894,6 +1929,19 @@ export async function capturePage(
   const maxBytes = options.maxBytes ?? LIMITS.maxTotalScreenshotBytes;
   const warnings: string[] = [];
 
+  // CF29 Phase 0 timing accumulators (measurement only).
+  const captureStartedAt = Date.now();
+  let navMs = 0;
+  let settleMs = 0;
+  let snapshotMs = 0;
+  let rotationMs = 0;
+  let lazySweepMs = 0;
+  let fullPageShotMs = 0;
+  let sectionShotsMs = 0;
+  let facadeVideoMs = 0;
+  let nativeVideoMs = 0;
+  let nativeRemasures = 0;
+
   await page.setViewport({
     width: options.viewportWidth,
     height: 900,
@@ -1904,6 +1952,7 @@ export async function capturePage(
   // network idle: on a navigation *timeout*, fall back once to domcontentloaded
   // so slow sites yield a partial report instead of a 502. Non-timeout errors
   // (refused, blocked, DNS) rethrow immediately.
+  const navStart = Date.now();
   const waitUntil = options.waitUntil ?? "networkidle2";
   try {
     await page.goto(options.url, { waitUntil, timeout: timeoutMs });
@@ -1918,7 +1967,9 @@ export async function capturePage(
       throw error;
     }
   }
+  navMs = Date.now() - navStart;
 
+  const settleStart = Date.now();
   const pageHeightPx = await page.evaluate<number>(toInPageScript(async () => {
     const docHeight = (): number =>
       Math.max(
@@ -2021,12 +2072,15 @@ export async function capturePage(
     await pause(needsLongSettle ? 2500 : 1800);
     return docHeight();
   }));
+  settleMs = Date.now() - settleStart;
 
+  const snapshotStart = Date.now();
   const snapshot = await evaluateWithTimeout(
     page,
     collectPageSnapshot,
     LIMITS.perPageExtractionBudgetMs,
   );
+  snapshotMs = Date.now() - snapshotStart;
 
   // Static fail-closed check on the post-navigation URL. Cross-host public
   // redirects are allowed here; the pipeline revalidates them via DoH.
@@ -2039,6 +2093,7 @@ export async function capturePage(
   let rotatingText: SnapshotRotatingText[] = [];
   let rotationChecked = false;
   if (options.detectRotationMs !== undefined && options.detectRotationMs > 0) {
+    const rotationStart = Date.now();
     rotationChecked = true;
     try {
       const before = labelSnapshotHeadings(snapshot.headings);
@@ -2048,12 +2103,14 @@ export async function capturePage(
     } catch {
       warnings.push("Rotation re-sample failed; rotating hero text, if any, is undetected.");
     }
+    rotationMs = Date.now() - rotationStart;
   }
 
   // Lazy-media sweep: force un-started lazy images into view so they decode,
   // and force videos to a real paused frame, before the full-page shot. Runs
   // after the snapshot (extraction already collected) and costs nothing when
   // everything already settled.
+  const lazyStart = Date.now();
   try {
     const sweep = await evaluateWithTimeout(page, ensureLazyMediaLoaded, 45_000);
     const record = (typeof sweep === "object" && sweep !== null ? sweep : {}) as Record<string, unknown>;
@@ -2075,6 +2132,7 @@ export async function capturePage(
   } catch {
     warnings.push("Lazy-image settle sweep failed; below-fold images may appear blank.");
   }
+  lazySweepMs = Date.now() - lazyStart;
 
   if (pageHeightPx > maxHeightPx) {
     warnings.push(`Page height ${pageHeightPx}px exceeds the ${maxHeightPx}px cap; screenshot clipped.`);
@@ -2090,6 +2148,7 @@ export async function capturePage(
   let screenshot: Uint8Array | null = null;
   let screenshotKind: ScreenshotKind | null = null;
 
+  const fullShotStart = Date.now();
   if (options.captureScreenshot !== false) {
     for (const type of ["webp", "jpeg"] as const) {
       try {
@@ -2110,10 +2169,12 @@ export async function capturePage(
     screenshot = null;
     screenshotKind = null;
   }
+  fullPageShotMs = Date.now() - fullShotStart;
 
   // Section-clipped screenshots (PRD screenshot policy): homepage only,
   // bounded by maxSectionShots (6) and the remaining byte budget. Chromium
   // encodes each clip; the Worker never transforms the bytes.
+  const sectionStart = Date.now();
   const sectionShots: SectionShot[] = [];
   if (
     screenshotKind &&
@@ -2157,6 +2218,8 @@ export async function capturePage(
       }
     }
   }
+
+  sectionShotsMs = Date.now() - sectionStart;
 
   // Video playing-state captures (CF21): runs LAST so a stuck player modal
   // can only affect shots already taken. AUTOPLAY-FIRST per facade: scroll
@@ -2255,6 +2318,7 @@ export async function capturePage(
     };
     // Hard iteration bound (real lists end via "none"; keeps pathological
     // ever-growing DOMs from spinning).
+    const facadeStart = Date.now();
     let guard = videoCap * 4 + 8;
     while (videoShots.length + pendingVideoStreams.length < videoCap && guard > 0) {
       guard -= 1;
@@ -2371,6 +2435,8 @@ export async function capturePage(
       }
       vi += 1;
     }
+    facadeVideoMs = Date.now() - facadeStart;
+    const nativeStart = Date.now();
     // Native-video pass (CF28): bare <video> elements never enter the
     // facade loop above (no click affordance, no deferrable stream), so
     // facade-only pages with laid-out players report zero video. After
@@ -2422,6 +2488,7 @@ export async function capturePage(
             const popped = videoShots.pop();
             if (popped) videoBudget += popped.bytes;
             warnings.push(`Native video '${native.label.slice(0, 60)}' moved during capture; re-measured once.`);
+            nativeRemasures += 1;
             let retry: NativeVideoTarget | null = null;
             try {
               retry = await evaluateWithTimeout<NativeVideoTarget | null>(page, nativeVideoScript(ni - 1), 20_000);
@@ -2474,6 +2541,7 @@ export async function capturePage(
         // than reported wrongly.
       }
     }
+    nativeVideoMs = Date.now() - nativeStart;
   }
 
   return {
@@ -2488,5 +2556,19 @@ export async function capturePage(
     warnings,
     rotatingText,
     rotationChecked,
+    timings: {
+      navMs,
+      settleMs,
+      snapshotMs,
+      rotationMs,
+      lazySweepMs,
+      fullPageShotMs,
+      sectionShotsMs,
+      facadeVideoMs,
+      nativeVideoMs,
+      nativeRemasures,
+      isolatedVideoMs: 0,
+      totalMs: Date.now() - captureStartedAt,
+    },
   };
 }

@@ -49,6 +49,44 @@ flag is fine). Phases to attribute:
 
 Phase 0 must be behavior-neutral: timing only, no capture change.
 
+### Phase 0 result — higgsfield.ai localhost (2026-10-03)
+
+Instrumented `capturePage` + `captureOne`; `timings` now rides
+`AnalysisResult` and `data/report.json`. Run: higgsfield.ai, max pages
+1 + mobile, local backend, `browserSecondsUsed` 221.11 s.
+
+| Phase | ms | share |
+| :-- | --: | --: |
+| **native video pass** | **151,664** | **~70%** |
+| pre-capture settle (paced scroll) | 21,779 | 10% |
+| section screenshots | 17,424 | 8% |
+| navigation (12 s timeout + retry) | 13,086 | 6% |
+| full-page screenshot | 7,345 | 3% |
+| rotation re-sample | 5,017 | 2% |
+| lazy-media sweep | 1,052 | <1% |
+| snapshot | 193 | <1% |
+| facade video pass | 31 | ~0% |
+| **capturePage total** | **217,596** | **98% of the run** |
+
+Findings that re-rank the hypotheses:
+
+- **H2 is far larger than estimated.** The native pass is ~70% of the
+  run and **11 of 12 natives re-measured** — the stale-clip guard fires
+  on nearly every clip. Even if each re-measure is only a fraction of a
+  full cycle, this is the single biggest lever by an order of magnitude.
+- **H1 confirmed exactly.** nav = 13.086 s ≈ the 12 s `networkidle2`
+  timeout + 1 s retry. Cheap ~6% win.
+- **H3 material.** 15 natives went unstarted here (localhost), each
+  polling before giving up — folded into the 70%.
+- **Settle + section shots ≈ 18%** combined and are fidelity-critical;
+  treat as last. Facade pass is negligible on native-only pages.
+
+Verdict: optimize the native pass first (H2 then H3), then H1. Do not
+touch the guard's correctness — the goal is to stop it firing on
+*false* movement, not to weaken it.
+
+
+
 ## Hypotheses (ranked by expected saving)
 
 - **H1 — nav wait waste (~6%).** Every higgsfield run logs

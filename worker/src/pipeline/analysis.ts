@@ -1,4 +1,4 @@
-import { capturePage, renderIsolatedVideoShot, type CaptureResult } from "../browser/capture";
+import { capturePage, renderIsolatedVideoShot, type CaptureResult, type CaptureTimings } from "../browser/capture";
 import type {
   PageSnapshot,
   SnapshotAsset,
@@ -179,6 +179,11 @@ export interface AnalysisResult {
   integrityPassed: boolean;
   assets: SnapshotAsset[];
   assetCount: number;
+  /**
+   * CF29 Phase 0: per-phase browser-time attribution summed across every
+   * capture in the run. Measurement only; omit when no capture ran.
+   */
+  timings?: CaptureTimings;
 }
 
 export interface AnalysisProgress {
@@ -264,6 +269,7 @@ export async function runAnalysis(
   let screenshotBytesTotal = 0;
   let screenshotsCaptured = 0;
   let budgetNotice = false;
+  const captureTimings: CaptureTimings[] = [];
 
   const session = await launcher.launch();
   let homepageSucceeded = false;
@@ -289,6 +295,7 @@ export async function runAnalysis(
         // route enables it; unit tests leave it off for speed.
         ...(options.detectRotationMs !== undefined ? { detectRotationMs: options.detectRotationMs } : {}),
       });
+      captureTimings.push(homepage.timings);
       homepageSnapshot = homepage.capture.snapshot;
       homepagePlaceholders = homepage.videoPlaceholders;
       homepagePath = homepage.path;
@@ -382,6 +389,7 @@ export async function runAnalysis(
             maxBytes: Math.max(LIMITS.maxTotalScreenshotBytes - screenshotBytesTotal, 0),
             fetchImpl,
           });
+          captureTimings.push(mobile.timings);
           screenshotBytesTotal += mobile.screenshotBytes;
           screenshotsCaptured += mobile.screenshotCount;
           mobileTaken += mobile.screenshotCount;
@@ -506,6 +514,7 @@ export async function runAnalysis(
           maxBytes: remainingScreenshotBytes,
           fetchImpl,
         });
+        captureTimings.push(captured.timings);
         if (isChallengeSnapshot(captured.capture.snapshot)) {
           screenshotBytesTotal += captured.screenshotBytes;
           screenshotsCaptured += captured.screenshotCount;
@@ -562,6 +571,7 @@ export async function runAnalysis(
           captureScreenshot: screenshotBytesTotal < LIMITS.maxTotalScreenshotBytes,
           maxBytes: Math.max(LIMITS.maxTotalScreenshotBytes - screenshotBytesTotal, 0),
         });
+        captureTimings.push(mobileRep.timings);
         screenshotBytesTotal += mobileRep.screenshotBytes;
         screenshotsCaptured += mobileRep.screenshotCount;
         mobileTaken += mobileRep.screenshotCount;
@@ -627,6 +637,7 @@ export async function runAnalysis(
             captureScreenshot: false,
             fetchImpl,
           });
+          captureTimings.push(mobileOnly.timings);
           if (mobileOnly.extractionBytes > LIMITS.maxExtractionPayloadBytes) oversizePages += 1;
           warnings.push(...mobileOnly.warnings);
           page.responsiveComparison = compareResponsive(page, mobileOnly.capture.snapshot);
@@ -825,6 +836,7 @@ export async function runAnalysis(
       );
     }
 
+    const runTimings = sumCaptureTimings(captureTimings);
     const result = {
       schemaVersion: SCHEMA_VERSION,
       backend: launcher.name,
@@ -858,6 +870,7 @@ export async function runAnalysis(
       integrityPassed: pages.length > 0,
       assets,
       assetCount: assets.length,
+      ...(runTimings ? { timings: runTimings } : {}),
     };
     report({ phase: "done", message: "Analysis complete." });
     return result;
@@ -885,6 +898,43 @@ async function revalidateRedirect(
   // Different host: resolve and revalidate exactly like the initial target.
   const target = parseHttpUrl(finalUrl);
   await assertPublicTarget(target, fetchImpl);
+}
+
+/**
+ * CF29 Phase 0: sum per-capture phase timings across a run. Pure arithmetic
+ * (no Date.now) so the wall-budget tests that mock the clock are unaffected.
+ */
+function sumCaptureTimings(list: CaptureTimings[]): CaptureTimings | undefined {
+  if (list.length === 0) return undefined;
+  const total: CaptureTimings = {
+    navMs: 0,
+    settleMs: 0,
+    snapshotMs: 0,
+    rotationMs: 0,
+    lazySweepMs: 0,
+    fullPageShotMs: 0,
+    sectionShotsMs: 0,
+    facadeVideoMs: 0,
+    nativeVideoMs: 0,
+    nativeRemasures: 0,
+    isolatedVideoMs: 0,
+    totalMs: 0,
+  };
+  for (const t of list) {
+    total.navMs += t.navMs;
+    total.settleMs += t.settleMs;
+    total.snapshotMs += t.snapshotMs;
+    total.rotationMs += t.rotationMs;
+    total.lazySweepMs += t.lazySweepMs;
+    total.fullPageShotMs += t.fullPageShotMs;
+    total.sectionShotsMs += t.sectionShotsMs;
+    total.facadeVideoMs += t.facadeVideoMs;
+    total.nativeVideoMs += t.nativeVideoMs;
+    total.nativeRemasures += t.nativeRemasures;
+    total.isolatedVideoMs += t.isolatedVideoMs;
+    total.totalMs += t.totalMs;
+  }
+  return total;
 }
 
 async function captureOne(
@@ -924,6 +974,7 @@ async function captureOne(
   videoPlaceholders: VideoPlaceholder[];
   extractionBytes: number;
   warnings: string[];
+  timings: CaptureTimings;
 }> {
   // Trap 3: one tab at a time, closed before the next page opens.
   const page = await session.newPage();
@@ -948,6 +999,7 @@ async function captureOne(
     const pending = (options.maxVideoShots ?? 0) > 0 && capture.screenshot
       ? capture.pendingVideoStreams
       : [];
+    const isolatedStart = Date.now();
     if (pending.length > 0) {
       const maxBytes = options.maxBytes ?? LIMITS.maxTotalScreenshotBytes;
       let used = (capture.screenshot?.byteLength ?? 0)
@@ -1028,6 +1080,7 @@ async function captureOne(
         used += shot.bytes;
       }
     }
+    const isolatedVideoMs = Date.now() - isolatedStart;
     warnings.push(...capture.warnings);
 
     // CF02 "reject again after redirects": when the browser landed on a
@@ -1075,6 +1128,7 @@ async function captureOne(
       videoPlaceholders,
       extractionBytes,
       warnings,
+      timings: { ...capture.timings, isolatedVideoMs },
     };
   } finally {
     await page.close().catch(() => undefined);
