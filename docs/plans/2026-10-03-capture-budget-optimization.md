@@ -171,6 +171,30 @@ Operational note for next session: do optimization measurement on a
 **fresh IP / fresh day**, and treat capture-count as the primary
 signal — a declining shot count means the environment, not the code.
 
+### Duplicate-capture follow-up — provenance added, not reproduced
+
+Added `streamUrl` provenance to every playing-state clip (`SectionShot`
+→ `AnalysisScreenshot` → `pages.json`) so any duplicate is auditable
+(which file each frame came from).
+
+Re-ran higgsfield localhost with provenance: **12 videoShots, 12
+distinct, zero byte-duplicates, zero stream-duplicates** — all 12
+streams resolved and unique. The duplicate did **not** reproduce; it is
+intermittent, matching the CF28 note. (This run still showed 54
+unloaded images / 226.86 s — the same-IP throttle persists, so timing
+is not comparable.)
+
+Candidate root causes (unconfirmed, since no repro): (a) an unresolved
+(`""`) stream on one of a duplicate pair, which `seenStreams` cannot
+key; or (b) the same video served under two different URLs (e.g. CDN
+format variants), so distinct stream keys map to identical frames.
+
+A content-hash dedup would catch byte-identical pairs but the fake
+test backend returns identical bytes for multi-shot captures, so it
+needs test-fixture rework (or native-scoped dedup + ~4 specs). Deferred
+until the duplicate reproduces **with provenance**, so the dedup key is
+chosen from evidence rather than guessed.
+
 ## Hypotheses (ranked by expected saving)
 
 - **H1 — nav wait waste (~6%).** Every higgsfield run logs

@@ -46,6 +46,8 @@ export interface SectionShot {
    * section screenshots. Absent on section shots and unplaced clips.
    */
   placement?: { x: number; y: number; width: number; height: number };
+  /** Resolved stream URL the clip came from ("" when unresolved). */
+  streamUrl?: string;
 }
 
 /**
@@ -2494,6 +2496,7 @@ export async function capturePage(
           height: target.rectHeight > 0 ? target.rectHeight : player.height,
           heading: `video: ${label}`,
           data: taken,
+          streamUrl: String(target.streamUrl || ""),
           ...(facadeBox
             ? { placement: { x: target.rectX, y: target.rectY, width: target.rectWidth, height: target.rectHeight } }
             : {}),

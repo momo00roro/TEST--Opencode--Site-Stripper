@@ -37,6 +37,8 @@ export interface AnalysisScreenshot {
   dataUrl?: string;
   /** Human label for playing-state video clips (e.g. "video: Demo"). */
   label?: string;
+  /** Resolved stream URL a playing-state video clip came from ("" when unresolved). */
+  streamUrl?: string;
   /** Page-Y placement of a playing-state clip (facade box), for compositing over section shots. */
   y?: number;
   /**
@@ -1073,9 +1075,10 @@ async function captureOne(
           bytes: shot.bytes,
           y: item.rectY,
           height: item.rectHeight > 0 ? item.rectHeight : 720,
-          heading: `video: ${item.label}`,
-          data: shot.data,
-          ...(item.rectWidth > 0 && item.rectHeight > 0
+      heading: `video: ${item.label}`,
+      data: shot.data,
+      streamUrl: item.streamUrl,
+      ...(item.rectWidth > 0 && item.rectHeight > 0
             ? { placement: { x: item.rectX, y: item.rectY, width: item.rectWidth, height: item.rectHeight } }
             : {}),
         });
@@ -1115,6 +1118,7 @@ async function captureOne(
       height: shot.height,
       y: shot.y,
       label: shot.heading,
+      ...(shot.streamUrl ? { streamUrl: shot.streamUrl } : {}),
       ...(shot.placement ? { placement: { ...shot.placement } } : {}),
     }));
     return {
