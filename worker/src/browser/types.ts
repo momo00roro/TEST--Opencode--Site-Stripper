@@ -25,8 +25,10 @@ export interface ScreenshotOptions {
   captureBeyondViewport?: boolean;
   fullPage?: boolean;
   /**
-   * Encode inside Chromium, never in the Worker. `base64` returns a string the
-   * Worker can pass through without spending CPU on encoding (trap 4).
+   * Encode inside Chromium, never in the Worker. `base64` returns the CDP
+   * base64 string the Worker can pass straight through without spending CPU
+   * on encoding (Trap 4). Both real backends (`@cloudflare/puppeteer` and
+   * local `puppeteer-core`) honor it; capture always requests `base64`.
    */
   encoding?: "base64" | "binary";
 }
@@ -40,7 +42,7 @@ export interface BrowserPage {
    * so transformer-injected helpers resolve via the in-page shim.
    */
   evaluate<T>(fn: (() => T) | string): Promise<T>;
-  screenshot(options?: ScreenshotOptions): Promise<Uint8Array | ArrayBuffer>;
+  screenshot(options?: ScreenshotOptions): Promise<Uint8Array | ArrayBuffer | string>;
   close(): Promise<void>;
 }
 

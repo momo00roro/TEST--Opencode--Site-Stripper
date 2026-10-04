@@ -9,7 +9,12 @@ export const LIMITS = {
   // the Workers Free 10-min/day browser meter. Light sites use seconds, so
   // typical usage lands well under; the worst case only binds on all-heavy days.
   totalAnalysisWallBudgetMs: 150_000,
-  browserKeepAliveMs: 600_000,
+  // Idle timeout for a Browser Rendering session (Cloudflare default 60s; max
+  // 600s). Was pinned to the 600s max, so a CPU-killed isolate (Error 1102)
+  // left its session idling the *entire* daily meter (observed 10:01 burned).
+  // 90s still clears the longest single in-flight command (the 45s lazy-media
+  // sweep) with 2x margin, but caps an orphan's waste to 90s.
+  browserKeepAliveMs: 90_000,
   desktopViewportWidth: 1440,
   mobileViewportWidth: 390,
   deviceScaleFactor: 1,

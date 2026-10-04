@@ -135,6 +135,32 @@ describe("POST /api/analyze", () => {
     expect(injectedBody.pages[0].screenshot.dataUrl).toContain("INJECTED");
   });
 
+  it("passes Chromium-native base64 straight through without calling the Worker encoder (Trap 4)", async () => {
+    const { launcher, state } = makeFakeLauncher("fake", { base64Shots: true });
+    const request = jsonRequest({ url: "https://other.example/", maxPages: 1, includeMobile: false });
+    let encoderCalls = 0;
+
+    const response = await handleRequest(request, makeEnv(), {
+      launcher,
+      // The encoder proves the trap: the Worker must pass Chromium's base64
+      // through and never invoke this.
+      encodeBase64: () => {
+        encoderCalls += 1;
+        return "SHOULD-NOT-BE-CALLED";
+      },
+      fetchImpl: mockSiteFetchWithDoh({}, { a: ["93.184.216.34"] }),
+      detectRotationMs: 0,
+    });
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as Record<string, any>;
+    const expected = Buffer.from(new Uint8Array(1024)).toString("base64");
+    expect(body.pages[0].screenshot.dataUrl).toBe(`data:image/webp;base64,${expected}`);
+    expect(encoderCalls).toBe(0);
+    // Capture actually requested native base64 from the backend.
+    expect(state.screenshots[0]?.encoding).toBe("base64");
+  });
+
   it("workerBase64 round-trips bytes identically to Buffer", () => {
     const bytes = Uint8Array.from({ length: 70000 }, (_, i) => i % 256);
     expect(workerBase64(bytes)).toBe(Buffer.from(bytes).toString("base64"));

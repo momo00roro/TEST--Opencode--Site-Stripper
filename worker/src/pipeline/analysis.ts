@@ -1,4 +1,4 @@
-import { capturePage, renderIsolatedVideoShot, type CaptureResult, type CaptureTimings } from "../browser/capture";
+import { capturePage, renderIsolatedVideoShot, type CaptureResult, type CaptureTimings, type SectionShot, type ShotPayload } from "../browser/capture";
 import type {
   PageSnapshot,
   SnapshotAsset,
@@ -329,31 +329,20 @@ export async function runAnalysis(
           "Rotation check: homepage headings re-sampled after a short delay with no text changes; rotations slower than the delay are undetected.",
         );
       }
-      // Inline small section clips where the environment supports it (local
-      // dev); hosted responses stay metadata-only (Trap 4: no Worker encoding).
-      if (options.encodeBase64) {
-        const maxInline = options.maxInlineImageBytes ?? DEFAULT_MAX_INLINE_BYTES;
-        homepageRecord.sectionShots = homepageRecord.sectionShots.map((shot, index) => {
-          const raw = homepage.capture.sectionShots[index];
-          if (raw && raw.data.byteLength <= maxInline) {
-            return {
-              ...shot,
-              dataUrl: `data:image/${shot.kind};base64,` + options.encodeBase64!(raw.data),
-            };
-          }
-          return shot;
-        });
-        homepageRecord.videoShots = homepageRecord.videoShots.map((shot, index) => {
-          const raw = homepage.capture.videoShots[index];
-          if (raw && raw.data.byteLength <= maxInline) {
-            return {
-              ...shot,
-              dataUrl: `data:image/${shot.kind};base64,` + options.encodeBase64!(raw.data),
-            };
-          }
-          return shot;
-        });
-      }
+      // Inline clips as dataUrls: Chromium-native base64 straight through
+      // (Trap 4 — no Worker encoding); a provided encoder is the local-dev /
+      // test-double fallback when a backend returned raw bytes.
+      const maxInline = options.maxInlineImageBytes ?? DEFAULT_MAX_INLINE_BYTES;
+      const inlineFromShot = (shot: AnalysisScreenshot, raw: SectionShot | undefined): AnalysisScreenshot => {
+        const dataUrl = shotPayloadDataUrl(shot.kind, raw, options.encodeBase64, maxInline);
+        return dataUrl ? { ...shot, dataUrl } : shot;
+      };
+      homepageRecord.sectionShots = homepageRecord.sectionShots.map((shot, index) =>
+        inlineFromShot(shot, homepage.capture.sectionShots[index]),
+      );
+      homepageRecord.videoShots = homepageRecord.videoShots.map((shot, index) =>
+        inlineFromShot(shot, homepage.capture.videoShots[index]),
+      );
       pages.push(homepageRecord);
       homepageSucceeded = true;
       if (isChallengeSnapshot(homepage.capture.snapshot)) {
@@ -405,7 +394,7 @@ export async function runAnalysis(
               width: LIMITS.mobileViewportWidth,
               height: Math.min(mobile.capture.pageHeightPx, LIMITS.maxScreenshotHeightPx),
             };
-            const dataUrl = inlineShotDataUrl(
+            const dataUrl = shotPayloadDataUrl(
               mobile.capture.screenshotKind,
               mobile.capture.screenshot,
               options.encodeBase64,
@@ -586,7 +575,7 @@ export async function runAnalysis(
             width: LIMITS.mobileViewportWidth,
             height: Math.min(mobileRep.capture.pageHeightPx, LIMITS.maxScreenshotHeightPx),
           };
-          const dataUrl = inlineShotDataUrl(
+          const dataUrl = shotPayloadDataUrl(
             mobileRep.capture.screenshotKind,
             mobileRep.capture.screenshot,
             options.encodeBase64,
@@ -1006,7 +995,7 @@ async function captureOne(
     const isolatedStart = Date.now();
     if (pending.length > 0) {
       const maxBytes = options.maxBytes ?? LIMITS.maxTotalScreenshotBytes;
-      let used = (capture.screenshot?.byteLength ?? 0)
+      let used = (capture.screenshot?.bytes ?? 0)
         + capture.sectionShots.reduce((total, shot) => total + shot.bytes, 0)
         + capture.videoShots.reduce((total, shot) => total + shot.bytes, 0);
       const deadline = (options.analysisStartedAt ?? Date.now()) + (options.wallBudgetMs ?? LIMITS.totalAnalysisWallBudgetMs);
@@ -1075,10 +1064,11 @@ async function captureOne(
           bytes: shot.bytes,
           y: item.rectY,
           height: item.rectHeight > 0 ? item.rectHeight : 720,
-      heading: `video: ${item.label}`,
-      data: shot.data,
-      streamUrl: item.streamUrl,
-      ...(item.rectWidth > 0 && item.rectHeight > 0
+          heading: `video: ${item.label}`,
+          ...(shot.base64 !== undefined ? { base64: shot.base64 } : {}),
+          ...(shot.data ? { data: shot.data } : {}),
+          streamUrl: item.streamUrl,
+          ...(item.rectWidth > 0 && item.rectHeight > 0
             ? { placement: { x: item.rectX, y: item.rectY, width: item.rectWidth, height: item.rectHeight } }
             : {}),
         });
@@ -1103,7 +1093,7 @@ async function captureOne(
       );
     }
 
-    let screenshotBytes = capture.screenshot?.byteLength ?? 0;
+    let screenshotBytes = capture.screenshot?.bytes ?? 0;
     const sectionShots: AnalysisScreenshot[] = capture.sectionShots.map((shot) => ({
       kind: shot.kind,
       bytes: shot.bytes,
@@ -1172,19 +1162,28 @@ function pickNavLinks(
   return picked;
 }
 
-// Mirror of the desktop inline logic in toRecord: mobile captures must also
-// carry a dataUrl where the environment supplies an encoder (local dev), or
-// the client-side ZIP silently drops them while the manifest still lists them.
-function inlineShotDataUrl(
+// Mirror of the desktop inline logic in toRecord: captures carry a dataUrl so
+// the client-side ZIP and screenshot previews include them. Chromium-native
+// base64 (Trap 4) passes straight through; a supplied encoder is the
+// local-dev / test-double fallback when a backend returned raw bytes.
+function shotPayloadDataUrl(
   kind: string | undefined,
-  bytes: Uint8Array | null | undefined,
+  payload: ShotPayload | null | undefined,
   encodeBase64: ((bytes: Uint8Array) => string) | undefined,
   maxInlineImageBytes: number | undefined,
 ): string | undefined {
-  if (!encodeBase64 || !kind || !bytes) return undefined;
+  // An available encoder is the "ship binaries" signal (hosted `?binaries=0`
+  // and metadata-only callers pass none); it is the fallback codec for
+  // byte-returning doubles, never called when Chromium already gave base64.
+  if (!kind || !payload || !encodeBase64) return undefined;
   const maxInline = maxInlineImageBytes ?? DEFAULT_MAX_INLINE_BYTES;
-  if (bytes.byteLength > maxInline) return undefined;
-  return `data:image/${kind};base64,` + encodeBase64(bytes);
+  if (payload.base64 !== undefined) {
+    return payload.bytes <= maxInline ? `data:image/${kind};base64,${payload.base64}` : undefined;
+  }
+  if (payload.data && payload.data.byteLength <= maxInline) {
+    return `data:image/${kind};base64,` + encodeBase64(payload.data);
+  }
+  return undefined;
 }
 
 function compareResponsive(
@@ -1239,17 +1238,18 @@ function toRecord(
   if (captured.capture.screenshot && captured.capture.screenshotKind) {
     screenshot = {
       kind: captured.capture.screenshotKind,
-      bytes: captured.capture.screenshot.byteLength,
+      bytes: captured.capture.screenshot.bytes,
       width: options.viewportWidth,
       height: Math.min(captured.capture.pageHeightPx, LIMITS.maxScreenshotHeightPx),
     };
 
-    const maxInline = options.maxInlineImageBytes ?? DEFAULT_MAX_INLINE_BYTES;
-    if (options.encodeBase64 && captured.capture.screenshot.byteLength <= maxInline) {
-      screenshot.dataUrl =
-        `data:image/${captured.capture.screenshotKind};base64,` +
-        options.encodeBase64(captured.capture.screenshot);
-    }
+    const dataUrl = shotPayloadDataUrl(
+      captured.capture.screenshotKind,
+      captured.capture.screenshot,
+      options.encodeBase64,
+      options.maxInlineImageBytes,
+    );
+    if (dataUrl) screenshot.dataUrl = dataUrl;
   }
 
   return {

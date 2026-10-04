@@ -297,3 +297,16 @@ A/B test (fresh meter, next day):
 2. Redeploy CF29 (`wrangler rollback 0970dc86-...` or push) and run (B).
    If both fail => not our code; it is the free-plan CPU ceiling and the
    fix is the $5/mo Paid plan (30 s CPU) or trimming captured output.
+
+### A/B outcome (2026-10-04) — the "not our code" branch
+
+Run A (live pre-CF29 build) **also failed**: HTTP 200 but a truncated NDJSON
+stream (only the two startup progress lines, no result/error) after 133.3 s —
+the 1102 signature. Its killed isolate then left the browser session idling
+the **entire daily meter (10:01)**. So the pre-CF29 build fails on the same
+page too: the 1102 is not CF29-specific and the A/B is moot (no bisect).
+
+Resolved by CF30
+(`2026-10-04-cf30-native-base64-and-orphan-guard.md`): Chromium-native base64
+(Trap 4) removes the ~1.3 s Worker encode, and a 90 s `keep_alive` caps any
+future orphan. Paid plan stays out of scope.

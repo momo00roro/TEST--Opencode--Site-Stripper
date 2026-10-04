@@ -2,7 +2,7 @@ import { ALLOWED_PORTS, ALLOWED_PROTOCOLS, LIMITS } from "../config/limits";
 import { isBlockedHostname } from "../validation/hostnames";
 import { isBlockedIpLiteral } from "../validation/ip";
 import { collectPageSnapshot, collectHeadingTexts, diffRotatingText, labelSnapshotHeadings, type PageSnapshot, type SnapshotRotatingText } from "./snapshot-script";
-import type { AnalysisSession, BrowserPage, WaitUntil } from "./types";
+import type { AnalysisSession, BrowserPage, ScreenshotOptions, WaitUntil } from "./types";
 
 export interface CaptureOptions {
   url: string;
@@ -33,13 +33,27 @@ export interface CaptureOptions {
 
 export type ScreenshotKind = "webp" | "jpeg" | "png";
 
-export interface SectionShot {
-  kind: ScreenshotKind;
+/**
+ * Trap 4: a captured image carried as Chromium-native base64 so the Worker
+ * never re-encodes it. Both real backends (`@cloudflare/puppeteer` and local
+ * `puppeteer-core`) return the CDP base64 string when `encoding: "base64"` is
+ * requested. `data` is only populated by test doubles that still return raw
+ * bytes.
+ */
+export interface ShotPayload {
+  /** Decoded byte length of the image (byte-budget math). */
   bytes: number;
+  /** Base64 image data straight from Chromium (no Worker encoding). */
+  base64?: string;
+  /** Raw bytes when a backend ignored `encoding` (test doubles). */
+  data?: Uint8Array;
+}
+
+export interface SectionShot extends ShotPayload {
+  kind: ScreenshotKind;
   y: number;
   height: number;
   heading: string;
-  data: Uint8Array;
   /**
    * On-page box a playing-state video frame belongs to (document coords).
    * The client compositor draws the frame here over blank video bands in
@@ -91,7 +105,7 @@ export interface CaptureTimings {
 
 export interface CaptureResult {
   snapshot: PageSnapshot;
-  screenshot: Uint8Array | null;
+  screenshot: ShotPayload | null;
   screenshotBytes: number;
   screenshotKind: ScreenshotKind | null;
   sectionShots: SectionShot[];
@@ -124,6 +138,42 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
     if (a[i] !== b[i]) return false;
   }
   return true;
+}
+
+/** Decoded byte length of a base64 string (for byte-budget math). */
+function base64ByteLength(value: string): number {
+  const len = value.length;
+  if (len === 0) return 0;
+  let padding = 0;
+  if (value.charCodeAt(len - 1) === 61) padding += 1;
+  if (len > 1 && value.charCodeAt(len - 2) === 61) padding += 1;
+  return Math.floor((len * 3) / 4) - padding;
+}
+
+function toShotPayload(result: Uint8Array | ArrayBuffer | string): ShotPayload {
+  if (typeof result === "string") return { bytes: base64ByteLength(result), base64: result };
+  const data = toBytes(result);
+  return { bytes: data.byteLength, data };
+}
+
+/**
+ * Capture one screenshot as Chromium-native base64 (Trap 4). Both real
+ * backends return the CDP base64 string when asked, so the Worker only ever
+ * passes it through; test doubles return bytes and land in `data`.
+ */
+async function snapShot(
+  page: BrowserPage,
+  options: Omit<ScreenshotOptions, "encoding">,
+): Promise<ShotPayload> {
+  return toShotPayload(await page.screenshot({ ...options, encoding: "base64" }));
+}
+
+/** Compare two captured shots (base64 preferred, byte fallback for doubles). */
+function payloadsEqual(first: ShotPayload, second: ShotPayload): boolean {
+  if (first.bytes !== second.bytes) return false;
+  if (first.base64 !== undefined && second.base64 !== undefined) return first.base64 === second.base64;
+  if (first.data && second.data) return bytesEqual(first.data, second.data);
+  return false;
 }
 
 export function clampTimeout(value: number | undefined): number {
@@ -2025,11 +2075,9 @@ export function dismissVideoPlayer(): Promise<boolean> {
   })();
 }
 
-export interface IsolatedVideoShot {
+export interface IsolatedVideoShot extends ShotPayload {
   started: boolean;
   kind: ScreenshotKind;
-  bytes: number;
-  data: Uint8Array;
 }
 
 /**
@@ -2066,10 +2114,10 @@ export async function renderIsolatedVideoShot(
     await new Promise((resolve) => setTimeout(resolve, 2500));
     const kinds: ScreenshotKind[] = ["webp", "jpeg"];
     let kind: ScreenshotKind = "webp";
-    let previous: Uint8Array | null = null;
+    let previous: ShotPayload | null = null;
     for (const type of kinds) {
       try {
-        previous = toBytes(await page.screenshot({ type, quality }));
+        previous = await snapShot(page, { type, quality });
         kind = type;
         break;
       } catch {
@@ -2083,21 +2131,21 @@ export async function renderIsolatedVideoShot(
     const pollStarted = Date.now();
     for (;;) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      let current: Uint8Array | null = null;
+      let current: ShotPayload | null = null;
       try {
-        current = toBytes(await page.screenshot({ type: kind, quality }));
+        current = await snapShot(page, { type: kind, quality });
       } catch {
         return null;
       }
-      if (!framesEqual(previous, current)) {
-        return { started: true, kind, bytes: current.byteLength, data: current };
+      if (!payloadsEqual(previous, current)) {
+        return { started: true, kind, ...current };
       }
       previous = current;
       if (Date.now() - pollStarted >= 7500) {
         // Same bytes ~10s after load: a blank/gated player, not motion. The
         // poster's cover art (already captured) stands in; no misleading
         // clip is emitted.
-        return { started: false, kind, bytes: 0, data: new Uint8Array(0) };
+        return { started: false, kind, bytes: 0 };
       }
     }
   } catch {
@@ -2109,15 +2157,6 @@ export async function renderIsolatedVideoShot(
       // Close is best effort; a leaked tab dies with the session.
     }
   }
-}
-
-/** Byte-compare two frames: equal length and every byte equal. */
-function framesEqual(first: Uint8Array, second: Uint8Array): boolean {
-  if (first.byteLength !== second.byteLength) return false;
-  for (let i = 0; i < first.byteLength; i += 1) {
-    if (first[i] !== second[i]) return false;
-  }
-  return true;
 }
 
 export async function capturePage(
@@ -2347,15 +2386,14 @@ export async function capturePage(
     captureBeyondViewport: true,
   };
 
-  let screenshot: Uint8Array | null = null;
+  let screenshot: ShotPayload | null = null;
   let screenshotKind: ScreenshotKind | null = null;
 
   const fullShotStart = Date.now();
   if (options.captureScreenshot !== false) {
     for (const type of ["webp", "jpeg"] as const) {
       try {
-        const buffer = await page.screenshot({ type, ...shotOptions });
-        screenshot = toBytes(buffer);
+        screenshot = await snapShot(page, { type, ...shotOptions });
         screenshotKind = type;
         break;
       } catch {
@@ -2364,9 +2402,9 @@ export async function capturePage(
     }
   }
 
-  if (screenshot && screenshot.byteLength > maxBytes) {
+  if (screenshot && screenshot.bytes > maxBytes) {
     warnings.push(
-      `Screenshot of ${screenshot.byteLength} bytes exceeds the ${maxBytes} byte cap; dropped.`,
+      `Screenshot of ${screenshot.bytes} bytes exceeds the ${maxBytes} byte cap; dropped.`,
     );
     screenshot = null;
     screenshotKind = null;
@@ -2384,36 +2422,35 @@ export async function capturePage(
     options.maxSectionShots > 0 &&
     (snapshot.sectionRects ?? []).length > 0
   ) {
-    let budget = maxBytes - (screenshot?.byteLength ?? 0);
+    let budget = maxBytes - (screenshot?.bytes ?? 0);
     const cap = Math.min(options.maxSectionShots ?? 0, LIMITS.maxSectionScreenshots);
     for (const rect of snapshot.sectionRects ?? []) {
       if (sectionShots.length >= cap || budget <= 0) break;
       const clipY = Math.min(rect.y, clipHeight - 1);
       const clipH = Math.min(rect.height, clipHeight - clipY);
       if (clipH < 50) continue;
-      let taken: Uint8Array | null = null;
+      let taken: ShotPayload | null = null;
       let takenKind: ScreenshotKind | null = null;
       const fallbackTypes: ScreenshotKind[] = Array.from(
         new Set<ScreenshotKind>([screenshotKind ?? "webp", "jpeg"]),
       );
       for (const type of fallbackTypes) {
         try {
-          const buffer = await page.screenshot({
+          taken = await snapShot(page, {
             type,
             quality,
             clip: { x: 0, y: clipY, width: options.viewportWidth, height: clipH },
             captureBeyondViewport: true,
           });
-          taken = toBytes(buffer);
           takenKind = type;
           break;
         } catch {
           warnings.push(`Section screenshot at y=${rect.y} as ${type} failed.`);
         }
       }
-      if (taken && takenKind && taken.byteLength <= budget) {
-        sectionShots.push({ kind: takenKind, bytes: taken.byteLength, y: rect.y, height: rect.height, heading: rect.heading, data: taken });
-        budget -= taken.byteLength;
+      if (taken && takenKind && taken.bytes <= budget) {
+        sectionShots.push({ kind: takenKind, y: rect.y, height: rect.height, heading: rect.heading, ...taken });
+        budget -= taken.bytes;
       } else if (taken) {
         warnings.push(`Section screenshot at y=${rect.y} dropped: byte budget exhausted.`);
         break;
@@ -2445,7 +2482,7 @@ export async function capturePage(
   /** Carousel page-turns per capture (CF24): each turn re-renders the grid for fresh facades. */
   const MAX_VIDEO_PAGE_TURNS = 3;
   if (screenshotKind && videoCap > 0) {
-    let videoBudget = maxBytes - (screenshot?.byteLength ?? 0) - sectionShots.reduce((total, shot) => total + shot.bytes, 0);
+    let videoBudget = maxBytes - (screenshot?.bytes ?? 0) - sectionShots.reduce((total, shot) => total + shot.bytes, 0);
     let unstarted = 0;
     const seenIds = new Set<string>();
     const seenStreams = new Set<string>();
@@ -2476,41 +2513,39 @@ export async function capturePage(
       if (clipH < 50) return "taken";
       const clipX = Math.max(Math.min(player.x, options.viewportWidth - 1), 0);
       const clipW = Math.min(player.width, options.viewportWidth - clipX);
-      let taken: Uint8Array | null = null;
+      let taken: ShotPayload | null = null;
       let takenKind: ScreenshotKind | null = null;
       const fallbackTypes: ScreenshotKind[] = Array.from(
         new Set<ScreenshotKind>([screenshotKind ?? "webp", "jpeg"]),
       );
       for (const type of fallbackTypes) {
         try {
-          const buffer = await page.screenshot({
+          taken = await snapShot(page, {
             type,
             quality,
             clip: { x: clipX, y: clipY, width: clipW, height: clipH },
           });
-          taken = toBytes(buffer);
           takenKind = type;
           break;
         } catch {
           warnings.push(`Playing-state video screenshot ${vi + 1} as ${type} failed.`);
         }
       }
-      if (taken && takenKind && taken.byteLength <= videoBudget) {
+      if (taken && takenKind && taken.bytes <= videoBudget) {
         const facadeBox = Number.isFinite(target.rectY) && Number.isFinite(target.rectX)
           && target.rectHeight > 0 && target.rectWidth > 0;
         videoShots.push({
           kind: takenKind,
-          bytes: taken.byteLength,
           y: Number.isFinite(target.rectY) ? target.rectY : player.y,
           height: target.rectHeight > 0 ? target.rectHeight : player.height,
           heading: `video: ${label}`,
-          data: taken,
+          ...taken,
           streamUrl: String(target.streamUrl || ""),
           ...(facadeBox
             ? { placement: { x: target.rectX, y: target.rectY, width: target.rectWidth, height: target.rectHeight } }
             : {}),
         });
-        videoBudget -= taken.byteLength;
+        videoBudget -= taken.bytes;
         return "taken";
       }
       if (taken) {
@@ -2678,9 +2713,7 @@ export async function capturePage(
         const justClipped = videoShots[videoShots.length - 1];
         if (
           justClipped &&
-          videoShots.slice(0, -1).some(
-            (shot) => shot.bytes === justClipped.bytes && bytesEqual(shot.data, justClipped.data),
-          )
+          videoShots.slice(0, -1).some((shot) => payloadsEqual(shot, justClipped))
         ) {
           videoShots.pop();
           videoBudget += justClipped.bytes;
@@ -2722,9 +2755,7 @@ export async function capturePage(
               const justRetried = videoShots[videoShots.length - 1];
               if (
                 justRetried &&
-                videoShots.slice(0, -1).some(
-                  (shot) => shot.bytes === justRetried.bytes && bytesEqual(shot.data, justRetried.data),
-                )
+                videoShots.slice(0, -1).some((shot) => payloadsEqual(shot, justRetried))
               ) {
                 videoShots.pop();
                 videoBudget += justRetried.bytes;
@@ -2778,7 +2809,7 @@ export async function capturePage(
   return {
     snapshot,
     screenshot,
-    screenshotBytes: screenshot?.byteLength ?? 0,
+    screenshotBytes: screenshot?.bytes ?? 0,
     screenshotKind,
     sectionShots,
     videoShots,

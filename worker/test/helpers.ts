@@ -217,6 +217,12 @@ export interface FakePageOptions {
    * first differing pair; a fixed two-shot dwell would reject it.
    */
   staticShots?: number;
+  /**
+   * Return Chromium-native base64 from screenshot() (models both real
+   * backends honoring `encoding: "base64"`), so the Worker never encodes.
+   * The string decodes to the same bytes the binary path would return.
+   */
+  base64Shots?: boolean;
 }
 
 export function makeFakePage(options: FakePageOptions = {}): {
@@ -312,12 +318,18 @@ export function makeFakePage(options: FakePageOptions = {}): {
         throw new Error(`${shotOptions.type} unsupported`);
       }
       const size = options.bytes ?? 1024;
+      let bytes: Uint8Array;
       if (options.variedShots) {
         shotCalls += 1;
-        if (shotCalls <= (options.staticShots ?? 0)) return new Uint8Array(size);
-        return new Uint8Array(size).fill(shotCalls % 256);
+        bytes = shotCalls <= (options.staticShots ?? 0)
+          ? new Uint8Array(size)
+          : new Uint8Array(size).fill(shotCalls % 256);
+      } else {
+        bytes = new Uint8Array(size);
       }
-      return new Uint8Array(size);
+      // Model both real backends: when asked for base64, hand back the CDP
+      // string (the Worker must pass it through, never re-encode).
+      return options.base64Shots ? Buffer.from(bytes).toString("base64") : bytes;
     },
     // Trusted-input surface for click-to-play capture (both real backends
     // are puppeteer pages with .mouse/.keyboard; see trustedClick in capture.ts).
