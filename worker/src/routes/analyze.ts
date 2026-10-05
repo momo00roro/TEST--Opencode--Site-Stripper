@@ -60,6 +60,20 @@ function spikeEncoder(request: Request, deps: AnalyzeRouteDeps): ((bytes: Uint8A
   return workerBase64;
 }
 
+/**
+ * Extract-only mode (`?screenshots=0`): no screenshots, video clips, mobile
+ * captures, or asset binaries anywhere in the run — observations, tokens,
+ * and DOM-only comparisons still run. Transport flag like `binaries`, so it
+ * is read here and threaded into the analysis options, never the validator.
+ */
+function screenshotsEnabled(request: Request): boolean {
+  try {
+    return new URL(request.url).searchParams.get("screenshots") !== "0";
+  } catch {
+    return true;
+  }
+}
+
 function errorPayload(error: unknown): { code: string; message: string } {
   if (error instanceof ApiError) return { code: error.code, message: error.message };
   return { code: "INTERNAL", message: "Unexpected server error." };
@@ -79,6 +93,7 @@ export async function handleAnalyze(
       encodeBase64: spikeEncoder(request, deps),
       fetchImpl,
       detectRotationMs: deps.detectRotationMs ?? 5000,
+      screenshots: screenshotsEnabled(request),
     });
     return json(result, 200, { "cache-control": "no-store" });
   }
@@ -104,6 +119,7 @@ export async function handleAnalyze(
         fetchImpl,
         onProgress,
         detectRotationMs: deps.detectRotationMs ?? 5000,
+        screenshots: screenshotsEnabled(request),
       })
         .then((result) => {
           // Keep each serialized observation bounded to one page instead of

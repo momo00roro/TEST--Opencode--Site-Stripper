@@ -39,7 +39,7 @@ Analyze a site from the form (up to 10 pages), inspect screenshots and raw JSON,
 
 ```sh
 npm run typecheck -w worker  # tsc --noEmit, must be clean
-npm test -w worker           # vitest, 352 tests across 19 files
+npm test -w worker           # vitest, 354 tests across 19 files
 npm run dev:remote -w worker # local code vs remote Cloudflare resources (hosted verification)
 npm run deploy -w worker     # deploy the Worker API (manual fallback)
 npm run deploy:ui            # deploy the Pages UI (manual fallback)
@@ -88,7 +88,7 @@ is the one printer that only prints after homework passes.
 ### ELI10: the whole deployment, in 5 lines
 
 1. You `git push` your homework to GitHub.
-2. A robot (Actions) checks it: spelling (typecheck), then all 352 quiz answers (tests).
+2. A robot (Actions) checks it: spelling (typecheck), then all 354 quiz answers (tests).
 3. Fail = stop, nothing ships. Pass = keep going.
 4. Robot mails the brain (Worker API) then the face (Pages UI) to Cloudflare's computers.
 5. Your site updates at `site-stripper-ui.pages.dev`, talking to the brain at
@@ -171,7 +171,7 @@ The Pages UI speaks the stolen design language of `https://cline.bot`
 
 ## Status
 
-All CF01–CF30 implemented; `npm run typecheck` clean; 352/352 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
+All CF01–CF31 implemented; `npm run typecheck` clean; 354/354 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
 
 CF14–CF20 fidelity pack (2026-09-29): video posters, computed behaviors, `data/layout.json`, `REBUILD.md`, heading breaks, split rehydration budget, rotation re-sample. CF21–CF25 video capture (2026-09-30/10-01): facades render playing frames via autoplay → isolated render → click fallback, composited into section stills; uncaptured posterless facades get fetched Vimeo thumbnails (zero browser-minutes) instead of blank bands. figma.com Vimeo grid fully covered 2026-10-01 (4 motion-verified + 6 stills, 10/10 facades; see `docs/plans/2026-09-30-video-capture.md`).
 

@@ -198,6 +198,12 @@ export interface AnalysisProgress {
 
 export interface AnalysisOptions {
   encodeBase64?: (bytes: Uint8Array) => string;
+  /**
+   * Extract-only mode (`?screenshots=0`): skip every screenshot, video clip,
+   * mobile capture, and asset binary download. Observations, tokens, and
+   * DOM-only comparisons still run. Defaults to true (full capture).
+   */
+  screenshots?: boolean;
   maxInlineImageBytes?: number;
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
   onProgress?: (event: AnalysisProgress) => void;
@@ -262,6 +268,12 @@ export async function runAnalysis(
   const issues: string[] = [];
   const limitations: string[] = [];
   const pages: AnalysisPage[] = [];
+  const wantScreenshots = options.screenshots !== false;
+  if (!wantScreenshots) {
+    limitations.push(
+      "Extract-only mode (`?screenshots=0`): no screenshots, video clips, mobile captures, or asset binaries were taken; observations, tokens, and DOM-only comparisons are complete.",
+    );
+  }
 
   let discovery: DiscoveryResult | null = null;
   let selection: SelectionReport | null = null;
@@ -288,9 +300,10 @@ export async function runAnalysis(
       report({ phase: "homepage", message: "Capturing the homepage…", current: 1, total: 1, path: "/" });
       const homepage = await captureOne(session, homepageUrl, {
         viewportWidth: LIMITS.desktopViewportWidth,
+        captureScreenshot: wantScreenshots,
         fetchImpl,
-        maxSectionShots: LIMITS.maxSectionScreenshots,
-        maxVideoShots: LIMITS.maxVideoShots,
+        maxSectionShots: wantScreenshots ? LIMITS.maxSectionScreenshots : 0,
+        maxVideoShots: wantScreenshots ? LIMITS.maxVideoShots : 0,
         analysisStartedAt: startedAt,
         ...(options.wallBudgetMs !== undefined ? { wallBudgetMs: options.wallBudgetMs } : {}),
         // Rotation re-sample is opt-in (costs browser seconds): the API
@@ -363,7 +376,11 @@ export async function runAnalysis(
     // whatever this capture spends.
     if (request.includeMobile && homepageSucceeded && !homepageChallenged) {
       report({ phase: "mobile", message: "Capturing mobile viewports…" });
-      if (Date.now() - startedAt > LIMITS.totalAnalysisWallBudgetMs) {
+      if (!wantScreenshots) {
+        limitations.push("Skipped mobile capture: extract-only mode (`?screenshots=0`) captures no screenshots.");
+        pages[0]!.responsiveComparison.status = "budget-skipped";
+        pages[0]!.responsiveComparison.note = "Mobile capture was skipped because extract-only mode (`?screenshots=0`) captures no screenshots.";
+      } else if (Date.now() - startedAt > LIMITS.totalAnalysisWallBudgetMs) {
         limitations.push("Skipped mobile capture: wall budget exhausted.");
         pages[0]!.responsiveComparison.status = "budget-skipped";
         pages[0]!.responsiveComparison.note = "Mobile capture was skipped because the analysis wall-time budget was exhausted.";
@@ -489,7 +506,7 @@ export async function runAnalysis(
         0,
       );
       const canScreenshot =
-        remainingScreenshotBytes > 0 && desktopTaken < LIMITS.maxDesktopScreenshots;
+        wantScreenshots && remainingScreenshotBytes > 0 && desktopTaken < LIMITS.maxDesktopScreenshots;
 
       try {
         report({
@@ -547,6 +564,7 @@ export async function runAnalysis(
     if (
       request.includeMobile &&
       homepageSucceeded &&
+      wantScreenshots &&
       mobileTaken < LIMITS.maxMobileScreenshots &&
       Date.now() - startedAt <= LIMITS.totalAnalysisWallBudgetMs &&
       screenshotBytesTotal < LIMITS.maxTotalScreenshotBytes &&
@@ -720,8 +738,13 @@ export async function runAnalysis(
     } catch {
       // Keep the requested origin when the snapshot URL is unparseable.
     }
+    if (!wantScreenshots) {
+      limitations.push("Asset rehydration skipped: extract-only mode (`?screenshots=0`) downloads no binaries; all assets remain URL references.");
+    }
     try {
-      const rehydrated = await rehydrateAssets(assets, { fetchImpl, origin: assetOrigin });
+      // Extract-only mode passes an empty list so no binary is fetched or
+      // encoded; the snapshot's reference-only manifest entries above stay.
+      const rehydrated = await rehydrateAssets(wantScreenshots ? assets : [], { fetchImpl, origin: assetOrigin });
       // Poster bytes ride Uint8Array in memory but cannot survive the JSON
       // API (they serialize as {"0":..} bloat and fail client-side
       // validation, killing the whole ZIP download). Where the environment

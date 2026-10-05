@@ -106,17 +106,63 @@ end-to-end; the Worker never re-encodes screenshots.
   returned as native base64 (`UklGR…`, WebP RIFF header), 65,406 screenshot
   bytes, zero issues. Confirms the real backend path, not just doubles.
 
-## Production confirmation (pending)
+## Production confirmation outcome (2026-10-05, fresh meter)
 
-The repo is still 1 commit ahead of `origin/master`; a push redeploys CF29
-(via CI) and undoes the production rollback. To confirm CF30 on a fresh meter:
+Pushed `04870be`; CI redeployed the CF30 Worker + Pages (live version
+`2794f3e8-64b4-47fc-981e-bd3689083f89`). `/health` ok, Browser Rendering on.
+Both production runs below went through the Worker API directly (no UI).
 
-1. Push (redeploys CF30 Worker + Pages).
-2. `wrangler tail` and run higgsfield.ai from the UI, maxPages 1 + mobile.
-3. Expect: no 1102, `cpuTime` far below the CF29 runs (native base64 removes
-   the ~1.3 s encode), and — if anything still crashes — the orphan self-closes
-   within 90 s instead of burning the day.
-4. Record CPU ms from `tail._Margins`.
+- **higgsfield.ai, maxPages 1 + mobile:** HTTP 200 but a **truncated NDJSON
+  stream after 72.6 s** (only the `launching` + `homepage` progress lines, no
+  `result`, no `error`; 189 bytes) — the same 1102-style isolate-kill
+  signature as the CF29/pre-CF29 higgsfield failures. Raw capture at
+  `C:\Users\Admin\AppData\Local\Temp\opencode\ab\PROD-CF30-higgsfield.ndjson`
+  (temp, not committed).
+- **example.com, maxPages 1, no mobile:** HTTP 200, full
+  progress → page → result in 16.8 s wall / 16.46 browser-s, desktop `dataUrl`
+  present as native base64 (`UklGR…`), `screenshotBytesTotal` 33,166, zero
+  issues, `integrityPassed: true`.
+
+Reading: CF30 is **correct in production** (Trap-4 passthrough holds live),
+but removing the Worker-side re-encode was **necessary, not sufficient** —
+higgsfield scale still kills the isolate. The remaining cost is most likely
+receiving/holding/serializing the multi-MB CDP base64 payloads plus the
+bounded observation JSON, all inside the free isolate budget. The orphan
+guard held by design (any orphan from this run self-closes within 90 s
+instead of the previous 10:01 day-burner). Meter used ≈ 1.2 min failed run +
+capped 90 s orphan + ≈ 0.3 min smoke; no further heavy runs were fired.
+
+### Second production run (2026-10-05 ~14:40 SGT, tail-measured)
+
+- higgsfield.ai, maxPages 1 + mobile via API: HTTP 200 after **227.0 s** wall,
+  and `wrangler tail` shows the confirmation:
+  `POST …/api/analyze - Exceeded CPU Limit` + `Error: Worker exceeded CPU
+  time limit`. Kill point varies run to run (72.6 s vs 227.0 s) —
+  content-dependent weight, not a fixed phase.
+- Dashboard: new session `2026-10-05 06:40:33 UTC`, duration **5:19**,
+  "Browser Idle" (≈ 227 s work + ≈ 92 s idle) — the 90 s `keep_alive` guard
+  held again.
+- Meter: Browser Hours reads **0.14 h (≈ 8.4 min)** for the day
+  (≈ 2:48 + 0:15 + 5:19 across the three runs). ≈ 1.6 min remains — **no more
+  production runs today**.
+
+### CF31 — extract-only diagnostic mode (`?screenshots=0`)
+
+`POST /api/analyze?screenshots=0` now runs the full pipeline with zero
+binaries: no screenshots, video clips, mobile captures, or asset downloads —
+observations, tokens, and DOM-only comparisons still run, all shortfalls
+recorded as limitations. Transport flag like `?binaries=0` (read in the route,
+never the validator). Purpose: the decisive experiment — if higgsfield
+succeeds extract-only, the kill is screenshot-ingress and the fix stays
+screenshot-scoped; if it still dies, it is the evaluates/snapshot path.
+Doubles as a permanent fallback so heavy sites still strip (docs/tokens)
+when screenshots cannot fit the free CPU.
+Local verification (real `puppeteer-core`, no meter): example.com
+extract-only → 11.5 browser-s, 0 shots/bytes, integrity true; higgsfield.ai
+extract-only → **46.1 s** (vs 193 s full), 51 headings / 20 sections /
+6 videos / 100 assets observed, 0 issues, all video phases 0 ms in timings.
+Unit cover: route test (`?screenshots=0` → zero `screenshot()` calls) and
+pipeline test (throwing encoder never invoked).
 
 ## Follow-ups
 
@@ -124,6 +170,13 @@ The repo is still 1 commit ahead of `origin/master`; a push redeploys CF29
   `options.encodeBase64` (workerBase64). Bounded by
   `maxAssetDownloadBytesTotal` 512 KB (~0.7 MB base64 ≈ ~60 ms CPU), so it is
   not the hotspot; a future change can fetch/render those natively too.
-- If higgsfield still trips 1102 after CF30, the residual isolate cost is the
-  per-page JSON serialization of the bounded observation records (streamed one
-  page at a time) — trim that next, still no paid plan.
+- 2026-10-05 update: production higgsfield still truncates on CF30 (72.6 s),
+  while production example.com succeeds — so CF30 is correct live but
+  insufficient at higgsfield scale. Local measurement rules out final
+  serialization: stringifying the 2.2 MB homepage page-record costs ~8 ms.
+  Remaining suspects are CDP receive/protocol CPU *during capture* (large
+  base64 screenshot messages, dozens of poll/evaluate round-trips), not the
+  final JSON. Next: one tail-measured production run (`wrangler tail`,
+  read `cpuTime`/`_Margins`) before trimming anything blindly — do not cut
+  screenshot fidelity on an unconfirmed threshold. Paid plan stays out of
+  scope.

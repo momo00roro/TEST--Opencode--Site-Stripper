@@ -228,6 +228,32 @@ describe("runAnalysis (CF06)", () => {
     expect(result.pages[0]?.mobileScreenshot).toBeNull();
   });
 
+  it("extract-only mode captures observations with zero binaries", async () => {
+    const { launcher, state } = makeFakeLauncher("fake");
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 2 }), {
+      fetchImpl: mockSiteFetch(),
+      // The encoder must never be needed: no screenshot, clip, render, or
+      // download may produce bytes in this mode.
+      encodeBase64: () => {
+        throw new Error("encoder must not be called in extract-only mode");
+      },
+      screenshots: false,
+    });
+
+    expect(state.screenshots).toHaveLength(0);
+    expect(result.screenshotsCaptured).toBe(0);
+    expect(result.screenshotBytesTotal).toBe(0);
+    expect(result.pages[0]?.screenshot).toBeNull();
+    expect(result.pages[0]?.mobileScreenshot).toBeNull();
+    expect(result.pages[0]?.sectionShots).toEqual([]);
+    expect(result.pages[0]?.videoShots).toEqual([]);
+    expect(result.integrityPassed).toBe(true);
+    expect(result.limitations.some((line) => line.includes("?screenshots=0"))).toBe(true);
+    // Observations still complete on every analyzed page.
+    expect(result.pages[0]?.title).toBe("Example");
+    expect(result.pagesAnalyzed).toBeGreaterThanOrEqual(1);
+  });
+
   it("returns a partial report when a later page fails to open", async () => {
     const { launcher, state } = makeFakeLauncher("fake");
     const innerLaunch = launcher.launch.bind(launcher);

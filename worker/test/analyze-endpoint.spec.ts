@@ -161,6 +161,32 @@ describe("POST /api/analyze", () => {
     expect(state.screenshots[0]?.encoding).toBe("base64");
   });
 
+  it("extract-only mode (?screenshots=0) takes no screenshots anywhere", async () => {
+    const body = { url: "https://other.example/", maxPages: 1, includeMobile: true };
+    const request = new Request("https://api.example.test/api/analyze?screenshots=0", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const { launcher, state } = makeFakeLauncher("fake");
+
+    const response = await handleRequest(request, makeEnv(), {
+      launcher,
+      fetchImpl: mockSiteFetchWithDoh({}, { a: ["93.184.216.34"] }),
+      detectRotationMs: 0,
+    });
+    expect(response.status).toBe(200);
+
+    const res = (await response.json()) as Record<string, any>;
+    expect(state.screenshots).toHaveLength(0);
+    expect(res.screenshotsCaptured).toBe(0);
+    expect(res.screenshotBytesTotal).toBe(0);
+    expect(res.pages[0].screenshot).toBeNull();
+    expect(res.pages[0].mobileScreenshot).toBeNull();
+    expect(res.integrityPassed).toBe(true);
+    expect(res.limitations.some((line: string) => line.includes("?screenshots=0"))).toBe(true);
+  });
+
   it("workerBase64 round-trips bytes identically to Buffer", () => {
     const bytes = Uint8Array.from({ length: 70000 }, (_, i) => i % 256);
     expect(workerBase64(bytes)).toBe(Buffer.from(bytes).toString("base64"));

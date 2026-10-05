@@ -31,6 +31,7 @@ The [`plans/`](./plans/) directory tracks design RFCs and implementation roadmap
 | **2026-10-02** | [`2026-10-02-cf28-native-video-capture.md`](./plans/2026-10-02-cf28-native-video-capture.md) | CF28: native `<video>` muted force-play + stale-clip guard + top-left clip origin (affinity 4/4 production, higgsfield 12-take scale run) | **Completed** |
 | **2026-10-03** | [`2026-10-03-capture-budget-optimization.md`](./plans/2026-10-03-capture-budget-optimization.md) | CF29: capture budget optimization — measure-first investigation of the ~3 min/run video-heavy burn | *Resolved → CF30* |
 | **2026-10-04** | [`2026-10-04-cf30-native-base64-and-orphan-guard.md`](./plans/2026-10-04-cf30-native-base64-and-orphan-guard.md) | CF30: Chromium-native base64 (Trap 4, drops Worker-side encoding) + 90 s browser-session orphan guard | **Completed** |
+| **2026-10-05** | [`2026-10-04-cf30-native-base64-and-orphan-guard.md`](./plans/2026-10-04-cf30-native-base64-and-orphan-guard.md) (CF31 section) | CF31: extract-only mode (`?screenshots=0`) — observations without binaries, doubles as the 1102 diagnostic | **Completed** |
 
 ---
 
