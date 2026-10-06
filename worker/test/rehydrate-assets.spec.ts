@@ -490,6 +490,78 @@ describe("rehydrateAssets raster hero/image (CF36-1 local-full)", () => {
   });
 });
 
+describe("rehydrateAssets cross-origin hero raster (CF36-3 local-full carve-out)", () => {
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+
+  it("downloads a cross-origin hero PNG with the flag via the public-target guard (no same-origin)", async () => {
+    const summary = await rehydrateAssets(
+      [asset({ url: "https://static.higgsfield.ai/hero.png", kind: "hero", alt: "Showcase still" })],
+      {
+        fetchImpl: mockSiteFetchWithDoh(
+          { "https://static.higgsfield.ai/hero.png": { body: "PNGBYTES", contentType: "image/png" } },
+          { a: ["93.184.216.34"] },
+        ),
+        origin: ORIGIN,
+        allowRasterKinds: true,
+      },
+    );
+
+    expect(summary.downloaded).toBe(1);
+    expect(summary.assets[0]).toMatchObject({
+      source: "downloaded",
+      localPath: "assets/01-showcase-still.png",
+      contentType: "image/png",
+    });
+    expect(summary.assets[0]?.content).toBeInstanceOf(Uint8Array);
+  });
+
+  it("keeps a cross-origin hero PNG reference-only without the flag (hosted/lite default)", async () => {
+    const summary = await rehydrateAssets(
+      [asset({ url: "https://static.higgsfield.ai/hero.png", kind: "hero", alt: "Showcase still" })],
+      {
+        fetchImpl: mockSiteFetchWithDoh(
+          { "https://static.higgsfield.ai/hero.png": { body: "PNGBYTES", contentType: "image/png" } },
+          { a: ["93.184.216.34"] },
+        ),
+        origin: ORIGIN,
+      },
+    );
+
+    expect(summary.downloaded).toBe(0);
+    expect(summary.assets[0]).toMatchObject({ source: "reference-only", skipReason: "unresolvable-url" });
+    expect(summary.assets[0]?.localPath).toBeUndefined();
+  });
+
+  it("still blocks a cross-origin private-IP hero even with the flag (SSRF guard unchanged)", async () => {
+    const summary = await rehydrateAssets(
+      [asset({ url: "https://cdn.example/hero.png", kind: "hero", alt: "Hero" })],
+      {
+        fetchImpl: mockSiteFetchWithDoh({}, { a: ["10.0.0.9"] }),
+        origin: ORIGIN,
+        allowRasterKinds: true,
+      },
+    );
+
+    expect(summary.assets[0]).toMatchObject({ source: "reference-only", skipReason: "validation-failed" });
+  });
+
+  it("keeps SVG/logo/icon cross-origin even with the flag (identity assets stay first-party)", async () => {
+    const summary = await rehydrateAssets(
+      [asset({ url: "https://cdn.example/logo.svg", alt: "Logo" })],
+      {
+        fetchImpl: mockSiteFetchWithDoh(
+          { "https://cdn.example/logo.svg": { body: SVG, contentType: SVG_TYPE } },
+          { a: ["93.184.216.34"] },
+        ),
+        origin: ORIGIN,
+        allowRasterKinds: true,
+      },
+    );
+
+    expect(summary.assets[0]).toMatchObject({ source: "reference-only", skipReason: "unresolvable-url" });
+  });
+});
+
 describe("runAnalysis (CF13)", () => {
   function buildRequest(overrides: Partial<AnalyzeRequest> = {}): AnalyzeRequest {
     return {

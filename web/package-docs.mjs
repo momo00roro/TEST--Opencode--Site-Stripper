@@ -936,6 +936,38 @@ function largestHeadingType(page) {
   return [...headings].sort((a, b) => size(b) - size(a))[0];
 }
 
+// CF36-3 placeholder directive (renders from existing manifest fields only —
+// no new capture): every reference-only image/poster/video asset gets a
+// required dimension-accurate placeholder spec so rebuilds keep card/layout
+// geometry instead of hotlinking the source CDN or omitting the card.
+// Recorded width/height -> exact WxH spec; missing dims -> honest fallback.
+function placeholderSlug(asset) {
+  const raw = String(asset?.alt || "").trim()
+    || (() => { try { return (new URL(asset?.url || "", "http://localhost").pathname.split("/").filter(Boolean).pop() || "").replace(/\.[a-z0-9]+$/i, ""); } catch { return ""; } })();
+  const clean = String(raw || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return clean || "asset";
+}
+
+function placeholderSpec(asset) {
+  const slugFor = placeholderSlug(asset);
+  const w = Number(asset?.width);
+  const h = Number(asset?.height);
+  if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) {
+    return `Placeholder ${w}x${h} — any neutral still (picsum.photos/seed/${slugFor}/${w}/${h} or flat label); NEVER hotlink the source CDN; NEVER omit the card (omission breaks layout)`;
+  }
+  return `dimensions unknown — use 16:9 labeled block (any neutral still or flat label); NEVER hotlink the source CDN; NEVER omit the card (omission breaks layout)`;
+}
+
+// Reference-only image/poster/video assets only (downloaded assets and
+// logo/icon/font kinds never need placeholders). Capped by the caller.
+function placeholderDirectives(assets, cap = 5) {
+  return (assets || [])
+    .filter((asset) => asset && asset.source !== "downloaded"
+      && (asset.kind === "image" || asset.kind === "poster" || asset.kind === "video"))
+    .slice(0, Math.max(0, cap))
+    .map((asset) => `- \`${code(asset.url || "unknown URL")}\` (${md(asset.alt || asset.kind)}): ${placeholderSpec(asset)}`);
+}
+
 // CF17: ordered agent build spec — global theme, then sections in order with
 // copy, layout, assets, and behaviors, then explicit known gaps.
 // CF34-local ordering: 1) Tokens refs (data/tokens.json aliases),
@@ -1023,8 +1055,19 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
         lines.push(`Type: type not observed on this page — no heading semanticStyles sampled; verify against the live page.`);
       }
       const local = pageAssets.filter((asset) => asset.source === "downloaded" && asset.localPath);
-      const refs = pageAssets.filter((asset) => asset.source !== "downloaded").length;
+      const refAssets = pageAssets.filter((asset) => asset.source !== "downloaded");
+      const refs = refAssets.length;
       lines.push(`Assets: ${local.map((asset) => `prefer \`${code(asset.localPath)}\``).join(", ") || "no downloaded assets"}${refs > 0 ? `; ${refs} URL reference(s) — recreate, do not hotlink` : ""}`);
+      // CF36-3: dimension-accurate placeholder directive per reference-only
+      // image/poster/video asset (recorded manifest width/height only).
+      const directives = placeholderDirectives(refAssets, 5);
+      if (directives.length > 0) {
+        lines.push(`Placeholders (required — NEVER hotlink the source CDN; NEVER omit the card):`);
+        for (const directive of directives) lines.push(directive);
+        if (refs > directives.length && refAssets.filter((asset) => asset && (asset.kind === "image" || asset.kind === "poster" || asset.kind === "video")).length > directives.length) {
+          lines.push(`- …and ${refAssets.filter((asset) => asset && (asset.kind === "image" || asset.kind === "poster" || asset.kind === "video")).length - directives.length} more — same placeholder rule applies (see \`data/assets.json\` for dimensions).`);
+        }
+      }
       const tabs = (page.content?.tabSets || []).map((set) => set.tabs.map((tab) => `${tab.label}${tab.selected ? "*" : ""}`).join("/")).join("; ");
       if (tabs) lines.push(`Tabs: ${md(tabs)} (* = default; show all panels unless only one is visible)`);
       lines.push(`- [ ] Section ${index + 1} matches \`${code(shotRef)}\` at ${pages[0]?.viewport?.width || 1440}px with tokens above and verbatim copy.`);
@@ -1214,6 +1257,14 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
     const file = thumbnailAssetByLabel.get(label);
     return `- ${md(page.path)}: ${file ? `\`${code(file)}\` ` : ""}(${shot.width}×${shot.height}) — ${md(shot.label || "thumbnail")}${place} — fetched fallback thumbnail, not a playing-state frame; prefer live embed, wire tap-to-play`;
   }));
+  // CF36-3: data/assets.json consumer directive — every reference-only
+  // image/poster/video asset carries a required placeholder spec rendered
+  // from its recorded manifest width/height (no new capture). Rebuilds keep
+  // layout geometry with neutral stills; never hotlink, never omit.
+  const placeholderMdLines = placeholderDirectives(assets, 20);
+  const placeholderSection = placeholderMdLines.length > 0
+    ? `Every reference-only image/poster/video asset below needs a dimension-accurate placeholder (manifest width/height; machine source: \`data/assets.json\`):\n\n${placeholderMdLines.join("\n")}`
+    : "No reference-only image/poster/video assets — nothing needs a placeholder.";
   const pageEmbeds = pages.flatMap((page) => (page.embeds || []).map((embed) => ({ ...embed, embeddedOn: page.path })));
   const coverage = pages.flatMap((page) => coverageList(page).map(([key, item]) => `- ${md(page.path)} / ${md(key)}: ${item.emittedCount}/${item.sourceCount}; cap ${item.cap}${item.deduplicatedCount ? `; ${item.deduplicatedCount} collapsed` : ""}; ${item.truncated ? `partial (${md(item.reason || "truncated")})` : "complete within cap"}`));
   const docs = {
@@ -1223,7 +1274,7 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
     "design-tokens.md": `# Design tokens\n\nTokens are frequency-ranked observations across the selected pages, with source/confidence. Values are not asserted to be a complete design system.\n\n## Key observed roles\n\n${keyRoles(pages, inventory).join("\n") || "No semantic style samples observed."}\n\n## All observed values\n\n${categoryRows.join("\n")}\n\n${tokenRows.join("\n") || "No token values observed."}\n\nSemantic samples by page/role are in \`data/tokens.json\`.\n`,
     "typography.md": `# Typography\n\nTypeface usage is ranked from computed-style sampling (inferred confidence); \`@font-face\` declarations are observed where stylesheets are accessible.\n\n${pages.map((page) => `## ${md(page.path)}\n\nFont faces:\n${(page.typography?.fontFaces || []).map((face) => `- ${md(face.family)} — ${md(face.weight)}; ${md(face.src)}`).join("\n") || "- none observed"}\n\nTypefaces in use:\n${(page.typography?.fontFamilies || []).map((entry) => `- \`${code(entry.value)}\` — ${entry.count} sampled elements; ${code(entry.confidence)}`).join("\n") || "- none observed"}\n\nSemantic samples:\n${(page.semanticStyles || []).map((sample) => `- ${md(sample.role)}: ${md(sample.fontFamily)} ${md(sample.fontSize)} / ${md(sample.lineHeight)}, weight ${md(sample.fontWeight)}, tracking ${md(sample.letterSpacing)}`).join("\n") || "- none observed"}`).join("\n\n")}\n`,
     "content-style.md": `# Content and voice\n\nTone summaries are page-level heuristics. Verbatim visible text is below; inspect \`data/pages.json\` for order, roles, controls, and per-collection completeness. Initially hidden/collapsed DOM copy is separately labelled and was not treated as visible or activated.\n\n${allBlocks.join("\n\n") || "No content blocks observed."}\n\n## Initially hidden or collapsed copy\n\n${hiddenBlocks.join("\n\n") || "No hidden semantic copy observed."}\n`,
-    "imagery-and-video.md": `# Imagery and video\n\nAssets (${assets.length} listed of ${analysis.assetCount} observed):\n\n${assetLines.join("\n") || "No media assets observed."}\n\n${downloadedSvgs.length > 0 ? `${downloadedSvgs.length} SVG asset(s) were downloaded at capture time and ship under \`assets/\` — prefer the local copy, with the remote URL as fallback: ${downloadedSvgs.map((asset) => `\`${code(asset.localPath)}\``).join(", ")}. ` : "No SVG assets were downloaded at capture time. "}${downloadedPosters.length > 0 ? `${downloadedPosters.length} poster asset(s) (video frames) were downloaded at capture time and ship under \`assets/\`: ${downloadedPosters.map((asset) => `\`${code(asset.localPath)}\``).join(", ")}. ` : ""}Remaining media entries are URL references only; raster binaries were not fetched. Motion note: videos are URL references and canvas scenes are single static frames — treat screenshots of those regions as posters, not the experience.\n\n## Videos\n\n${videoLines.join("\n") || "No video elements observed."}\n\n## Playing-state captures\n\n${playingLines.join("\n") || "No playing-state captures (facades never played in-page or isolated, or the run predates video capture)."}\n\n## Fallback thumbnails\n\n${thumbnailLines.join("\n") || "No fallback thumbnails (every played facade rendered, or no thumbnail resolved)."}\n\n## Embedded frames\n\n${embedLines.join("\n") || "No embedded frames observed."}\n`,
+    "imagery-and-video.md": `# Imagery and video\n\nAssets (${assets.length} listed of ${analysis.assetCount} observed):\n\n${assetLines.join("\n") || "No media assets observed."}\n\n${downloadedSvgs.length > 0 ? `${downloadedSvgs.length} SVG asset(s) were downloaded at capture time and ship under \`assets/\` — prefer the local copy, with the remote URL as fallback: ${downloadedSvgs.map((asset) => `\`${code(asset.localPath)}\``).join(", ")}. ` : "No SVG assets were downloaded at capture time. "}${downloadedPosters.length > 0 ? `${downloadedPosters.length} poster asset(s) (video frames) were downloaded at capture time and ship under \`assets/\`: ${downloadedPosters.map((asset) => `\`${code(asset.localPath)}\``).join(", ")}. ` : ""}Remaining media entries are URL references only; raster binaries were not fetched. Motion note: videos are URL references and canvas scenes are single static frames — treat screenshots of those regions as posters, not the experience.\n\n## Placeholders (reference-only image/poster/video)\n\n${placeholderSection}\n\n## Videos\n\n${videoLines.join("\n") || "No video elements observed."}\n\n## Playing-state captures\n\n${playingLines.join("\n") || "No playing-state captures (facades never played in-page or isolated, or the run predates video capture)."}\n\n## Fallback thumbnails\n\n${thumbnailLines.join("\n") || "No fallback thumbnails (every played facade rendered, or no thumbnail resolved)."}\n\n## Embedded frames\n\n${embedLines.join("\n") || "No embedded frames observed."}\n`,
     "motion-and-interactions.md": `# Motion and interactions\n\nTransitions, animations, and keyframe names are computed/CSSOM observations; JavaScript-driven interactions were not replayed.\n\n${motion}\n\n## Motion timeline\n\nMachine-readable source: \`data/motion.json\`. One row per observed transition, animation, or declared keyframe; \`scrollTrigger\` is \`unknown\` unless sticky/fixed rules were observed on the page (marked inferred — verify against the live page).\n\n${timelineMd}\n\nRebuild each animated block with GSAP using the observed timings above (replace the prop placeholders with the observed end-state). Nothing was replayed; verify against the live page.\n\n## Hover and focus states\n\nDeclared hover/focus/active rules are static CSS evidence of state changes; nothing was hovered or activated during capture.\n\n${hover}\n\n## Interaction affordances\n\n${interactions.join("\n") || "None detected."}\n\nBehavior was not clicked or replayed. Structured controls and ARIA relationships are in \`data/interactions.json\`.\n`,
     "responsive-behavior.md": `# Responsive behavior\n\nEvidence is limited to CSS media queries plus actual desktop/mobile observations where mobile capture succeeded.\n\nMobile comparison with screenshots: ${pages.filter((page) => page.responsiveComparison?.status === "captured").map((page) => `\`${code(page.path)}\``).join(", ") || "none"}. DOM-only comparison (extract-only 390px pass, no screenshot): ${pages.filter((page) => page.responsiveComparison?.status === "dom-only").map((page) => `\`${code(page.path)}\``).join(", ") || "none"}. No comparison: ${pages.filter((page) => page.responsiveComparison?.status !== "captured" && page.responsiveComparison?.status !== "dom-only").map((page) => `\`${code(page.path)}\` (${code(page.responsiveComparison?.status || "unknown")})`).join(", ") || "none"}. Screenshot binaries are limited to the homepage plus one representative page by the Free-tier screenshot budget; DOM-only passes cost browser time instead of bytes.\n\n${pages.map((page) => `## ${md(page.path)}\n\n${(page.breakpoints?.mediaQueries || []).map((entry) => `- ${md(entry.query)} → ${entry.changedProperties.map(md).join(", ")}`).join("\n") || "No accessible media-query rules observed."}`).join("\n\n")}\n\n${responsive}\n`,
     "implementation-plan.md": `# Reconstruction guidance\n\nSource: ${md(analysis.request.url)}. Rebuild desktop-first at 1440px, then verify at 390px where mobile captures exist.\n\n## 1. Apply the observed theme\n\n- Paste \`theme.css\` (or \`tailwind.config.js\`) values; every value carries source/confidence — prefer \`observed\` over \`inferred\`.\n- Body text/background and heading/button roles are mapped in \`design-tokens.md\` under "Key observed roles".\n\n## 2. Rebuild pages in priority order\n\n${pages.map((page) => {

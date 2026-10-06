@@ -360,6 +360,31 @@ describe("client documentation generation", () => {
     }
   });
 
+  it("emits the CF36-3 placeholder directive with recorded dimensions (REBUILD + imagery consumer docs)", () => {
+    const analysis = fixture();
+    (analysis as Record<string, unknown>).assets = [
+      { url: "https://static.higgsfield.ai/card-1.png", kind: "image", alt: "Showcase still", width: 640, height: 360, usedOn: "https://example.com/", source: "reference-only", skipReason: "unresolvable-url" },
+      { url: "https://images.higgs.ai/loop-thumb.jpg", kind: "poster", alt: "Loop thumb", width: null, height: null, usedOn: "https://example.com/", source: "reference-only", skipReason: "unresolvable-url" },
+    ];
+    (analysis as Record<string, unknown>).assetCount = 2;
+    const { files } = buildDocumentationFiles(analysis, {});
+
+    // Per-section Assets block in REBUILD.md.
+    expect(files["REBUILD.md"]).toContain("Placeholders (required");
+    expect(files["REBUILD.md"]).toContain("Placeholder 640x360");
+    expect(files["REBUILD.md"]).toContain("picsum.photos/seed/showcase-still/640/360");
+    expect(files["REBUILD.md"]).toContain("NEVER hotlink the source CDN");
+    expect(files["REBUILD.md"]).toContain("NEVER omit the card");
+    // Unknown-dimensions fallback for the poster without recorded size.
+    expect(files["REBUILD.md"]).toContain("dimensions unknown — use 16:9 labeled block");
+    // data/assets.json consumer docs in imagery-and-video.md.
+    expect(files["imagery-and-video.md"]).toContain("## Placeholders (reference-only image/poster/video)");
+    expect(files["imagery-and-video.md"]).toContain("Placeholder 640x360");
+    expect(files["imagery-and-video.md"]).toContain("dimensions unknown — use 16:9 labeled block");
+    expect(files["imagery-and-video.md"]).toContain("data/assets.json");
+    expect(validateDocumentationPackage(files, {})).toEqual([]);
+  });
+
   it("feeds generated docs and binaries to the STORE ZIP writer", () => {
     const screenshotFiles = { "screenshots/desktop/home.webp": new Uint8Array([1]) };
     const { files } = buildDocumentationFiles(fixture(), screenshotFiles);

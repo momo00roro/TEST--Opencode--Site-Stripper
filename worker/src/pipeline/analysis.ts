@@ -883,10 +883,25 @@ export async function runAnalysis(
     }
 
     // PRD fidelity model: known product limits are always disclosed, but only
-    // when the evidence supports them (no blanket claims).
-    limitations.push(
-      "Custom fonts referenced by @font-face were not downloaded; text falls back to system stacks.",
-    );
+    // when the evidence supports them (no blanket claims). CF36-3: the
+    // @font-face limitation is conditional on observed font evidence —
+    // reference-only font entries mean observed-but-not-downloaded (keep the
+    // shortfall); all-downloaded means shipped (report the count); no font
+    // entries at all means nothing observed (push nothing).
+    {
+      const fontEntries = assets.filter((entry) => entry?.kind === "font");
+      const shippedFonts = fontEntries.filter((entry) => entry?.source === "downloaded").length;
+      const referenceFonts = fontEntries.length - shippedFonts;
+      if (referenceFonts > 0) {
+        limitations.push(
+          `Custom fonts referenced by @font-face were not downloaded (${referenceFonts} reference-only file(s)); text falls back to system stacks.`,
+        );
+      } else if (shippedFonts > 0) {
+        limitations.push(
+          `Custom fonts shipped: ${shippedFonts} @font-face file(s) downloaded under assets/fonts/ (see fonts.css).`,
+        );
+      }
+    }
     // Claim "not captured" only when nothing playing was actually caught:
     // video assets plus zero shots and zero thumbnails. A run with
     // motion-verified frames must not carry the blanket shortfall.

@@ -260,8 +260,10 @@ export interface RehydrateOptions {
   maxFiles?: number;
   // CF36-1 local-full only: when true, hero + image kinds also accept
   // raster bytes (image/jpeg, image/png, image/webp) with the same
-  // content-type sniffing as posters. The same-origin rule still applies
-  // to hero/image (only poster kind gets the cross-origin carve-out).
+  // content-type sniffing as posters. CF36-3: the flag also extends the
+  // poster cross-origin carve-out (assertPublicTarget only, no
+  // same-origin) to hero/image raster kinds. Same-origin stays the rule
+  // for SVG/logo/icon (identity assets must be first-party).
   allowRasterKinds?: boolean;
 }
 
@@ -444,16 +446,21 @@ export async function rehydrateAssets(
     // targets stay ineligible too — except poster kind, whose CDN hosts
     // (Sanity, Vimeo thumbs) are validated by the public-target SSRF
     // guard below instead of the same-origin rule. CF36-2 font kind shares
-    // the carve-out (fonts.gstatic.com and friends).
+    // the carve-out (fonts.gstatic.com and friends). CF36-3: hero/image
+    // raster kinds share it too, but ONLY when allowRasterKinds (local-full)
+    // is set — hosted/lite keeps today's same-origin behavior byte-identically.
+    // SVG/logo/icon never get the carve-out (identity assets stay first-party).
+    const rasterCarveout = allowRasterKinds && (asset.kind === "hero" || asset.kind === "image");
+    const crossOriginOk = asset.kind === "poster" || asset.kind === "font" || rasterCarveout;
     const target =
       unwrapOptimizerUrl(asset.url, options.origin) ??
-      (asset.kind === "poster" || asset.kind === "font" ? resolveCrossOriginPosterTarget(asset.url) : null);
+      (crossOriginOk ? resolveCrossOriginPosterTarget(asset.url) : null);
     const eligible =
       REHYDRATABLE_KINDS.has(asset.kind) ||
       (asset.kind === "image" &&
         target !== null &&
         (isSvgTarget(target) || allowRasterKinds));
-    return { asset, base, referenceOnly, target, eligible, posterKind: asset.kind === "poster", fontKind: asset.kind === "font" };
+    return { asset, base, referenceOnly, target, eligible, posterKind: asset.kind === "poster", fontKind: asset.kind === "font", rasterCarveout };
   });
 
   type Planned = (typeof planned)[number];
@@ -463,7 +470,7 @@ export async function rehydrateAssets(
   const usedFontPaths = new Set<string>();
 
   const attempt = async (index: number, entry: Planned): Promise<void> => {
-    const { asset, base, referenceOnly, target, posterKind, fontKind } = entry;
+    const { asset, base, referenceOnly, target, posterKind, fontKind, rasterCarveout } = entry;
     const done = (result: SnapshotAsset): void => {
       out[index] = result;
     };
@@ -489,12 +496,14 @@ export async function rehydrateAssets(
       // thumbs), so poster kind skips the same-origin equality check —
       // but ALWAYS keeps assertPublicTarget, the actual SSRF guard.
       // CF36-2 fonts get the same carve-out (fonts.gstatic.com and friends).
+      // CF36-3: hero/image raster kinds get it too when allowRasterKinds
+      // (local-full) is set; SVG/logo/icon never do.
       try {
         if (options.validate) {
           await options.validate(target);
         } else {
           const parsed = parseHttpUrl(target);
-          if (!posterKind && !fontKind && parsed.origin !== options.origin) {
+          if (!posterKind && !fontKind && !rasterCarveout && parsed.origin !== options.origin) {
             throw new Error("cross-origin asset");
           }
           await assertPublicTarget(parsed, options.fetchImpl);
@@ -534,10 +543,11 @@ export async function rehydrateAssets(
       // Redirects are followed by fetch: re-check the landed URL. Same
       // poster carve-out as above: public-target, not same-origin. Fonts
       // share the carve-out (CDN-to-CDN redirects are normal for fonts).
+      // CF36-3: hero/image raster kinds share it when allowRasterKinds is set.
       if (response.url) {
         try {
           if (new URL(response.url).origin !== options.origin) {
-            if (!posterKind && !fontKind) {
+            if (!posterKind && !fontKind && !rasterCarveout) {
               skippedUnresolvable += 1;
               done(referenceOnly("cross-origin-redirect"));
               return;

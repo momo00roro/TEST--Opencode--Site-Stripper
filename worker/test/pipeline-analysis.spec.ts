@@ -500,7 +500,43 @@ describe("runAnalysis (CF06)", () => {
       fetchImpl: mockSiteFetch(),
     });
 
-    expect(result.limitations.some((line) => line.includes("Custom fonts"))).toBe(true);
+    // CF36-3: the @font-face limitation is conditional — SAMPLE_SNAPSHOT
+    // observes no font faces, so no font claim is pushed (no blanket).
+    expect(result.limitations.some((line) => line.includes("Custom fonts"))).toBe(false);
+  });
+
+  it("discloses observed-but-not-downloaded @font-face files (CF36-3)", async () => {
+    const snapshot = {
+      ...SAMPLE_SNAPSHOT,
+      typography: {
+        fontFaces: [{ family: "Inter", src: `url(https://example.com/fonts/inter-400.woff2) format("woff2")`, weight: "400" }],
+        fontFamilies: [],
+        lineHeights: [],
+        letterSpacings: [],
+      },
+    };
+    const { page: base } = makeFakePage();
+    const launcher: SessionLauncher = {
+      name: "fake",
+      launch: async () => ({
+        newPage: async () => ({
+          ...base,
+          evaluate: (async <T>(fn: (() => T) | string): Promise<T> => {
+            const src = typeof fn === "string" ? fn : Function.prototype.toString.call(fn);
+            if (src.includes("maxHeadings")) return snapshot as unknown as T;
+            return base.evaluate(fn);
+          }) as typeof base.evaluate,
+        }),
+        close: async () => undefined,
+      }),
+    };
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetchWithDoh({}, { a: ["93.184.216.34"] }),
+      capture: "full",
+    });
+
+    expect(result.assets.some((entry) => entry.kind === "font" && entry.source === "reference-only")).toBe(true);
+    expect(result.limitations.some((line) => line.includes("Custom fonts") && line.includes("were not downloaded"))).toBe(true);
   });
 
   it("surfaces CF08 content and aggregates the asset manifest", async () => {
