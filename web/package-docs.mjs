@@ -464,30 +464,115 @@ function buildLayout(pages) {
   };
 }
 
+// CF34-local: grouped component inventory from fingerprint repeats plus
+// repeated section roles. A kind/role observed ≥2 times (by summed count)
+// becomes one reusable component entry {name, count, pages}. Dependency-free.
+function componentInventory(pages) {
+  const groups = new Map();
+  const add = (name, pagePath, weight, extra) => {
+    const key = String(name || "").trim();
+    if (!key || !pagePath) return;
+    const entry = groups.get(key) || { name: key, count: 0, pages: [], examples: [], signatures: [] };
+    entry.count += Number(weight || 1);
+    if (!entry.pages.includes(pagePath)) entry.pages.push(pagePath);
+    if (extra?.example && !entry.examples.includes(extra.example) && entry.examples.length < 5) entry.examples.push(extra.example);
+    if (extra?.signature && !entry.signatures.includes(extra.signature) && entry.signatures.length < 5) entry.signatures.push(extra.signature);
+    groups.set(key, entry);
+  };
+  for (const page of pages || []) {
+    for (const pattern of page.content?.components || []) {
+      if (!pattern || !pattern.kind) continue;
+      add(pattern.kind, page.path, Number(pattern.count || 1), { example: (pattern.examples || [])[0], signature: pattern.signature });
+    }
+    for (const section of page.content?.sections || []) {
+      if (!section || !section.role) continue;
+      add(`section:${section.role}`, page.path, 1, { example: section.heading || null });
+    }
+  }
+  return [...groups.values()]
+    .filter((entry) => entry.count >= 2)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+function buildComponentsMd(components) {
+  const lines = ["# Components", ""];
+  lines.push("Reusable inventory grouped from component fingerprints and repeated section roles (observed ≥2 times). Build each once, reuse across pages. Machine-readable source: `data/components.json` (`components` array).", "");
+  if (!components || components.length === 0) {
+    lines.push("(no repeated components observed — every fingerprint and section role appeared once)");
+    return lines.join("\n");
+  }
+  for (const entry of components) {
+    lines.push(`## ${md(entry.name)} (×${entry.count})`, "");
+    lines.push(`Pages: ${entry.pages.map((page) => `\`${code(page)}\``).join(", ")}`);
+    if ((entry.signatures || []).length > 0) lines.push(`Fingerprints: ${(entry.signatures || []).map((sig) => `\`${code(sig)}\``).join(", ")}`);
+    if ((entry.examples || []).length > 0) lines.push(`Examples: ${(entry.examples || []).map((example) => md(example)).join("; ")}`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
 // CF17: ordered agent build spec — global theme, then sections in order with
 // copy, layout, assets, and behaviors, then explicit known gaps.
-function buildRebuildMd(analysis, pages, assets) {
+// CF34-local ordering: 1) Tokens refs (data/tokens.json aliases),
+// 2) Layout shell (observed nav/footer), 3) per-section blocks with
+// screenshot path + token refs + copy + acceptance checkbox each.
+function buildRebuildMd(analysis, pages, assets, inventory, components) {
   const lines = [`# Rebuild guide — ${md(analysis.request.hostname)}`, ""];
   lines.push(`Source: ${md(analysis.request.url)}. Rebuild desktop-first at ${pages[0]?.viewport?.width || 1440}px, then verify at 390px where mobile captures exist. Apply \`theme.css\` values first (prefer \`observed\` confidence). Heading wraps (⏎) are marked in \`information-architecture.md\`; raw indices in \`data/pages.json\` \`headings[].breaks\`.`, "");
+  // 1) Tokens first: aliases ride alongside raw token-N keys, never replace them.
+  const aliases = aliasInventory(inventory || tokenInventory(pages));
+  const aliasRefs = Object.entries(aliases).map(([name, value]) => `${name} \`${code(value)}\``).join(", ");
+  lines.push("## 1. Tokens — apply before any section", "");
+  lines.push(`Apply \`theme.css\` values first (prefer \`observed\` confidence). Canonical source: \`data/tokens.json\` (\`aliases\` + per-category token-N keys); semantic samples in \`design-tokens.md\` under "Key observed roles".${aliasRefs ? ` Observed aliases: ${aliasRefs}.` : " No semantic aliases observed."}`);
+  lines.push("");
+  // 2) Layout shell: observed chrome shared across pages.
+  lines.push("## 2. Layout shell — nav/footer chrome", "");
+  const shellPages = (pages || []).filter((page) => page.nav && (page.nav.header?.length || page.nav.primary?.length || page.nav.footer?.length));
+  if (shellPages.length === 0) {
+    lines.push("(no observed navigation chrome — every page ships sections only; verify against the live page)");
+  } else {
+    for (const page of shellPages) {
+      const nav = page.nav || {};
+      const fmt = (links) => (links || []).map((link) => `${link.text || link.href || "(unlabelled)"}`).join(" / ") || "—";
+      lines.push(`- \`${code(page.path)}\` header: ${md(fmt(nav.header))}; primary: ${md(fmt(nav.primary))}; footer: ${md(fmt(nav.footer))} (observed navigation; full hrefs in \`data/navigation.json\`)`);
+    }
+  }
+  lines.push("");
+  // 3) Per-section blocks in document order.
   pages.forEach((page) => {
     const sections = page.content?.sections || [];
     const layouts = page.sectionLayouts || [];
+    const shots = page.sectionShots || [];
     const pageAssets = assets.filter((asset) => asset && asset.usedOn === page.url);
     sections.slice(0, 20).forEach((section, index) => {
       const layout = layouts[index] || {};
-      lines.push(`## Section ${index + 1}: ${md(section.heading || "Untitled")}`, "");
+      const heading = typeof section.heading === "string" ? section.heading : section.heading?.text;
+      lines.push(`## Section ${index + 1}: ${md(heading || "Untitled")} (\`${code(page.path)}\`)`, "");
+      const shot = shots[index];
+      const shotRef = shot ? shotPath(page, "section", index, shot) : `screenshots/sections/${slug(page.path)}-${index + 1}.webp`;
+      lines.push(`Screenshot: \`${code(shotRef)}\`${shot ? ` (${shot.width || "?"}×${shot.height || "?"})` : " (expected capture path; no binary in this pack)"} — match geometry against \`data/layout.json\`.`);
+      const styles = section.sectionStyles || {};
+      const styleBits = [`bg \`${code(styles.backgroundColor || layout.background || "transparent")}\``, `text \`${code(styles.color || "inherit")}\``, `font \`${code(styles.fontSize || "inherit")}\``, `padding \`${code(styles.padding || "inherit")}\``, `radius \`${code(styles.borderRadius || "inherit")}\``].join(", ");
+      lines.push(`Tokens: see \`data/tokens.json\` aliases${aliasRefs ? ` (${aliasRefs})` : ""}; section style: ${styleBits}.`);
       const copy = (page.content?.blocks || []).filter((block) => block.sectionIndex === index).slice(0, 8);
-      lines.push(`Copy: ${copy.map((block) => md(block.text).slice(0, 120)).join(" / ") || "(see pages/*.md for verbatim text)"}`);
+      const copyText = copy.map((block) => md(block.text).slice(0, 120)).join(" / ") || (section.textExcerpt ? md(section.textExcerpt).slice(0, 300) : "(see pages/*.md for verbatim text)");
+      lines.push(`Copy: ${copyText}`);
       const comps = (layout.components || []).map((c) => `${c.kind} ${c.w}x${c.h}`).join(", ");
-      lines.push(`Layout: ${layout.y ?? "?"}+${layout.height ?? "?"}px, align ${md(layout.textAlign || "left")}, columns \`${code(layout.columns || "single")}\`, bg ${md(layout.background || "transparent")}${comps ? `; media: ${comps}` : ""}`);
+      lines.push(`Layout: ${layout.y ?? "?"}+${layout.height ?? "?"}px, align ${md(layout.textAlign || "left")}, columns \`${code(layout.columns || "single")}\`, bg ${md(layout.background || styles.backgroundColor || "transparent")}${comps ? `; media: ${comps}` : ""}`);
       const local = pageAssets.filter((asset) => asset.source === "downloaded" && asset.localPath);
       const refs = pageAssets.filter((asset) => asset.source !== "downloaded").length;
       lines.push(`Assets: ${local.map((asset) => `prefer \`${code(asset.localPath)}\``).join(", ") || "no downloaded assets"}${refs > 0 ? `; ${refs} URL reference(s) — recreate, do not hotlink` : ""}`);
       const tabs = (page.content?.tabSets || []).map((set) => set.tabs.map((tab) => `${tab.label}${tab.selected ? "*" : ""}`).join("/")).join("; ");
       if (tabs) lines.push(`Tabs: ${md(tabs)} (* = default; show all panels unless only one is visible)`);
+      lines.push(`- [ ] Section ${index + 1} matches \`${code(shotRef)}\` at ${pages[0]?.viewport?.width || 1440}px with tokens above and verbatim copy.`);
       lines.push("");
     });
   });
+  if ((components || []).length > 0) {
+    lines.push("## Components — build once, reuse", "");
+    for (const entry of components) lines.push(`- ${md(entry.name)} ×${entry.count} on ${entry.pages.map((page) => `\`${code(page)}\``).join(", ")} (see \`components.md\` + \`data/components.json\`)`);
+    lines.push("");
+  }
   const skipped = assets.filter((asset) => asset && asset.source !== "downloaded");
   const reasons = {};
   for (const asset of skipped) reasons[asset.skipReason || "unknown"] = (reasons[asset.skipReason || "unknown"] || 0) + 1;
@@ -686,7 +771,8 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
   }).join("\n")}\n\n## 3. Components and interactions\n\n- Repeat patterns: \`data/components.json\` (occurrence counts plus representative examples per page).\n- Static affordances: \`data/interactions.json\`. Nothing was clicked or replayed — implement behavior intentionally.\n\n## 4. Verify and record gaps\n\n- Compare at the recorded viewport sizes against \`screenshots/\`.\n- Any collection marked partial in \`data/report.json\` coverage is incomplete evidence, not an exhaustive spec.\n`,
     "data/pages.json": json(pages.map(cleanPage)),
     "data/tokens.json": json(w3cTokens(inventory, analysis)),
-    "data/components.json": json({ schemaVersion: analysis.schemaVersion, pages: pages.map((page) => ({ path: page.path, count: page.content?.components?.length || 0, sourcePatterns: page.content?.coverage?.components || null, patterns: page.content?.components || [] })), note: "Pattern fingerprints are heuristics based on semantic structure and safe class hints; not a source framework component tree." }),
+    "data/components.json": json({ schemaVersion: analysis.schemaVersion, components: componentInventory(pages), pages: pages.map((page) => ({ path: page.path, count: page.content?.components?.length || 0, sourcePatterns: page.content?.coverage?.components || null, patterns: page.content?.components || [] })), note: "Pattern fingerprints are heuristics based on semantic structure and safe class hints; not a source framework component tree. components[] groups fingerprints + repeated section roles with count >= 2." }),
+    "components.md": buildComponentsMd(componentInventory(pages)),
     "data/navigation.json": json({ homepage: analysis.request.url, selectedPages: (analysis.selection?.candidates || []).filter((candidate) => candidate.selected).map((candidate) => ({ path: candidate.path, url: candidate.url, label: candidate.label, priority: candidate.priority, reason: candidate.reason })), observed: pages.map((page) => ({ path: page.path, header: page.nav?.header || [], primary: page.nav?.primary || [], footer: page.nav?.footer || [] })) }),
     "data/selection.json": json(analysis.selection || { maxPages: analysis.request.maxPages, pagesDiscovered: analysis.pagesDiscovered, pagesSelected: analysis.pagesSelected, candidates: [] }),
     "data/interactions.json": json({ schemaVersion: analysis.schemaVersion, pages: pages.map((page) => ({ path: page.path, affordances: page.observedInteractions || [], hoverStates: page.hoverStates || [], controls: page.content?.controls || [], formActions: page.formActions || [], coverage: { controls: page.content?.coverage?.controls || null, interactions: page.content?.coverage?.interactions || null }, limitation: "Static DOM affordances and declared CSS state rules only; no source JavaScript behavior was replayed, no form was submitted." })) }),
@@ -695,7 +781,7 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
     "data/report.json": json({ schemaVersion: analysis.schemaVersion, sourceUrl: analysis.request.url, pagesDiscovered: analysis.pagesDiscovered, pagesSelected: analysis.pagesSelected, pagesAnalyzed: analysis.pagesAnalyzed, screenshotsCaptured: analysis.screenshotsCaptured, screenshotBytesCaptured: analysis.screenshotBytesTotal, screenshotBinariesIncluded: manifest.shots.filter((shot) => shot.hasBinary).length, browserSecondsUsed: analysis.browserSecondsUsed, timings: analysis.timings, issues: analysis.issues, warnings: analysis.warnings, limitations: analysis.limitations, coverage, observationIntegrityPassed: analysis.integrityPassed, packageIntegrityPassed: true }),
     "screenshots/manifest.json": json(manifest),
     "data/layout.json": json(buildLayout(pages)),
-    "REBUILD.md": buildRebuildMd(analysis, pages, assets),
+    "REBUILD.md": buildRebuildMd(analysis, pages, assets, inventory, componentInventory(pages)),
   };
   const { theme, tailwind } = themeFiles(inventory, pages);
   docs["theme.css"] = theme;
