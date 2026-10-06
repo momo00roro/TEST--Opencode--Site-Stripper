@@ -294,3 +294,112 @@ describe("cf34 ordered rebuild", () => {
     expect(files["data/components.json"]).toBeDefined();
   });
 });
+
+describe("cf35-2 layout-carrying pack", () => {
+  it("carries sectionLayouts/geometry/layoutSamples into pages.json, y-orders layout.json, renders columns/components/type", () => {
+    // REAL cline.bot shape: two-column hero (729px text + 530px visual).
+    const analysis = {
+      schemaVersion: "0.2.0",
+      request: { url: "https://example.com", hostname: "example.com", maxPages: 1 },
+      pages: [
+        {
+          path: "/",
+          url: "https://example.com/",
+          title: "Home",
+          viewport: { width: 1440, height: 900 },
+          tokens: {},
+          typography: {},
+          semanticStyles: [
+            { role: "heading-1", fontFamily: "Inter", fontSize: "48px", fontWeight: "700", lineHeight: "1.1", letterSpacing: "-0.02em", color: "#111", backgroundColor: "rgba(0,0,0,0)", width: "729px", display: "block", gridTemplateColumns: "none", gap: "0" },
+          ],
+          geometry: { containerWidths: [1440, 1280, 1024, 768, 640, 390], sampledElements: 6 },
+          layoutSamples: Array.from({ length: 10 }, (_, i) => ({ role: "main", width: 1200 - i, height: 800, display: "grid", columns: "1fr 1fr", gap: "24px", visible: true })),
+          motion: { transitions: [], animations: [], keyframes: [], animatedSelectors: [] },
+          observedInteractions: [],
+          content: {
+            blocks: [{ order: 0, kind: "heading", tag: "h1", headingLevel: 1, sectionIndex: 0, text: "The Open Coding Agent", truncated: false }],
+            sections: [
+              { role: "section", heading: "The Open Coding Agent", textExcerpt: "Hero copy" },
+              { role: "section", heading: "Logos", textExcerpt: "Logo wall" },
+            ],
+          },
+          // Deliberately out of y-order: layout.json must sort by y.
+          sectionLayouts: [
+            { heading: "The Open Coding Agent", y: 0, height: 953, columns: "729.469px 530.516px", background: "rgba(0,0,0,0)", textAlign: "left", components: [{ kind: "canvas", w: 383, h: 361 }, { kind: "table", w: 451, h: 425 }] },
+            { heading: "Logos", y: 953, height: 400, columns: "none", background: "rgb(255, 255, 255)", textAlign: "center", components: [] },
+          ],
+        },
+      ],
+      selection: { candidates: [] },
+      pagesDiscovered: 1,
+      pagesSelected: 1,
+      pagesAnalyzed: 1,
+      screenshotsCaptured: 0,
+      screenshotBytesTotal: 0,
+      browserSecondsUsed: 0,
+      issues: [],
+      warnings: [],
+      limitations: [],
+      integrityPassed: true,
+      assets: [],
+      assetCount: 0,
+    };
+    const { files } = buildDocumentationFiles(analysis, {});
+    const pageJson = JSON.parse(files["data/pages.json"]);
+    expect(pageJson[0].sectionLayouts).toHaveLength(2);
+    expect(JSON.stringify(pageJson[0].sectionLayouts)).toContain("729.469px");
+    expect(pageJson[0].sectionLayouts[0].components[0]).toMatchObject({ kind: "canvas", w: 383, h: 361 });
+    expect(pageJson[0].geometry.containerWidths).toHaveLength(5);
+    expect(pageJson[0].layoutSamples).toHaveLength(8);
+    expect(pageJson[0].semanticStyles[0].role).toBe("heading-1");
+    expect(files["data/layout.json"]).toBeDefined();
+    const layout = JSON.parse(files["data/layout.json"]);
+    expect(layout.pages[0].sections.map((s: { y: number }) => s.y)).toEqual([0, 953]);
+    const rebuild = files["REBUILD.md"];
+    expect(rebuild).toContain("729");
+    expect(rebuild).toContain("canvas 383x361");
+    expect(rebuild).toContain("Inter");
+    expect(rebuild).toContain("- [ ]");
+  });
+
+  it("renders an honest fallback when no section geometry was observed", () => {
+    const analysis = {
+      schemaVersion: "0.2.0",
+      request: { url: "https://example.com", hostname: "example.com", maxPages: 1 },
+      pages: [
+        {
+          path: "/",
+          url: "https://example.com/",
+          title: "Home",
+          viewport: { width: 1440, height: 900 },
+          tokens: {},
+          typography: {},
+          semanticStyles: [],
+          motion: { transitions: [], animations: [], keyframes: [], animatedSelectors: [] },
+          observedInteractions: [],
+          content: {
+            blocks: [],
+            sections: [{ role: "section", heading: "Bare", textExcerpt: "No geometry" }],
+          },
+          sectionLayouts: [],
+        },
+      ],
+      selection: { candidates: [] },
+      pagesDiscovered: 1,
+      pagesSelected: 1,
+      pagesAnalyzed: 1,
+      screenshotsCaptured: 0,
+      screenshotBytesTotal: 0,
+      browserSecondsUsed: 0,
+      issues: [],
+      warnings: [],
+      limitations: [],
+      integrityPassed: true,
+      assets: [],
+      assetCount: 0,
+    };
+    const { files } = buildDocumentationFiles(analysis, {});
+    expect(files["REBUILD.md"]).toContain("layout not observed");
+    expect(files["REBUILD.md"]).toContain("- [ ]");
+  });
+});

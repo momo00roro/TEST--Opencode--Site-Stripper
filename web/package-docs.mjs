@@ -59,7 +59,7 @@ const uniqueBy = (values, keyFn) => {
 };
 
 function cleanPage(page) {
-  return {
+  const cleaned = {
     ...page,
     screenshot: page.screenshot ? Object.fromEntries(Object.entries(page.screenshot).filter(([key]) => key !== "dataUrl")) : null,
     mobileScreenshot: page.mobileScreenshot ? Object.fromEntries(Object.entries(page.mobileScreenshot).filter(([key]) => key !== "dataUrl")) : null,
@@ -67,6 +67,33 @@ function cleanPage(page) {
     videoShots: (page.videoShots || []).map((shot) => Object.fromEntries(Object.entries(shot).filter(([key]) => key !== "dataUrl"))),
     videoThumbnails: (page.videoThumbnails || []).map((shot) => Object.fromEntries(Object.entries(shot).filter(([key]) => key !== "dataUrl"))),
   };
+  // CF35-2 (additive, capped): carry observed layout into data/pages.json.
+  // Screenshot dataUrl stripping above never touches these fields; the caps
+  // below bound pack size without inventing geometry. semanticStyles rides
+  // the ...page spread untouched (left as-is by design).
+  if (Array.isArray(page.sectionLayouts)) {
+    cleaned.sectionLayouts = page.sectionLayouts.slice(0, 20).map((layout) => {
+      const entry = {};
+      if (layout.heading !== undefined) entry.heading = layout.heading;
+      if (layout.y !== undefined) entry.y = layout.y;
+      if (layout.height !== undefined) entry.height = layout.height;
+      if (layout.columns !== undefined) entry.columns = layout.columns;
+      if (layout.background !== undefined) entry.background = layout.background;
+      if (layout.textAlign !== undefined) entry.textAlign = layout.textAlign;
+      entry.components = Array.isArray(layout.components) ? layout.components.slice(0, 12) : [];
+      return entry;
+    });
+  }
+  if (page.geometry && typeof page.geometry === "object") {
+    cleaned.geometry = {
+      ...page.geometry,
+      containerWidths: Array.isArray(page.geometry.containerWidths) ? page.geometry.containerWidths.slice(0, 5) : page.geometry.containerWidths,
+    };
+  }
+  if (Array.isArray(page.layoutSamples)) {
+    cleaned.layoutSamples = page.layoutSamples.slice(0, 8);
+  }
+  return cleaned;
 }
 
 function tokenInventory(pages) {
@@ -725,27 +752,40 @@ function motionTimelineMd(pages, timeline) {
 // CF16: machine-readable section layout — geometry, alignment, columns,
 // background, and media/form/table boxes per section, so a rebuild knows
 // composition without eyeballing screenshots.
+// CF35-2: sections are y-ordered (null y sorts last) for machine consumers;
+// `section` is the 1-based document-order index, `order` is the 0-based twin
+// kept for backward compatibility. Never invents geometry.
 function buildLayout(pages) {
   return {
     pages: pages.map((page) => {
       const sections = page.content?.sections || [];
       const layouts = page.sectionLayouts || [];
+      const rows = sections.slice(0, 20).map((section, index) => {
+        const layout = layouts[index] || {};
+        return {
+          section: index + 1,
+          order: index,
+          heading: section.heading || layout.heading || "",
+          y: layout.y ?? null,
+          height: layout.height ?? null,
+          textAlign: layout.textAlign || "",
+          columns: layout.columns || "",
+          background: layout.background || "",
+          components: (layout.components || []).slice(0, 12),
+        };
+      });
+      rows.sort((a, b) => {
+        const ay = typeof a.y === "number" && Number.isFinite(a.y) ? a.y : null;
+        const by = typeof b.y === "number" && Number.isFinite(b.y) ? b.y : null;
+        if (ay == null && by == null) return a.order - b.order;
+        if (ay == null) return 1;
+        if (by == null) return -1;
+        return ay - by || a.order - b.order;
+      });
       return {
         path: page.path,
         viewport: page.viewport || null,
-        sections: sections.slice(0, 20).map((section, index) => {
-          const layout = layouts[index] || {};
-          return {
-            order: index,
-            heading: section.heading || layout.heading || "",
-            y: layout.y ?? null,
-            height: layout.height ?? null,
-            textAlign: layout.textAlign || "",
-            columns: layout.columns || "",
-            background: layout.background || "",
-            components: (layout.components || []).slice(0, 12),
-          };
-        }),
+        sections: rows,
       };
     }),
   };
@@ -798,6 +838,43 @@ function buildComponentsMd(components) {
   return lines.join("\n");
 }
 
+// CF35-2: layout-carrying REBUILD helpers (dependency-free, no imports).
+// describeColumns turns an observed grid-columns value into a rebuild-ready
+// spec ("2 columns: 729.469px + 530.516px"); 'none'/single/empty means the
+// section rendered as one column. Raw tokens are preserved verbatim so
+// evidence (e.g. "729") stays greppable. Never invents: unknown input falls
+// back to "single column" only for the explicit single-value cases.
+function describeColumns(columns) {
+  const raw = String(columns ?? "").trim();
+  if (!raw || /^(none|single)$/i.test(raw)) return "single column";
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  if (tokens.length <= 1) return `single column (\`${code(raw)}\`)`;
+  return `${tokens.length} columns: ${tokens.join(" + ")}`;
+}
+
+function hasLayoutEvidence(layout) {
+  if (!layout || typeof layout !== "object") return false;
+  if (Number.isFinite(Number(layout.y)) && String(layout.y) !== "") return true;
+  if (Number.isFinite(Number(layout.height)) && String(layout.height) !== "") return true;
+  const cols = String(layout.columns ?? "").trim();
+  if (cols && !/^(none|single)$/i.test(cols)) return true;
+  if (String(layout.background ?? "").trim()) return true;
+  if (Array.isArray(layout.components) && layout.components.length > 0) return true;
+  if (String(layout.textAlign ?? "").trim()) return true;
+  return false;
+}
+
+// Largest observed heading role on the page by font size (fallback: first
+// heading sample). Returns the semanticStyles sample or null when no
+// heading role was sampled — callers render an honest fallback, never type
+// pulled from frequency or thin air.
+function largestHeadingType(page) {
+  const headings = (page?.semanticStyles || []).filter((sample) => sample && String(sample.role || "").startsWith("heading"));
+  if (headings.length === 0) return null;
+  const size = (sample) => parsePx(sample?.fontSize) ?? 0;
+  return [...headings].sort((a, b) => size(b) - size(a))[0];
+}
+
 // CF17: ordered agent build spec — global theme, then sections in order with
 // copy, layout, assets, and behaviors, then explicit known gaps.
 // CF34-local ordering: 1) Tokens refs (data/tokens.json aliases),
@@ -844,8 +921,33 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
       const copy = (page.content?.blocks || []).filter((block) => block.sectionIndex === index).slice(0, 8);
       const copyText = copy.map((block) => md(block.text).slice(0, 120)).join(" / ") || (section.textExcerpt ? md(section.textExcerpt).slice(0, 300) : "(see pages/*.md for verbatim text)");
       lines.push(`Copy: ${copyText}`);
-      const comps = (layout.components || []).map((c) => `${c.kind} ${c.w}x${c.h}`).join(", ");
-      lines.push(`Layout: ${layout.y ?? "?"}+${layout.height ?? "?"}px, align ${md(layout.textAlign || "left")}, columns \`${code(layout.columns || "single")}\`, bg ${md(layout.background || styles.backgroundColor || "transparent")}${comps ? `; media: ${comps}` : ""}`);
+      // CF35-2: observed geometry per section — position, columns spec,
+      // background, components, and the page's largest heading type. Absent
+      // layout renders an honest fallback, never invented single-column copy.
+      if (!hasLayoutEvidence(layout)) {
+        lines.push(`Layout: layout not observed — no section geometry captured for this section; verify against \`${code(shotRef)}\` and the live page.`);
+      } else {
+        const yNum = Number(layout.y);
+        const hNum = Number(layout.height);
+        const position = Number.isFinite(yNum) && Number.isFinite(hNum)
+          ? `position y=${layout.y}px, height=${layout.height}px`
+          : Number.isFinite(yNum)
+            ? `position y=${layout.y}px, height not observed`
+            : Number.isFinite(hNum)
+              ? `position y not observed, height=${layout.height}px`
+              : `position not observed`;
+        const columnsSpec = describeColumns(layout.columns);
+        const bg = String(layout.background ?? "").trim() ? `\`${code(layout.background)}\`` : "not observed";
+        const comps = (layout.components || []).map((c) => `${c.kind || "node"} ${c.w ?? "?"}x${c.h ?? "?"}`).join(", ") || "no observed components";
+        const align = String(layout.textAlign ?? "").trim() ? `, align ${md(layout.textAlign)}` : "";
+        lines.push(`Layout: ${position}; columns ${columnsSpec}${align}; background ${bg}; components: ${md(comps)}`);
+      }
+      const typeSample = largestHeadingType(page);
+      if (typeSample) {
+        lines.push(`Type: ${md(typeSample.role)} — ${md(typeSample.fontFamily || "unknown family")} ${code(typeSample.fontSize || "?")}, weight ${code(typeSample.fontWeight || "?")}, tracking ${code(typeSample.letterSpacing || "?")} (largest observed heading role on \`${code(page.path)}\`)`);
+      } else {
+        lines.push(`Type: type not observed on this page — no heading semanticStyles sampled; verify against the live page.`);
+      }
       const local = pageAssets.filter((asset) => asset.source === "downloaded" && asset.localPath);
       const refs = pageAssets.filter((asset) => asset.source !== "downloaded").length;
       lines.push(`Assets: ${local.map((asset) => `prefer \`${code(asset.localPath)}\``).join(", ") || "no downloaded assets"}${refs > 0 ? `; ${refs} URL reference(s) — recreate, do not hotlink` : ""}`);
