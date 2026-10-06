@@ -667,7 +667,7 @@ Completed and verified by automated tests:
 - Package integrity: client-generated JSON is validated before download; page observations expose collection counts/caps/truncation; screenshot manifest binary flags are validated against ZIP paths; ZIP CRC32 checksums are verified against the known vector.
 - `npm run typecheck` passes with zero errors.
 - Screenshot fidelity: capture scrolls in 0.8-viewport bands with 350ms painted pauses, waits for images to finish decoding, then settles fonts plus video first-frames, with extended pauses on video/canvas pages before settling at the top for capture, so scroll-triggered reveals and lazy media are included. Full-page height cap is 16000px (Chrome's ~16384px canvas ceiling), and local previews inline every shot up to the 10MB byte cap.
-- Vitest suite passes with 356 tests across 19 test files; local live-site verification is not evidence of hosted Free-tier compliance.
+- Vitest suite passes with 357 tests across 19 test files; local live-site verification is not evidence of hosted Free-tier compliance.
 
 Open or next milestones:
 

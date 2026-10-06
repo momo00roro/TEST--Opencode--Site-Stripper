@@ -177,6 +177,35 @@ extract-only → **46.1 s** (vs 193 s full), 51 headings / 20 sections /
 Unit cover: route test (`?screenshots=0` → zero `screenshot()` calls) and
 pipeline test (throwing encoder never invoked).
 
+### CF33 — hosted-lite domcontentloaded-first navigation (built 2026-10-06, unpushed)
+
+Tail-measured higgsfield full-lite run died at 45 s wall with **cpuTime 2020 ms
+(`outcome: exceededCpu`)** — the effective free budget is ≈ 2 s CPU per
+invocation, and capture-phase ingress blows past it. Biggest early cost is
+the 12 s `networkidle2` firehose-track (plus the domcontentloaded retry =
+double navigation) on media-heavy pages. CF33: hosted-lite navigates on
+`domcontentloaded` (no idle wait, no retry); full capture keeps
+networkidle2+retry. Threaded as `waitUntil` through `captureOne` for all
+five capture sites; lite limitation discloses it. Known trade-off (H1
+lesson): less-settled pages may report more unloaded media; the settle +
+lazy-sweep passes still run deterministically afterwards.
+
+### Decisive extract-only production run (2026-10-06, fresh meter)
+
+CF32 live (`41eb9792`). higgsfield.ai extract-only (`?screenshots=0`,
+maxPages 1 + mobile) via API: HTTP 200 but **truncated after 30.6 s** (same
+2-line signature, 189 bytes). So the killer is **not screenshot-ingress**:
+with zero screenshots, zero video passes, and zero asset downloads, the
+isolate still died ~30 s into the homepage capture. Snapshot ruled out as
+the weapon (local extractionBytes: 153 KB). Remaining prime suspect is the
+first-30 s window itself — `networkidle2` navigation tracking every request
+of a 290-image autoplaying-video firehose, plus the settle/snapshot
+evaluates — i.e. capture-phase protocol ingress, variably over the free CPU
+ceiling. Meter used ≈ 0.5 min + ≤90 s orphan. Next: either rerun with tail
+to capture the exact error + cpuTime, or operate on the navigation
+hypothesis (domcontentloaded-first / request filtering, trading hydration
+per the H1 lesson).
+
 ## Follow-ups
 
 - Asset poster rehydration still routes downloaded `<svg>` bytes through

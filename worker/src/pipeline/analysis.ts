@@ -18,7 +18,7 @@ import type {
   SnapshotTypography,
   SnapshotVideo,
 } from "../browser/snapshot-script";
-import type { AnalysisSession, SessionLauncher } from "../browser/types";
+import type { AnalysisSession, SessionLauncher, WaitUntil } from "../browser/types";
 import { LIMITS, SCHEMA_VERSION } from "../config/limits";
 import { discoverCandidates } from "../discovery/discover";
 import type { DiscoveryResult } from "../discovery/types";
@@ -289,9 +289,13 @@ export async function runAnalysis(
     ? LIMITS.maxTotalScreenshotBytes
     : LIMITS.maxTotalScreenshotBytes * 2.5;
   const maxVideoShotsCap = liteCapture ? LIMITS.maxVideoShotsLite : LIMITS.maxVideoShots;
-  if (liteCapture && wantScreenshots) {
+  // CF33: hosted-lite navigates on domcontentloaded (skip the networkidle2
+  // firehose-track that burns the free CPU); full capture keeps
+  // networkidle2+retry. Threaded into every captureOne call below.
+  const navWait: WaitUntil | undefined = liteCapture ? "domcontentloaded" : undefined;
+  if (liteCapture) {
     limitations.push(
-      `Hosted lite capture: playing-state video clips are capped at ${LIMITS.maxVideoShotsLite} per homepage (full: ${LIMITS.maxVideoShots}); run locally for the full-fidelity pack.`,
+      `Hosted lite capture: navigates on domcontentloaded without waiting for network idle (late-loading media may appear blank), video clips capped at ${LIMITS.maxVideoShotsLite} per homepage (full: ${LIMITS.maxVideoShots}); run locally for the full-fidelity pack.`,
     );
   }
   if (!wantScreenshots) {
@@ -329,6 +333,7 @@ export async function runAnalysis(
         fetchImpl,
         maxBytes: screenshotByteBudget,
         wallBudgetMs,
+        waitUntil: navWait,
         maxSectionShots: wantScreenshots ? LIMITS.maxSectionScreenshots : 0,
         maxVideoShots: wantScreenshots ? maxVideoShotsCap : 0,
         analysisStartedAt: startedAt,
@@ -423,6 +428,7 @@ export async function runAnalysis(
             viewportWidth: LIMITS.mobileViewportWidth,
             maxBytes: Math.max(screenshotByteBudget - screenshotBytesTotal, 0),
             fetchImpl,
+            waitUntil: navWait,
           });
           captureTimings.push(mobile.timings);
           screenshotBytesTotal += mobile.screenshotBytes;
@@ -548,6 +554,7 @@ export async function runAnalysis(
           captureScreenshot: canScreenshot,
           maxBytes: remainingScreenshotBytes,
           fetchImpl,
+          waitUntil: navWait,
         });
         captureTimings.push(captured.timings);
         if (isChallengeSnapshot(captured.capture.snapshot)) {
@@ -606,6 +613,7 @@ export async function runAnalysis(
           fetchImpl,
           captureScreenshot: screenshotBytesTotal < screenshotByteBudget,
           maxBytes: Math.max(screenshotByteBudget - screenshotBytesTotal, 0),
+          waitUntil: navWait,
         });
         captureTimings.push(mobileRep.timings);
         screenshotBytesTotal += mobileRep.screenshotBytes;
@@ -672,6 +680,7 @@ export async function runAnalysis(
             viewportWidth: LIMITS.mobileViewportWidth,
             captureScreenshot: false,
             fetchImpl,
+            waitUntil: navWait,
           });
           captureTimings.push(mobileOnly.timings);
           if (mobileOnly.extractionBytes > LIMITS.maxExtractionPayloadBytes) oversizePages += 1;
@@ -998,6 +1007,12 @@ async function captureOne(
     analysisStartedAt?: number;
     /** Wall-budget override in ms (tests); defaults to LIMITS. */
     wallBudgetMs?: number;
+    /**
+     * Navigation wait condition (CF33). The pipeline sets domcontentloaded
+     * for hosted-lite (skip the networkidle2 firehose-track) and leaves it
+     * unset for full capture (capturePage defaults to networkidle2+retry).
+     */
+    waitUntil?: WaitUntil;
   },
 ): Promise<{
   url: string;
@@ -1033,6 +1048,7 @@ async function captureOne(
       ...(options.maxVideoShots !== undefined ? { maxVideoShots: options.maxVideoShots } : {}),
       ...(options.maxBytes !== undefined ? { maxBytes: options.maxBytes } : {}),
       ...(options.detectRotationMs !== undefined ? { detectRotationMs: options.detectRotationMs } : {}),
+      ...(options.waitUntil !== undefined ? { waitUntil: options.waitUntil } : {}),
     });
     // Isolated video tier (CF22): the site page is closed FIRST so only one
     // tab is ever open (Trap 3). Each deferred stream renders in a clean

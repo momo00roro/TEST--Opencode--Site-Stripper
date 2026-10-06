@@ -609,6 +609,25 @@ describe("runAnalysis (CF06)", () => {
     expect(result.limitations.some((line) => line.includes("Hosted lite capture"))).toBe(true);
   });
 
+  it("lite navigates on domcontentloaded while full keeps networkidle2", async () => {
+    const lite = makeFakeLauncher("fake");
+    await runAnalysis(lite.launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+      capture: "lite",
+    });
+    const liteWaits = lite.state.gotos.map((goto) => goto.options?.waitUntil);
+    expect(liteWaits.length).toBeGreaterThan(0);
+    expect(liteWaits.every((wait) => wait === "domcontentloaded")).toBe(true);
+
+    const full = makeFakeLauncher("fake");
+    await runAnalysis(full.launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+    });
+    const fullWaits = full.state.gotos.map((goto) => goto.options?.waitUntil);
+    expect(fullWaits.length).toBeGreaterThan(0);
+    expect(fullWaits.every((wait) => wait === "networkidle2")).toBe(true);
+  });
+
   it("renders deferred streams isolated and inlines their dataUrls", async () => {
     const streams: Record<number, { status: string; x: number; y: number; label: string; streamUrl: string }> = {};
     for (let i = 0; i < 12; i += 1) {
