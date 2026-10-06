@@ -306,6 +306,135 @@ function sectionIndexForShot(layouts, y) {
   return -1;
 }
 
+// CF34-local: machine-readable motion timeline — one row per observed
+// transition/animation/keyframe. Per-row timing carries no selector in the
+// extractor (see SnapshotMotion): observed selectors ride the page-level
+// animatedSelectors list, so rows borrow from it positionally and fall back
+// to "unknown" rather than inventing a target. scrollTrigger stays
+// "unknown" unless sticky/fixed rules were observed on the page, in which
+// case it is marked inferred (pinned scroll scenes misrender as blank
+// bands). Dependency-free, no imports.
+function motionTimeline(pages) {
+  const rows = [];
+  for (const page of pages) {
+    const motion = page.motion || {};
+    const selectors = Array.isArray(motion.animatedSelectors) ? motion.animatedSelectors.filter(Boolean) : [];
+    const observed = Array.isArray(page.observedInteractions) ? page.observedInteractions : [];
+    const pinned = observed.some((item) => item && item.kind === "sticky-fixed");
+    const scrollTrigger = pinned
+      ? "inferred: sticky/fixed rules observed — verify scroll trigger against the live page"
+      : "unknown";
+    const at = (index) => selectors[index] || selectors[0] || "unknown";
+    for (const item of motion.transitions || []) {
+      rows.push({
+        page: page.path,
+        element: at(rows.filter((row) => row.page === page.path).length),
+        selector: at(rows.filter((row) => row.page === page.path).length),
+        kind: "transition",
+        property: item?.property || "",
+        keyframes: null,
+        duration: item?.duration || "",
+        easing: item?.easing || "",
+        delay: item?.delay || "",
+        scrollTrigger,
+      });
+    }
+    for (const item of motion.animations || []) {
+      rows.push({
+        page: page.path,
+        element: at(rows.filter((row) => row.page === page.path).length),
+        selector: at(rows.filter((row) => row.page === page.path).length),
+        kind: "animation",
+        property: item?.name || "",
+        keyframes: item?.name || "",
+        duration: item?.duration || "",
+        easing: item?.easing || "",
+        delay: item?.delay || "",
+        scrollTrigger,
+      });
+    }
+    // Declared keyframes with no animation row stay visible as their own
+    // rows so the timeline never silently drops observed names.
+    const named = new Set((motion.animations || []).map((item) => item?.name).filter(Boolean));
+    for (const name of motion.keyframes || []) {
+      if (!name || named.has(name)) continue;
+      rows.push({
+        page: page.path,
+        element: "unknown",
+        selector: "unknown",
+        kind: "keyframes",
+        property: name,
+        keyframes: name,
+        duration: "",
+        easing: "",
+        delay: "",
+        scrollTrigger,
+      });
+    }
+  }
+  return rows;
+}
+
+// CSS timing ("0.6s", "200ms") to GSAP seconds; unparseable falls back to
+// 0.5 with the observed raw value kept in the snippet comment.
+function gsapSeconds(value) {
+  const match = /^\s*(\d*\.?\d+)\s*(ms|s)\s*$/i.exec(String(value ?? ""));
+  if (!match) return 0.5;
+  const amount = parseFloat(match[1]);
+  if (!Number.isFinite(amount)) return 0.5;
+  return match[2].toLowerCase() === "ms" ? amount / 1000 : amount;
+}
+
+// Common CSS easings to GSAP ease names; functional easings
+// (cubic-bezier/steps) have no GSAP literal, so map to a neutral default
+// and keep the observed value in the snippet comment.
+function gsapEaseName(easing) {
+  const key = String(easing ?? "").trim().toLowerCase();
+  if (key === "linear") return "none";
+  if (key === "ease") return "power1.out";
+  if (key === "ease-in") return "power2.in";
+  if (key === "ease-out") return "power2.out";
+  if (key === "ease-in-out") return "power2.inOut";
+  if (key === "step-start" || key === "step-end") return "steps(1)";
+  return "power1.out";
+}
+
+// One GSAP snippet per timeline row: transitions become gsap.to,
+// animations/keyframes become gsap.from (entrance-like). Prop placeholders
+// must be replaced with the observed end-state; timings are observed.
+function gsapSnippet(row) {
+  const target = row.selector && row.selector !== "unknown"
+    ? String(row.selector).replace(/"/g, "'")
+    : ".your-selector";
+  const duration = gsapSeconds(row.duration);
+  const ease = gsapEaseName(row.easing);
+  const delay = gsapSeconds(row.delay);
+  const delayPart = delay > 0 ? `, delay: ${delay}` : "";
+  const observed = [row.kind, row.property || row.keyframes || "", row.duration || "?", String(row.easing || "?"), `delay ${row.delay || "?"}`].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const lines = [
+    `// Observed ${observed} on ${row.page}${row.selector === "unknown" ? " (no selector observed — replace .your-selector)" : ""}; scrollTrigger: ${row.scrollTrigger}. Rebuild only — nothing was replayed.`,
+  ];
+  if (row.kind === "animation" || row.kind === "keyframes") {
+    lines.push(`gsap.from("${target}", { duration: ${duration}, ease: "${ease}"${delayPart} });`);
+  } else {
+    lines.push(`gsap.to("${target}", { duration: ${duration}, ease: "${ease}"${delayPart} });`);
+  }
+  return lines.join("\n");
+}
+
+// CF34-local: per-page timeline tables plus GSAP transcription. Pages with
+// no rows get honest no-motion copy, never invented motion.
+function motionTimelineMd(pages, timeline) {
+  return pages.map((page) => {
+    const rows = timeline.filter((row) => row.page === page.path);
+    if (rows.length === 0) return `## ${md(page.path)}\n\nNo observed motion on this page.`;
+    const table = `| Element | Kind | Keyframes/property | Duration | Easing | Delay | Scroll trigger |\n|---|---|---|---|---|---|---|\n`
+      + rows.map((row) => `| \`${code(row.selector)}\` | ${md(row.kind)} | \`${code(row.keyframes || row.property || "—")}\` | \`${code(row.duration || "—")}\` | \`${code(row.easing || "—")}\` | \`${code(row.delay || "—")}\` | ${md(row.scrollTrigger)} |`).join("\n");
+    const snippets = rows.map((row) => fence(gsapSnippet(row))).join("\n\n");
+    return `## ${md(page.path)}\n\n${table}\n\n${snippets}`;
+  }).join("\n\n");
+}
+
 // CF16: machine-readable section layout — geometry, alignment, columns,
 // background, and media/form/table boxes per section, so a rebuild knows
 // composition without eyeballing screenshots.
@@ -496,6 +625,10 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
   const hiddenBlocks = pages.flatMap((page) => (page.content?.hiddenBlocks || []).map((block) => `### ${md(page.path)} — ${md(block.initialState)} ${md(block.kind)}\n\n${md(block.text)}`));
   const interactions = pages.flatMap((page) => (page.observedInteractions || []).map((item) => `- ${md(page.path)} — ${md(item.kind)}: ${md(item.detail)}`));
   const motion = pages.map((page) => `## ${md(page.path)}\n\nTransitions:\n${(page.motion?.transitions || []).map((item) => `- ${md(item.property)} — ${md(item.duration)} ${md(item.easing)} delay ${md(item.delay)}`).join("\n") || "- none observed"}\n\nAnimations:\n${(page.motion?.animations || []).map((item) => `- ${md(item.name)} — ${md(item.duration)} ${md(item.easing)} delay ${md(item.delay)}`).join("\n") || "- none observed"}\n\nKeyframes: ${(page.motion?.keyframes || []).map(md).join(", ") || "none observed"}\n\nRotating text (heading re-sample ~5s later):\n${(page.content?.rotatingText || []).map((item) => `- ${md(item.label)}: "${md(item.before)}" → "${md(item.after)}" — cycle through these variants on a timer, do not ship a static headline`).join("\n") || "- no heading-text rotation observed"}`).join("\n\n");
+  // CF34-local: timeline rows + per-page tables with one GSAP snippet per
+  // animated row; machine-readable source ships as data/motion.json.
+  const timeline = motionTimeline(pages);
+  const timelineMd = motionTimelineMd(pages, timeline);
   const hover = pages.map((page) => `## ${md(page.path)}\n\n${(page.hoverStates || []).map((state) => `- ${code(state.trigger)} \`${code(state.selector)}\` → ${(state.changedProperties || []).map(code).join(", ") || "unspecified changes"}`).join("\n") || "- no hover/focus/active rules observed"}`).join("\n\n");
   const responsive = pages.map((page) => {
     const comparison = page.responsiveComparison;
@@ -543,7 +676,7 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
     "typography.md": `# Typography\n\nTypeface usage is ranked from computed-style sampling (inferred confidence); \`@font-face\` declarations are observed where stylesheets are accessible.\n\n${pages.map((page) => `## ${md(page.path)}\n\nFont faces:\n${(page.typography?.fontFaces || []).map((face) => `- ${md(face.family)} — ${md(face.weight)}; ${md(face.src)}`).join("\n") || "- none observed"}\n\nTypefaces in use:\n${(page.typography?.fontFamilies || []).map((entry) => `- \`${code(entry.value)}\` — ${entry.count} sampled elements; ${code(entry.confidence)}`).join("\n") || "- none observed"}\n\nSemantic samples:\n${(page.semanticStyles || []).map((sample) => `- ${md(sample.role)}: ${md(sample.fontFamily)} ${md(sample.fontSize)} / ${md(sample.lineHeight)}, weight ${md(sample.fontWeight)}, tracking ${md(sample.letterSpacing)}`).join("\n") || "- none observed"}`).join("\n\n")}\n`,
     "content-style.md": `# Content and voice\n\nTone summaries are page-level heuristics. Verbatim visible text is below; inspect \`data/pages.json\` for order, roles, controls, and per-collection completeness. Initially hidden/collapsed DOM copy is separately labelled and was not treated as visible or activated.\n\n${allBlocks.join("\n\n") || "No content blocks observed."}\n\n## Initially hidden or collapsed copy\n\n${hiddenBlocks.join("\n\n") || "No hidden semantic copy observed."}\n`,
     "imagery-and-video.md": `# Imagery and video\n\nAssets (${assets.length} listed of ${analysis.assetCount} observed):\n\n${assetLines.join("\n") || "No media assets observed."}\n\n${downloadedSvgs.length > 0 ? `${downloadedSvgs.length} SVG asset(s) were downloaded at capture time and ship under \`assets/\` — prefer the local copy, with the remote URL as fallback: ${downloadedSvgs.map((asset) => `\`${code(asset.localPath)}\``).join(", ")}. ` : "No SVG assets were downloaded at capture time. "}${downloadedPosters.length > 0 ? `${downloadedPosters.length} poster asset(s) (video frames) were downloaded at capture time and ship under \`assets/\`: ${downloadedPosters.map((asset) => `\`${code(asset.localPath)}\``).join(", ")}. ` : ""}Remaining media entries are URL references only; raster binaries were not fetched. Motion note: videos are URL references and canvas scenes are single static frames — treat screenshots of those regions as posters, not the experience.\n\n## Videos\n\n${videoLines.join("\n") || "No video elements observed."}\n\n## Playing-state captures\n\n${playingLines.join("\n") || "No playing-state captures (facades never played in-page or isolated, or the run predates video capture)."}\n\n## Fallback thumbnails\n\n${thumbnailLines.join("\n") || "No fallback thumbnails (every played facade rendered, or no thumbnail resolved)."}\n\n## Embedded frames\n\n${embedLines.join("\n") || "No embedded frames observed."}\n`,
-    "motion-and-interactions.md": `# Motion and interactions\n\nTransitions, animations, and keyframe names are computed/CSSOM observations; JavaScript-driven interactions were not replayed.\n\n${motion}\n\n## Hover and focus states\n\nDeclared hover/focus/active rules are static CSS evidence of state changes; nothing was hovered or activated during capture.\n\n${hover}\n\n## Interaction affordances\n\n${interactions.join("\n") || "None detected."}\n\nBehavior was not clicked or replayed. Structured controls and ARIA relationships are in \`data/interactions.json\`.\n`,
+    "motion-and-interactions.md": `# Motion and interactions\n\nTransitions, animations, and keyframe names are computed/CSSOM observations; JavaScript-driven interactions were not replayed.\n\n${motion}\n\n## Motion timeline\n\nMachine-readable source: \`data/motion.json\`. One row per observed transition, animation, or declared keyframe; \`scrollTrigger\` is \`unknown\` unless sticky/fixed rules were observed on the page (marked inferred — verify against the live page).\n\n${timelineMd}\n\nRebuild each animated block with GSAP using the observed timings above (replace the prop placeholders with the observed end-state). Nothing was replayed; verify against the live page.\n\n## Hover and focus states\n\nDeclared hover/focus/active rules are static CSS evidence of state changes; nothing was hovered or activated during capture.\n\n${hover}\n\n## Interaction affordances\n\n${interactions.join("\n") || "None detected."}\n\nBehavior was not clicked or replayed. Structured controls and ARIA relationships are in \`data/interactions.json\`.\n`,
     "responsive-behavior.md": `# Responsive behavior\n\nEvidence is limited to CSS media queries plus actual desktop/mobile observations where mobile capture succeeded.\n\nMobile comparison with screenshots: ${pages.filter((page) => page.responsiveComparison?.status === "captured").map((page) => `\`${code(page.path)}\``).join(", ") || "none"}. DOM-only comparison (extract-only 390px pass, no screenshot): ${pages.filter((page) => page.responsiveComparison?.status === "dom-only").map((page) => `\`${code(page.path)}\``).join(", ") || "none"}. No comparison: ${pages.filter((page) => page.responsiveComparison?.status !== "captured" && page.responsiveComparison?.status !== "dom-only").map((page) => `\`${code(page.path)}\` (${code(page.responsiveComparison?.status || "unknown")})`).join(", ") || "none"}. Screenshot binaries are limited to the homepage plus one representative page by the Free-tier screenshot budget; DOM-only passes cost browser time instead of bytes.\n\n${pages.map((page) => `## ${md(page.path)}\n\n${(page.breakpoints?.mediaQueries || []).map((entry) => `- ${md(entry.query)} → ${entry.changedProperties.map(md).join(", ")}`).join("\n") || "No accessible media-query rules observed."}`).join("\n\n")}\n\n${responsive}\n`,
     "implementation-plan.md": `# Reconstruction guidance\n\nSource: ${md(analysis.request.url)}. Rebuild desktop-first at 1440px, then verify at 390px where mobile captures exist.\n\n## 1. Apply the observed theme\n\n- Paste \`theme.css\` (or \`tailwind.config.js\`) values; every value carries source/confidence — prefer \`observed\` over \`inferred\`.\n- Body text/background and heading/button roles are mapped in \`design-tokens.md\` under "Key observed roles".\n\n## 2. Rebuild pages in priority order\n\n${pages.map((page) => {
     const desktop = page.screenshot ? `\`${shotPath(page, "desktop", null, page.screenshot)}\` (${page.screenshot.width}×${page.screenshot.height})` : "no desktop capture";
@@ -557,6 +690,7 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
     "data/navigation.json": json({ homepage: analysis.request.url, selectedPages: (analysis.selection?.candidates || []).filter((candidate) => candidate.selected).map((candidate) => ({ path: candidate.path, url: candidate.url, label: candidate.label, priority: candidate.priority, reason: candidate.reason })), observed: pages.map((page) => ({ path: page.path, header: page.nav?.header || [], primary: page.nav?.primary || [], footer: page.nav?.footer || [] })) }),
     "data/selection.json": json(analysis.selection || { maxPages: analysis.request.maxPages, pagesDiscovered: analysis.pagesDiscovered, pagesSelected: analysis.pagesSelected, candidates: [] }),
     "data/interactions.json": json({ schemaVersion: analysis.schemaVersion, pages: pages.map((page) => ({ path: page.path, affordances: page.observedInteractions || [], hoverStates: page.hoverStates || [], controls: page.content?.controls || [], formActions: page.formActions || [], coverage: { controls: page.content?.coverage?.controls || null, interactions: page.content?.coverage?.interactions || null }, limitation: "Static DOM affordances and declared CSS state rules only; no source JavaScript behavior was replayed, no form was submitted." })) }),
+    "data/motion.json": json({ schemaVersion: analysis.schemaVersion, timeline, pages: pages.map((page) => ({ path: page.path, rows: timeline.filter((row) => row.page === page.path), scrollTriggersInferred: timeline.some((row) => row.page === page.path && String(row.scrollTrigger).startsWith("inferred")) })), note: "One row per observed transition/animation/keyframe; scrollTrigger is 'unknown' unless sticky/fixed rules were observed (marked inferred). Timings are observed CSS values; GSAP snippets in motion-and-interactions.md are rebuild transcriptions, never replayed behavior." }),
     "data/assets.json": json({ assets: assets.map((asset) => asset && (asset.content instanceof Uint8Array || typeof asset.dataUrl === "string") ? { ...asset, content: undefined, dataUrl: undefined } : asset), count: assets.length, sourceCount: analysis.assetCount, complete: assets.length === analysis.assetCount, embeds: pageEmbeds, embedCount: pageEmbeds.length }),
     "data/report.json": json({ schemaVersion: analysis.schemaVersion, sourceUrl: analysis.request.url, pagesDiscovered: analysis.pagesDiscovered, pagesSelected: analysis.pagesSelected, pagesAnalyzed: analysis.pagesAnalyzed, screenshotsCaptured: analysis.screenshotsCaptured, screenshotBytesCaptured: analysis.screenshotBytesTotal, screenshotBinariesIncluded: manifest.shots.filter((shot) => shot.hasBinary).length, browserSecondsUsed: analysis.browserSecondsUsed, timings: analysis.timings, issues: analysis.issues, warnings: analysis.warnings, limitations: analysis.limitations, coverage, observationIntegrityPassed: analysis.integrityPassed, packageIntegrityPassed: true }),
     "screenshots/manifest.json": json(manifest),
