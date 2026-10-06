@@ -1304,4 +1304,10 @@ describe("collectPageSnapshot", () => {
     expect(snapshot.sectionRects[0]).toMatchObject({ y: 0, height: 900 });
     expect(snapshot.sectionRects[1]).toMatchObject({ y: 1000, height: 900 });
   });
+
+  it("samples per-section computed styles", () => {
+    const source = collectPageSnapshot.toString();
+
+    expect(source).toContain("sectionStyles");
+  });
 });

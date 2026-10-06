@@ -107,6 +107,13 @@ export interface SnapshotSection {
   role: string;
   heading: string;
   textExcerpt: string;
+  sectionStyles?: {
+    backgroundColor: string;
+    color: string;
+    fontSize: string;
+    padding: string;
+    borderRadius: string;
+  };
 }
 
 // CF16 layout pass: per-section geometry plus the media/form/table boxes
@@ -1512,6 +1519,18 @@ export function collectPageSnapshot(): PageSnapshot {
         heading: cleanText(renderedText(innerHeading), 120),
         textExcerpt: cleanText(renderedText(node), 200),
       });
+      try {
+        const sectionStyle = getComputedStyle(node as Element) as unknown as Record<string, string>;
+        detailedSections[detailedSections.length - 1]!.sectionStyles = {
+          backgroundColor: String(sectionStyle.backgroundColor || "").slice(0, 64),
+          color: String(sectionStyle.color || "").slice(0, 64),
+          fontSize: String(sectionStyle.fontSize || "").slice(0, 64),
+          padding: String(sectionStyle.padding || "").slice(0, 64),
+          borderRadius: String(sectionStyle.borderRadius || "").slice(0, 64),
+        };
+      } catch {
+        // One unreadable element must never break section extraction.
+      }
       // Bounding rects for section-clipped screenshots (homepage, max 6).
       if (sectionRects.length < 6) {
         try {
