@@ -190,6 +190,23 @@ five capture sites; lite limitation discloses it. Known trade-off (H1
 lesson): less-settled pages may report more unloaded media; the settle +
 lazy-sweep passes still run deterministically afterwards.
 
+### CF33 validation: higgsfield full pack SUCCEEDS (2026-10-06, fresh meter)
+
+CF33 live (`65f00e4f`). higgsfield.ai, maxPages 1 + mobile, default lite
+profile via API with tail recording: HTTP 200, full progress → page →
+result, **`"cpuTime": 1830, "wallTime": 105618, "outcome": "ok"`**.
+`pagesAnalyzed` 1, `integrityPassed` true, 0 issues, 13 screenshots /
+1,325,800 bytes, desktop + mobile + 6/6 sections inlined as native base64,
+5/5 distinct videoShots inlined, `browserSecondsUsed` 105.54. Timings prove
+the mechanism: `navMs` 2421 (no 12 s idle-stare, no retry) vs 12925 before;
+`nativeVideoMs` 22358. Cost as predicted: 41 + 27 images unloaded
+(disclosed warnings), 0 assets downloaded (6 unresolvable). Margin note:
+1830 ms vs the ~2020 ms observed ceiling — survives with ~190 ms headroom,
+so heavier days may still trip it; the orphan guard and honest degradation
+remain the backstops. Meter for the day ≈ 5 min across 4 runs. Incident
+closed: pre-CF29/CF29/CF30 all died on this page; CF31 extract-only +
+CF32 lite + CF33 nav complete the free-tier survival kit.
+
 ### Decisive extract-only production run (2026-10-06, fresh meter)
 
 CF32 live (`41eb9792`). higgsfield.ai extract-only (`?screenshots=0`,
