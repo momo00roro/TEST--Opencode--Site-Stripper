@@ -100,9 +100,19 @@ function tokenInventory(pages) {
 }
 
 // CF34-local: semantic color aliases over the raw frequency inventory.
+// CF35-1 (accent-first): frequency ranks surfaces (white page bg, dark
+// text), never brand — so brand/* is scored by saturation, not count:
+// accent score = saturation * log(1+count) * roleBonus, where roleBonus is
+// 2.0 when the value appears in any page semanticStyles entry with role
+// button/link/heading-1/heading-2 color (whitespace-insensitive,
+// case-insensitive), else 1.0. Top scorer wins brand/primary; the highest
+// runner-up in a different hue family (hue differs >30 degrees, or one
+// side is achromatic) wins brand/secondary. Neutrals (isNeutralColor) can
+// never be brand/*: darkest -> ink, lightest -> paper, most-frequent light
+// neutral -> surface/base, most-frequent mid neutral -> surface/muted.
 // Case-insensitive dedupe (e.g. "#9F58FA" + "#9f58fa" cluster to one alias)
 // while `inventory` keeps every raw spelling untouched. Dependency-free.
-function aliasInventory(inventory) {
+function aliasInventory(inventory, pages) {
   const colors = inventory?.colors || [];
   const groups = new Map();
   for (const token of colors) {
@@ -130,12 +140,47 @@ function aliasInventory(inventory) {
   const ranked = [...groups.values()].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
   const aliases = {};
   if (ranked.length === 0) return aliases;
-  aliases["brand/primary"] = ranked[0].value;
-  if (ranked.length > 1) aliases["brand/secondary"] = ranked[1].value;
+  // Brand/*: accent-first scoring over chromatic (non-neutral) candidates.
+  // Unparseable var()/currentcolor/Tailwind tw-opacity composites (e.g.
+  // "rgb(159 88 250/var(--tw-text-opacity,1))") carry no plain channels, so
+  // colorSaturation() returns null and they stay in the raw inventory
+  // without ever winning a brand alias.
+  const accentRoles = new Set(["button", "link", "heading-1", "heading-2"]);
+  const normalizeColor = (value) => String(value).toLowerCase().replace(/\s+/g, "");
+  const roleColors = new Set();
+  for (const page of pages || []) {
+    for (const sample of page?.semanticStyles || []) {
+      if (!sample || !accentRoles.has(sample.role) || sample.color == null) continue;
+      roleColors.add(normalizeColor(sample.color));
+    }
+  }
+  const scored = [];
+  for (const entry of ranked) {
+    // Brand/* is reserved for true accents: real extractor data carries
+    // off-by-one channels (cline.bot near-black text "rgb(21, 21, 22)",
+    // higgsfield.ai dark slate "rgb(19, 21, 23)") that strict grayscale
+    // misses but read as surfaces, never brand. Below MIN_ACCENT a color
+    // is surface-class even when technically chromatic.
+    const saturation = colorSaturation(entry.value);
+    if (saturation == null || saturation < MIN_ACCENT_SATURATION) continue;
+    const roleBonus = roleColors.has(normalizeColor(entry.value)) ? 2.0 : 1.0;
+    scored.push({ entry, hue: colorHue(entry.value), score: saturation * Math.log(1 + entry.count) * roleBonus });
+  }
+  scored.sort((a, b) => b.score - a.score || a.entry.value.localeCompare(b.entry.value));
+  const hueDistance = (a, b) => {
+    if (a == null || b == null) return 180;
+    const diff = Math.abs(a - b) % 360;
+    return diff > 180 ? 360 - diff : diff;
+  };
+  if (scored.length > 0) {
+    aliases["brand/primary"] = scored[0].entry.value;
+    const runner = scored.find((item) => item !== scored[0] && hueDistance(item.hue, scored[0].hue) > 30);
+    if (runner) aliases["brand/secondary"] = runner.entry.value;
+  }
   const used = new Set(Object.values(aliases).map((value) => String(value).toLowerCase()));
   const neutrals = ranked
     .map((entry) => ({ entry, lightness: colorLightness(entry.value) }))
-    .filter((item) => item.lightness != null && isNeutralColor(item.entry.value));
+    .filter((item) => item.lightness != null && isSurfaceNeutral(item.entry.value));
   if (neutrals.length > 0) {
     const byLight = [...neutrals].sort((a, b) => a.lightness - b.lightness);
     const fresh = byLight.filter((item) => !used.has(String(item.entry.value).toLowerCase()));
@@ -149,6 +194,20 @@ function aliasInventory(inventory) {
       const lightest = pool[pool.length - 1].entry.value;
       if (lightest !== aliases["ink"]) aliases["paper"] = lightest;
     }
+    // Surface roles from the same neutral scale: the most-frequent light
+    // neutral is the page background (-> surface/base, which may
+    // legitimately coincide with paper); the most-frequent mid-tone neutral
+    // (-> surface/muted) covers dividers/wells. Spellings already claimed
+    // by brand/* or ink are skipped; when no neutral fits the band the key
+    // is omitted rather than invented.
+    const claimed = (value) => Object.values(aliases).some((current) => String(current).toLowerCase() === String(value).toLowerCase());
+    const brandInkClaimed = (value) => [aliases["brand/primary"], aliases["brand/secondary"], aliases["ink"]]
+      .filter(Boolean).some((current) => String(current).toLowerCase() === String(value).toLowerCase());
+    const byCount = [...neutrals].sort((a, b) => b.entry.count - a.entry.count || a.entry.value.localeCompare(b.entry.value));
+    const base = byCount.find((item) => item.lightness >= 0.5 && !brandInkClaimed(item.entry.value));
+    if (base) aliases["surface/base"] = base.entry.value;
+    const muted = byCount.find((item) => item.lightness > 0.2 && item.lightness < 0.85 && !claimed(item.entry.value));
+    if (muted) aliases["surface/muted"] = muted.entry.value;
   }
   return aliases;
 }
@@ -186,7 +245,92 @@ function colorLightness(value) {
   return null;
 }
 
+// Plain RGB channels in [0,1], or null when the value carries no plain
+// channels: var() refs, currentcolor, and space-separated Tailwind
+// tw-opacity composites ("rgb(159 88 250/var(--tw-text-opacity,1))").
+// Shared by colorSaturation()/colorHue() so all three parse identically.
+function parseRgb01(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  let match = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(text);
+  if (match) {
+    let hex = match[1];
+    if (hex.length <= 4) hex = [...hex].map((ch) => ch + ch).join("");
+    return [parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255, parseInt(hex.slice(4, 6), 16) / 255];
+  }
+  match = /^rgba?\(\s*([^)]+)\)$/.exec(text);
+  if (match) {
+    if (!match[1].includes(",")) return null;
+    const parts = match[1].split(",").map((part) => part.trim());
+    if (parts.length < 3) return null;
+    const channel = (part) => part.endsWith("%") ? (parseFloat(part) / 100) : (parseFloat(part) / 255);
+    const [r, g, b] = parts.map(channel);
+    if (![r, g, b].every(Number.isFinite)) return null;
+    return [r, g, b];
+  }
+  if (text === "black") return [0, 0, 0];
+  if (text === "white") return [1, 1, 1];
+  return null;
+}
+
+// HSL saturation in [0,1], or null when the value is not a parseable color
+// (same grammar as colorLightness: hex, comma rgb()/rgba(),
+// comma hsl()/hsla(), black/white keywords).
+function colorSaturation(value) {
+  const channels = parseRgb01(value);
+  if (channels) {
+    const [r, g, b] = channels;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    if (max === min) return 0;
+    return (max - min) / (1 - Math.abs(max + min - 1));
+  }
+  const text = String(value ?? "").trim().toLowerCase();
+  const match = /^hsla?\(\s*([^)]+)\)$/.exec(text);
+  if (match) {
+    if (!match[1].includes(",")) return null;
+    const parts = match[1].split(",").map((part) => part.trim());
+    if (parts.length < 3) return null;
+    const sat = parts[1].endsWith("%") ? parseFloat(parts[1]) / 100 : parseFloat(parts[1]);
+    return Number.isFinite(sat) ? Math.min(Math.max(sat, 0), 1) : null;
+  }
+  return null;
+}
+
+// Hue in degrees [0,360), or null for achromatic/unparseable values.
+function colorHue(value) {
+  const channels = parseRgb01(value);
+  if (channels) {
+    const [r, g, b] = channels;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    if (max === min) return null;
+    let hue;
+    if (max === r) hue = ((g - b) / (max - min)) % 6;
+    else if (max === g) hue = (b - r) / (max - min) + 2;
+    else hue = (r - g) / (max - min) + 4;
+    hue *= 60;
+    if (hue < 0) hue += 360;
+    return hue;
+  }
+  const text = String(value ?? "").trim().toLowerCase();
+  const match = /^hsla?\(\s*([^)]+)\)$/.exec(text);
+  if (match) {
+    if (!match[1].includes(",")) return null;
+    const parts = match[1].split(",").map((part) => part.trim());
+    if (parts.length < 3) return null;
+    const hue = parseFloat(parts[0]);
+    if (!Number.isFinite(hue)) return null;
+    return ((hue % 360) + 360) % 360;
+  }
+  return null;
+}
+
 // Neutral = grayscale (r == g == b) or zero-saturation hsl, plus black/white.
+// isSurfaceNeutral widens that to near-grayscale (saturation below
+// NEUTRAL_SATURATION_MAX): off-by-one extractor channels such as
+// "rgb(21, 21, 22)" read as surfaces. The gap between NEUTRAL_SATURATION_MAX
+// and MIN_ACCENT_SATURATION is a deliberate dead zone — muted in-between
+// tones win no alias rather than a wrong one.
 function isNeutralColor(value) {
   const text = String(value ?? "").trim().toLowerCase();
   if (text === "black" || text === "white") return true;
@@ -212,6 +356,15 @@ function isNeutralColor(value) {
   return false;
 }
 
+const NEUTRAL_SATURATION_MAX = 0.12;
+const MIN_ACCENT_SATURATION = 0.15;
+
+function isSurfaceNeutral(value) {
+  if (isNeutralColor(value)) return true;
+  const saturation = colorSaturation(value);
+  return saturation != null && saturation < NEUTRAL_SATURATION_MAX;
+}
+
 function w3cTokens(inventory, analysis) {
   const output = { $meta: { schemaVersion: analysis.schemaVersion, sourceUrl: analysis.request.url, note: "Observed/inferred tokens across selected pages; not an exhaustive design-system declaration." } };
   const typeMap = { colors: "color", fontSizes: "fontSize", spacing: "dimension", radii: "dimension", borders: "border", shadows: "shadow" };
@@ -228,7 +381,7 @@ function w3cTokens(inventory, analysis) {
     output[category] = values;
   }
   // Semantic aliases ride alongside (never replace) the raw token-N keys.
-  output.aliases = aliasInventory(inventory);
+  output.aliases = aliasInventory(inventory, analysis.pages);
   output.semanticSamples = analysis.pages.flatMap((page) => (page.semanticStyles || []).map((sample) => ({ ...sample, page: page.path })));
   output.typography = analysis.pages.map((page) => ({ page: page.path, ...page.typography }));
   return output;
@@ -274,7 +427,7 @@ function parsePx(value) {
 }
 
 function themeV2Files(inventory, pages) {
-  const aliases = aliasInventory(inventory);
+  const aliases = aliasInventory(inventory, pages);
   const topColors = (inventory.colors || []).slice(0, 12);
   const topFontSizes = (inventory.fontSizes || []).slice(0, 8);
   const topSpacing = (inventory.spacing || []).slice(0, 8);
@@ -654,7 +807,7 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
   const lines = [`# Rebuild guide — ${md(analysis.request.hostname)}`, ""];
   lines.push(`Source: ${md(analysis.request.url)}. Rebuild desktop-first at ${pages[0]?.viewport?.width || 1440}px, then verify at 390px where mobile captures exist. Apply \`theme.css\` values first (prefer \`observed\` confidence). Heading wraps (⏎) are marked in \`information-architecture.md\`; raw indices in \`data/pages.json\` \`headings[].breaks\`.`, "");
   // 1) Tokens first: aliases ride alongside raw token-N keys, never replace them.
-  const aliases = aliasInventory(inventory || tokenInventory(pages));
+  const aliases = aliasInventory(inventory || tokenInventory(pages), pages);
   const aliasRefs = Object.entries(aliases).map(([name, value]) => `${name} \`${code(value)}\``).join(", ");
   lines.push("## 1. Tokens — apply before any section", "");
   lines.push(`Apply \`theme.css\` values first (prefer \`observed\` confidence). Canonical source: \`data/tokens.json\` (\`aliases\` + per-category token-N keys); semantic samples in \`design-tokens.md\` under "Key observed roles".${aliasRefs ? ` Observed aliases: ${aliasRefs}.` : " No semantic aliases observed."}`);

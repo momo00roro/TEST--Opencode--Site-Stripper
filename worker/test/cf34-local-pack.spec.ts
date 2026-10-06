@@ -87,6 +87,77 @@ describe("cf34 motion timeline", () => {
   });
 });
 
+describe("cf35-1 accent-first aliasing", () => {
+  const accentFixture = (semanticStyles: Array<{ role: string; color: string }>, colors?: Array<{ value: string; count: number; source?: string; confidence?: string }>) => ({
+    schemaVersion: "0.2.0",
+    request: { url: "https://example.com", hostname: "example.com", maxPages: 1 },
+    pages: [
+      {
+        path: "/",
+        tokens: {
+          colors: colors || [
+            { value: "rgb(255, 255, 255)", count: 32, source: "observed", confidence: "observed" },
+            { value: "rgb(21, 21, 22)", count: 28, source: "observed", confidence: "observed" },
+            { value: "rgb(159,88,250)", count: 8, source: "observed", confidence: "observed" },
+          ],
+        },
+        typography: {},
+        semanticStyles,
+      },
+    ],
+    selection: { candidates: [] },
+    pagesDiscovered: 1,
+    pagesSelected: 1,
+    pagesAnalyzed: 1,
+    screenshotsCaptured: 0,
+    screenshotBytesTotal: 0,
+    browserSecondsUsed: 0,
+    issues: [],
+    warnings: [],
+    limitations: [],
+    integrityPassed: true,
+    assets: [],
+    assetCount: 0,
+  });
+
+  it("picks the saturated accent for brand/primary, never the frequent white", () => {
+    // cline.bot shape: white page bg (cnt 32) + near-black text (cnt 28)
+    // dwarf the true brand purple (cnt 8), which the heading-1 sample pins.
+    const analysis = accentFixture([{ role: "heading-1", color: "rgb(159, 88, 250)" }]);
+    const { files } = buildDocumentationFiles(analysis, {});
+    const tokens = JSON.parse(files["data/tokens.json"]);
+    expect(tokens.aliases["brand/primary"]).toMatch(/159.*88.*250/);
+    expect(String(tokens.aliases["brand/primary"]).toLowerCase()).not.toMatch(/255,\s*255,\s*255/);
+    expect(String(tokens.aliases["brand/secondary"] || "").toLowerCase()).not.toMatch(/255,\s*255,\s*255|21,\s*21,\s*22/);
+    expect(tokens.aliases["surface/base"]).toMatch(/255.*255.*255/);
+    // Raw token-N keys stay frequency-ranked and untouched by aliasing.
+    expect(tokens.colors["token-1"].value).toBe("rgb(255, 255, 255)");
+    expect(tokens.colors["token-3"].value).toBe("rgb(159,88,250)");
+  });
+
+  it("regression: saturation alone beats frequency without semanticStyles", () => {
+    const analysis = accentFixture([]);
+    const { files } = buildDocumentationFiles(analysis, {});
+    const tokens = JSON.parse(files["data/tokens.json"]);
+    expect(tokens.aliases["brand/primary"]).toMatch(/159.*88.*250/);
+  });
+
+  it("picks lime over light-gray on a higgsfield-style inventory", () => {
+    const analysis = accentFixture([], [
+      { value: "rgb(247, 247, 248)", count: 8, source: "observed", confidence: "observed" },
+      { value: "rgb(255, 255, 255)", count: 8, source: "observed", confidence: "observed" },
+      { value: "currentcolor", count: 6, source: "observed", confidence: "observed" },
+      { value: "rgb(19, 21, 23)", count: 3, source: "observed", confidence: "observed" },
+      { value: "rgb(209, 254, 23)", count: 3, source: "observed", confidence: "observed" },
+      { value: "var(--normal-text)", count: 3, source: "observed", confidence: "observed" },
+    ]);
+    const { files } = buildDocumentationFiles(analysis, {});
+    const tokens = JSON.parse(files["data/tokens.json"]);
+    expect(tokens.aliases["brand/primary"]).toMatch(/209.*254.*23/);
+    expect(tokens.aliases["surface/base"]).toMatch(/247.*247.*248|255.*255.*255/);
+  });
+});
+
 describe("cf34-local task 5: theme.v2 + annotated/responsive pairs", () => {
   it("emits theme.v2.css, tailwind.theme.mjs and responsive-pairs manifest", () => {
     const analysisWithTokens = {
