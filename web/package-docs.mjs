@@ -511,8 +511,47 @@ function themeV2Files(inventory, pages) {
   return { themeV2, tailwindV4 };
 }
 
-function hasShotMeta(shot) {
-  if (!shot || typeof shot !== "object") return false;
+// CF36-2 @font-face pack file (local-full only): downloaded font binaries
+// ship under assets/fonts/* via the existing downloaded-asset fan-out in
+// buildDocumentationFiles (Uint8Array content or dataUrl wire form — no new
+// branch needed), and this file wires them up as @font-face rules. Font
+// entries that stayed URL references get an honest comment, never a fake
+// rule. Hosted/lite runs collect no font assets, so this file is then a
+// comment-only header — same code path, no behavior fork.
+function fontsCss(assets) {
+  const fonts = (assets || []).filter((asset) => asset && asset.kind === "font");
+  const downloaded = fonts.filter((asset) => asset.source === "downloaded" && typeof asset.localPath === "string");
+  const referenced = fonts.filter((asset) => !(asset.source === "downloaded" && typeof asset.localPath === "string"));
+  const formatFor = (localPath) => {
+    const lower = String(localPath || "").toLowerCase();
+    if (lower.endsWith(".woff2")) return "woff2";
+    if (lower.endsWith(".woff")) return "woff";
+    if (lower.endsWith(".ttf")) return "truetype";
+    return "opentype";
+  };
+  const lines = [
+    "/* Observed @font-face files (CF36-2, downloaded at capture time on local-full runs only).",
+    ` * ${downloaded.length} of ${fonts.length} observed file(s) shipped under assets/fonts/; the rest are URL references (see comments below).`,
+    " * Pair with theme.css --font-family-base when rebuilding type. */",
+  ];
+  for (const asset of downloaded) {
+    const family = String(asset.fontFamily || asset.alt || "unknown").replace(/["\\]/g, "").slice(0, 120) || "unknown";
+    const weight = String(asset.fontWeight || "400").replace(/[^a-z0-9\s]/gi, "").trim().slice(0, 20) || "400";
+    lines.push(`@font-face {\n  font-family: "${family}";\n  font-weight: ${weight};\n  font-style: normal;\n  font-display: swap;\n  src: url("${asset.localPath}") format("${formatFor(asset.localPath)}");\n} /* observed on ${asset.usedOn || "unknown page"}; original: ${asset.url || "unknown URL"} */`);
+  }
+  if (referenced.length > 0) {
+    lines.push("/* Reference-only (not downloaded — URL reference; verify against the live page before shipping):");
+    for (const asset of referenced.slice(0, 20)) {
+      lines.push(` * - ${asset.fontFamily || asset.alt || "unknown"} ${asset.fontWeight || ""} — ${asset.url || "unknown URL"}${asset.skipReason ? ` (${asset.skipReason})` : ""}`);
+    }
+    lines.push(" */");
+  } else if (downloaded.length === 0) {
+    lines.push("/* No @font-face files observed (or this run predates font capture / is a hosted-lite pack). */");
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function hasShotMeta(shot) {  if (!shot || typeof shot !== "object") return false;
   return shot.kind != null || shot.width != null || shot.height != null || shot.bytes != null;
 }
 
@@ -1210,6 +1249,9 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
   const { theme, tailwind } = themeFiles(inventory, pages);
   docs["theme.css"] = theme;
   docs["tailwind.config.js"] = tailwind;
+  // CF36-2 (additive): fonts.css wires downloaded @font-face files; the
+  // assets/fonts/* binaries themselves ride the existing fan-out below.
+  docs["fonts.css"] = fontsCss(assets);
   // CF34-local Task 5 (additive): theme.v2 + v4 @theme + responsive pairs + SVG overlays.
   const { themeV2, tailwindV4 } = themeV2Files(inventory, pages);
   docs["theme.v2.css"] = themeV2;
@@ -1239,6 +1281,9 @@ export function buildDocumentationFiles(analysis, screenshotFiles = {}) {
   // re-encodes them as dataUrl strings (local dev, like screenshots); decode
   // them back here. data/assets.json strips dataUrl for the same reason it
   // strips raw bytes.
+  // CF36-2: font binaries ride the exact same two branches above
+  // (Uint8Array content or dataUrl wire form into assets/fonts/*) — verified,
+  // no new branch needed; fonts.css references the emitted localPaths.
   const sizeOf = (contents) => contents instanceof Uint8Array ? contents.byteLength : new TextEncoder().encode(contents).byteLength;
   for (const asset of assets) {
     if (asset && asset.source === "downloaded" && typeof asset.localPath === "string" && (typeof asset.content === "string" || asset.content instanceof Uint8Array)) {

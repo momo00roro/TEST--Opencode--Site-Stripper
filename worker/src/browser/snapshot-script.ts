@@ -235,6 +235,11 @@ export interface SnapshotAsset {
   content?: string | Uint8Array;
   contentType?: string;
   dataUrl?: string;
+  // CF36-2 @font-face downloads (additive): kind:"font" entries carry the
+  // observed family/weight so the pack can emit fonts.css + deterministic
+  // assets/fonts/<family>-<weight>.<ext> filenames.
+  fontFamily?: string;
+  fontWeight?: string;
 }
 
 export interface SnapshotHoverState {

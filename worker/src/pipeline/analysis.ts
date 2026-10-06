@@ -24,7 +24,7 @@ import { discoverCandidates } from "../discovery/discover";
 import type { DiscoveryResult } from "../discovery/types";
 import { humanizeSegment } from "../discovery/paths";
 import { ApiError } from "../http/errors";
-import { fetchVimeoThumbnailUrl, rehydrateAssets, vimeoVideoId } from "./rehydrate-assets";
+import { collectFontAssets, fetchVimeoThumbnailUrl, rehydrateAssets, vimeoVideoId } from "./rehydrate-assets";
 import { buildSelection, type SelectionReport } from "../ranking/key-pages";
 import type { AnalyzeRequest } from "../validation/analyze-request";
 import { assertPublicTarget, parseHttpUrl } from "../validation/url";
@@ -783,7 +783,16 @@ export async function runAnalysis(
       // CF36-1: local-full (options.capture === "full", passed explicitly
       // by the local dev server) raises the caps and allows raster
       // hero/image downloads. Lite/hosted keeps today's call unchanged.
-      const rehydrated = await rehydrateAssets(wantScreenshots ? assets : [], options.capture === "full"
+      // CF36-2: local-full also collects distinct @font-face files from
+      // pages' typography and PREPENDS them to the same manifest list, so
+      // fonts share the raised 8MB/80-file pool and download FIRST in
+      // document order (non-poster pass) before images/posters — no
+      // separate budget. Lite/hosted collects nothing, so their packs are
+      // byte-identical to before.
+      const isLocalFull = options.capture === "full";
+      const fontAssets = isLocalFull ? collectFontAssets(pages, assetOrigin) : [];
+      const manifestAssets = [...fontAssets, ...assets];
+      const rehydrated = await rehydrateAssets(wantScreenshots ? manifestAssets : [], isLocalFull
         ? {
           fetchImpl,
           origin: assetOrigin,
@@ -793,13 +802,16 @@ export async function runAnalysis(
           allowRasterKinds: true,
         }
         : { fetchImpl, origin: assetOrigin });
-      // Poster bytes ride Uint8Array in memory but cannot survive the JSON
+      // Poster/font bytes ride Uint8Array in memory but cannot survive the
       // API (they serialize as {"0":..} bloat and fail client-side
       // validation, killing the whole ZIP download). Where the environment
       // supplies an encoder (local dev), re-encode as dataUrl strings exactly
       // like screenshots; hosted responses stay metadata-only (Trap 4), so
-      // poster downloads there revert to URL references instead of shipping
-      // undecodable entries that would fail package validation.
+      // poster/font downloads there revert to URL references instead of
+      // shipping undecodable entries that would fail package validation.
+      // CF36-2 confirmation: font binaries ride Uint8Array, so this path
+      // needs no font-specific branch — dataUrl when an encoder is present,
+      // reference-only revert when it is not.
       assets = rehydrated.assets.map((entry) => {
         if (entry.source !== "downloaded" || !(entry.content instanceof Uint8Array)) return entry;
         if (options.encodeBase64) {

@@ -6,7 +6,7 @@ import { assertPublicTarget, parseHttpUrl } from "../validation/url";
 // browser) downloads eligible SVGs with plain fetch and stores the raw text
 // on the manifest entry. Worker-safe: text only, no base64, no DOM.
 
-export const REHYDRATABLE_KINDS = new Set(["logo", "icon", "hero", "poster"]);
+export const REHYDRATABLE_KINDS = new Set(["logo", "icon", "hero", "poster", "font"]);
 
 // Defense-in-depth for manifests captured before the snapshot classifier
 // learned SVG <img> elements: a kind:"image" entry whose unwrapped target is
@@ -33,6 +33,162 @@ function resolveCrossOriginPosterTarget(raw: string): string | null {
 }
 
 const SVG_CONTENT_TYPE = "image/svg+xml";
+
+// CF36-2 @font-face file downloads (local-full only; hosted/lite never
+// collects font entries, so their behavior is byte-identical). @font-face
+// files usually live on cross-origin font CDNs (fonts.gstatic.com), so font
+// kind gets the same carve-out as posters: assertPublicTarget (the real SSRF
+// guard) always applies, but the same-origin equality check is skipped.
+// Same-origin URLs are still preferred first at collection time —
+// collectFontAssets partitions same-origin before cross-origin — so first-
+// party self-hosted fonts win the shared caps. Distinct URLs only, capped at
+// MAX_FONT_DOWNLOADS; only woff2/woff/ttf/otf URL patterns (never
+// extension-trusted alone: the content-type sniff below must also agree, and
+// data: URLs are skipped at collection time).
+export const MAX_FONT_DOWNLOADS = 10;
+
+const FONT_EXT_RE = /\.(woff2|woff|ttf|otf)(\?|#|$)/i;
+
+/** url() targets inside an @font-face src value, in order. Skips data:. */
+export function extractFontUrls(src: string): string[] {
+  const out: string[] = [];
+  if (typeof src !== "string") return out;
+  const re = /url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(src)) !== null) {
+    const url = match[1]!.trim();
+    if (url && !/^data:/i.test(url)) out.push(url);
+  }
+  return out;
+}
+
+function isFontUrl(raw: string): boolean {
+  const url = String(raw ?? "").trim();
+  if (!url || /^data:/i.test(url)) return false;
+  try {
+    const parsed = new URL(url, "http://localhost");
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    return FONT_EXT_RE.test(parsed.pathname) || FONT_EXT_RE.test(url);
+  } catch {
+    return false;
+  }
+}
+
+function fontExtFromUrl(raw: string): string | null {
+  const match = /\.((?:woff2|woff|ttf|otf))(?:[?#]|$)/i.exec(String(raw ?? ""));
+  if (!match) return null;
+  const ext = match[1]!.toLowerCase();
+  return ext === "woff2" ? ".woff2" : ext === "woff" ? ".woff" : ext === "ttf" ? ".ttf" : ".otf";
+}
+
+// Content-type sniff for font binaries (never extension-trusted alone).
+// Known font MIME types map to extensions; an unrecognized-but-harmless
+// type (e.g. application/octet-stream, or a missing content-type) falls back
+// to the URL extension; text/html (and anything else) rejects.
+function sniffFontExt(contentType: string, target: string): string | null {
+  const lowered = String(contentType ?? "").toLowerCase();
+  if (/text\/html/.test(lowered)) return null;
+  if (lowered.includes("font/woff2")) return ".woff2";
+  if (lowered.includes("font/woff") || lowered.includes("application/font-woff") || lowered.includes("application/x-font-woff")) return ".woff";
+  if (lowered.includes("font/ttf") || lowered.includes("application/x-font-ttf") || lowered.includes("font/sfnt")) {
+    return /\.otf(\?|#|$)/i.test(target) ? ".otf" : ".ttf";
+  }
+  if (lowered.includes("font/otf") || lowered.includes("application/x-font-otf") || lowered.includes("font/collection")) return ".otf";
+  if (lowered.includes("application/octet-stream") || lowered.trim() === "") return fontExtFromUrl(target);
+  if (lowered.includes("font") || lowered.includes("opentype") || lowered.includes("truetype")) return fontExtFromUrl(target);
+  return null;
+}
+
+export function fontMimeForExt(ext: string): string {
+  return ext === ".woff2" ? "font/woff2"
+    : ext === ".woff" ? "font/woff"
+    : ext === ".ttf" ? "font/ttf"
+    : "font/otf";
+}
+
+// Deterministic ZIP-relative font filename:
+// assets/fonts/<family>-<weight>.<ext>, slugified, with a numeric suffix on
+// collision (same family+weight shipped in multiple subsets/files).
+export function fontFilename(
+  asset: SnapshotAsset,
+  target: string,
+  ext: string,
+  taken: Set<string>,
+): string {
+  void target;
+  const family = slugify(String(asset.fontFamily ?? asset.alt ?? "font")).slice(0, 40) || "font";
+  const weight = String(asset.fontWeight ?? "400").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 12) || "400";
+  const base = `assets/fonts/${family}-${weight}`;
+  let candidate = `${base}${ext}`;
+  let suffix = 2;
+  while (taken.has(candidate)) {
+    candidate = `${base}-${suffix}${ext}`;
+    suffix += 1;
+  }
+  taken.add(candidate);
+  return candidate;
+}
+
+interface FontFaceSource {
+  typography?: { fontFaces?: Array<{ family?: unknown; src?: unknown; weight?: unknown }> | null } | null;
+  url?: unknown;
+  path?: unknown;
+}
+
+/**
+ * Collect distinct @font-face file URLs from pages' typography snapshots in
+ * document order, same-origin first (then cross-origin), capped at
+ * MAX_FONT_DOWNLOADS. Returns kind:"font" manifest entries the rehydrate
+ * pipeline downloads like every other asset. Callers gate this on
+ * local-full only; hosted/lite never calls it, so their packs are unchanged.
+ */
+export function collectFontAssets(
+  pages: FontFaceSource[],
+  origin: string,
+  maxFiles: number = MAX_FONT_DOWNLOADS,
+): SnapshotAsset[] {
+  const seen = new Set<string>();
+  const sameOrigin: SnapshotAsset[] = [];
+  const crossOrigin: SnapshotAsset[] = [];
+  for (const page of pages ?? []) {
+    const faces = page?.typography?.fontFaces ?? [];
+    const usedOn = typeof page?.url === "string" && page.url ? page.url
+      : typeof page?.path === "string" && page.path ? page.path
+      : origin;
+    for (const face of faces) {
+      const family = String(face?.family ?? "unknown").replace(/["']/g, "").trim().slice(0, 120) || "unknown";
+      const weight = String(face?.weight ?? "400").trim().slice(0, 20) || "400";
+      for (const raw of extractFontUrls(String(face?.src ?? ""))) {
+        if (!isFontUrl(raw)) continue;
+        let absolute: string;
+        try {
+          absolute = new URL(raw, origin).toString();
+        } catch {
+          continue;
+        }
+        if (!/^https?:/i.test(absolute) || seen.has(absolute)) continue;
+        seen.add(absolute);
+        const entry: SnapshotAsset = {
+          url: absolute,
+          kind: "font",
+          alt: `${family} ${weight}`.slice(0, 140),
+          width: null,
+          height: null,
+          usedOn,
+          fontFamily: family,
+          fontWeight: weight,
+        };
+        try {
+          if (new URL(absolute).origin === origin) sameOrigin.push(entry);
+          else crossOrigin.push(entry);
+        } catch {
+          continue;
+        }
+      }
+    }
+  }
+  return [...sameOrigin, ...crossOrigin].slice(0, Math.max(0, maxFiles));
+}
 
 // CF25 fallback thumbnails: facades that never played (wall/byte skips) and
 // captured no poster would leave blank bands. For Vimeo embeds the public
@@ -287,22 +443,27 @@ export async function rehydrateAssets(
     // targets stay ineligible without consuming caps. Cross-origin
     // targets stay ineligible too — except poster kind, whose CDN hosts
     // (Sanity, Vimeo thumbs) are validated by the public-target SSRF
-    // guard below instead of the same-origin rule.
+    // guard below instead of the same-origin rule. CF36-2 font kind shares
+    // the carve-out (fonts.gstatic.com and friends).
     const target =
       unwrapOptimizerUrl(asset.url, options.origin) ??
-      (asset.kind === "poster" ? resolveCrossOriginPosterTarget(asset.url) : null);
+      (asset.kind === "poster" || asset.kind === "font" ? resolveCrossOriginPosterTarget(asset.url) : null);
     const eligible =
       REHYDRATABLE_KINDS.has(asset.kind) ||
       (asset.kind === "image" &&
         target !== null &&
         (isSvgTarget(target) || allowRasterKinds));
-    return { asset, base, referenceOnly, target, eligible, posterKind: asset.kind === "poster" };
+    return { asset, base, referenceOnly, target, eligible, posterKind: asset.kind === "poster", fontKind: asset.kind === "font" };
   });
 
   type Planned = (typeof planned)[number];
 
+  // Tracks claimed assets/fonts/* paths so same family+weight collisions
+  // (subset files) get deterministic numeric suffixes via fontFilename.
+  const usedFontPaths = new Set<string>();
+
   const attempt = async (index: number, entry: Planned): Promise<void> => {
-    const { asset, base, referenceOnly, target, posterKind } = entry;
+    const { asset, base, referenceOnly, target, posterKind, fontKind } = entry;
     const done = (result: SnapshotAsset): void => {
       out[index] = result;
     };
@@ -327,12 +488,13 @@ export async function rehydrateAssets(
       // CF14 posters usually live on third-party CDNs (Sanity, Vimeo
       // thumbs), so poster kind skips the same-origin equality check —
       // but ALWAYS keeps assertPublicTarget, the actual SSRF guard.
+      // CF36-2 fonts get the same carve-out (fonts.gstatic.com and friends).
       try {
         if (options.validate) {
           await options.validate(target);
         } else {
           const parsed = parseHttpUrl(target);
-          if (!posterKind && parsed.origin !== options.origin) {
+          if (!posterKind && !fontKind && parsed.origin !== options.origin) {
             throw new Error("cross-origin asset");
           }
           await assertPublicTarget(parsed, options.fetchImpl);
@@ -347,11 +509,14 @@ export async function rehydrateAssets(
       try {
         // CF36-1: raster-eligible hero/image ask for SVG or raster; every
         // other non-poster kind keeps today's SVG-only accept header.
+        // CF36-2: fonts ask for font MIME types.
         const rasterEligible = allowRasterKinds && (asset.kind === "hero" || asset.kind === "image");
         response = await options.fetchImpl(target, {
           headers: {
             accept: posterKind
               ? "image/jpeg,image/png,image/webp"
+              : fontKind
+                ? "font/woff2,font/woff,font/ttf,font/otf,application/font-woff,*/*;q=0.8"
               : rasterEligible
                 ? "image/svg+xml,image/jpeg,image/png,image/webp"
                 : SVG_CONTENT_TYPE,
@@ -367,11 +532,12 @@ export async function rehydrateAssets(
         return;
       }
       // Redirects are followed by fetch: re-check the landed URL. Same
-      // poster carve-out as above: public-target, not same-origin.
+      // poster carve-out as above: public-target, not same-origin. Fonts
+      // share the carve-out (CDN-to-CDN redirects are normal for fonts).
       if (response.url) {
         try {
           if (new URL(response.url).origin !== options.origin) {
-            if (!posterKind) {
+            if (!posterKind && !fontKind) {
               skippedUnresolvable += 1;
               done(referenceOnly("cross-origin-redirect"));
               return;
@@ -405,6 +571,15 @@ export async function rehydrateAssets(
           return;
         }
         ext = raster;
+      } else if (fontKind) {
+        // CF36-2: font binaries are sniffed by content-type (never
+        // extension-trusted alone); anything non-font stays a reference.
+        const fontExt = sniffFontExt(contentType, target);
+        if (!fontExt) {
+          done(referenceOnly("non-font-content-type"));
+          return;
+        }
+        ext = fontExt;
       } else if (allowRasterKinds && (asset.kind === "hero" || asset.kind === "image")) {
         const raster = sniffRaster();
         if (raster) {
@@ -444,14 +619,17 @@ export async function rehydrateAssets(
         ext === ".jpg" ? "image/jpeg"
         : ext === ".png" ? "image/png"
         : ext === ".webp" ? "image/webp"
+        : fontKind ? fontMimeForExt(ext)
         : "image/svg+xml";
       done({
         ...base,
         source: "downloaded",
-        localPath: assetFilename(asset, index, target, ext),
+        // CF36-2: fonts ship under assets/fonts/<family>-<weight>.<ext>;
+        // every other kind keeps today's manifest-order assets/NN-slug path.
+        localPath: fontKind ? fontFilename(asset, target, ext, usedFontPaths) : assetFilename(asset, index, target, ext),
         bytes,
         contentType: mime,
-        // Raster bytes ride Uint8Array so the analysis dataUrl path
+        // Raster + font bytes ride Uint8Array so the analysis dataUrl path
         // (encodeBase64 local-only, reference-only revert hosted) applies
         // exactly like posters; SVG stays decoded text.
         content: ext === ".svg" ? new TextDecoder().decode(body.bytes) : body.bytes,
@@ -464,10 +642,11 @@ export async function rehydrateAssets(
   };
 
   try {
-    // Phase B: split budget — eligible non-poster assets (logos, icons)
-    // download first in document order so CDN poster frames can never starve
-    // identity assets; posters use the remaining files and bytes. Filenames
-    // keep manifest (document) order regardless of download order.
+    // Phase B: split budget — eligible non-poster assets (logos, icons,
+    // CF36-2 fonts) download first in document order so CDN poster frames
+    // can never starve identity assets; posters use the remaining files and
+    // bytes. Filenames keep manifest (document) order regardless of
+    // download order (fonts use family-weight names under assets/fonts/).
     const passes = [false, true];
     for (const wantPoster of passes) {
       for (let index = 0; index < planned.length; index += 1) {
