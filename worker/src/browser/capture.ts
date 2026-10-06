@@ -2412,7 +2412,8 @@ export async function capturePage(
   fullPageShotMs = Date.now() - fullShotStart;
 
   // Section-clipped screenshots (PRD screenshot policy): homepage only,
-  // bounded by maxSectionShots (6) and the remaining byte budget. Chromium
+  // bounded by maxSectionShots (6 hosted-lite, 20 local-full per CF37) and
+  // the remaining byte budget. Chromium
   // encodes each clip; the Worker never transforms the bytes.
   const sectionStart = Date.now();
   const sectionShots: SectionShot[] = [];
@@ -2423,7 +2424,9 @@ export async function capturePage(
     (snapshot.sectionRects ?? []).length > 0
   ) {
     let budget = maxBytes - (screenshot?.bytes ?? 0);
-    const cap = Math.min(options.maxSectionShots ?? 0, LIMITS.maxSectionScreenshots);
+    // The Full cap is the absolute ceiling (the extractor never emits more
+    // sections than that), so a lite 6 passes through unchanged.
+    const cap = Math.min(options.maxSectionShots ?? 0, LIMITS.maxSectionScreenshotsFull);
     for (const rect of snapshot.sectionRects ?? []) {
       if (sectionShots.length >= cap || budget <= 0) break;
       const clipY = Math.min(rect.y, clipHeight - 1);

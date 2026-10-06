@@ -25,6 +25,10 @@ export const LIMITS = {
   maxDesktopScreenshots: 10,
   maxMobileScreenshots: 2,
   maxSectionScreenshots: 6,
+  // CF37 local-full only: the extractor caps detailed sections at 20, so a
+  // 20-section homepage gets one clip per section instead of building
+  // sections 7-20 blind. Hosted lite keeps the 6-clip diet above.
+  maxSectionScreenshotsFull: 20,
   // Carousel-paged grids hold 7+ facades but hydrate a few cards at a time;
   // the pager (CF24) turns next-arrows to discover them. Affordable since
   // isolated renders cost ~4-10s per facade versus ~30s for doomed clicks.

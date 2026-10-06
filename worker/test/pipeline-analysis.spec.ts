@@ -598,6 +598,91 @@ describe("runAnalysis (CF06)", () => {
     expect(result.pages[0]?.responsiveComparison.status).toBe("not-requested");
   });
 
+  it("CF37: full capture passes 20 section shots for a 20-section homepage", async () => {
+    const { launcher } = makeFakeLauncher("fake");
+    const innerLaunch = launcher.launch.bind(launcher);
+    let first = true;
+    launcher.launch = async () => {
+      const session = await innerLaunch();
+      const origNewPage = session.newPage.bind(session);
+      session.newPage = async () => {
+        const page = await origNewPage();
+        if (first) {
+          first = false;
+          const origEvaluate = page.evaluate.bind(page);
+          page.evaluate = (async <T>(fn: (() => T) | string): Promise<T> => {
+            const src = typeof fn === "string" ? fn : Function.prototype.toString.call(fn);
+            if (src.includes("maxHeadings")) {
+              return {
+                ...SAMPLE_SNAPSHOT,
+                sectionRects: Array.from({ length: 20 }, (_, index) => ({
+                  y: index * 200,
+                  height: 200,
+                  heading: `Section ${index}`,
+                })),
+              } as unknown as T;
+            }
+            return origEvaluate(fn);
+          }) as typeof page.evaluate;
+        }
+        return page;
+      };
+      return session;
+    };
+
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+    });
+
+    // Homepage + 20 section clips; the local-full 25MB budget fits ~20 clips.
+    expect(result.screenshotsCaptured).toBe(21);
+    expect(result.pages[0]?.sectionShots).toHaveLength(LIMITS.maxSectionScreenshotsFull);
+    expect(result.pages[0]?.sectionShots).toHaveLength(20);
+  });
+
+  it("CF37: lite capture keeps the 6-clip section diet on the same homepage", async () => {
+    const { launcher } = makeFakeLauncher("fake");
+    const innerLaunch = launcher.launch.bind(launcher);
+    let first = true;
+    launcher.launch = async () => {
+      const session = await innerLaunch();
+      const origNewPage = session.newPage.bind(session);
+      session.newPage = async () => {
+        const page = await origNewPage();
+        if (first) {
+          first = false;
+          const origEvaluate = page.evaluate.bind(page);
+          page.evaluate = (async <T>(fn: (() => T) | string): Promise<T> => {
+            const src = typeof fn === "string" ? fn : Function.prototype.toString.call(fn);
+            if (src.includes("maxHeadings")) {
+              return {
+                ...SAMPLE_SNAPSHOT,
+                sectionRects: Array.from({ length: 20 }, (_, index) => ({
+                  y: index * 200,
+                  height: 200,
+                  heading: `Section ${index}`,
+                })),
+              } as unknown as T;
+            }
+            return origEvaluate(fn);
+          }) as typeof page.evaluate;
+        }
+        return page;
+      };
+      return session;
+    };
+
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+      capture: "lite",
+    });
+
+    // Homepage + 6 section clips: hosted output is byte-identical to before.
+    expect(result.screenshotsCaptured).toBe(7);
+    expect(result.pages[0]?.sectionShots).toHaveLength(LIMITS.maxSectionScreenshots);
+    expect(result.pages[0]?.sectionShots).toHaveLength(6);
+  });
+
   it("does not capture section clips when the page snapshot has no rects", async () => {
     const { launcher, state } = makeFakeLauncher("fake");
     const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {

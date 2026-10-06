@@ -1536,8 +1536,8 @@ export function collectPageSnapshot(): PageSnapshot {
       } catch {
         // One unreadable element must never break section extraction.
       }
-      // Bounding rects for section-clipped screenshots (homepage, max 6).
-      if (sectionRects.length < 6) {
+      // Bounding rects for section-clipped screenshots (homepage, max 20).
+      if (sectionRects.length < 20) {
         try {
           const rect = (node as unknown as { getBoundingClientRect?: () => { top: number; height: number } }).getBoundingClientRect?.();
           if (rect) {
@@ -2054,7 +2054,7 @@ export function collectPageSnapshot(): PageSnapshot {
     "motion.animations": coverage(animationSourceCount, motion.animations.length, 20),
     "motion.keyframes": coverage(keyframeSourceCount, motion.keyframes.length, 20),
     "geometry.containerWidths": coverage(Object.keys(widthFreq).length, geometry.containerWidths.length, 8),
-    "screenshots.sectionRects": coverage(sectionNodesForContent.length, sectionRects.length, 6, false, "sections without a capturable bounding box were omitted"),
+    "screenshots.sectionRects": coverage(sectionNodesForContent.length, sectionRects.length, 20, false, "sections without a capturable bounding box were omitted"),
     "components.patterns": content.coverage.components,
     "content.blocks": content.coverage.contentBlocks,
     hoverStates: coverage(hoverSourceCount, hoverStates.length, 12),
@@ -2252,7 +2252,7 @@ export function collectPageSnapshot(): PageSnapshot {
     "motion.animations": coverage(animationSourceCount, finalMotion.animations.length, 20),
     "motion.keyframes": coverage(keyframeSourceCount, finalMotion.keyframes.length, 20),
     "geometry.containerWidths": coverage(Object.keys(widthFreq).length, finalGeometry.containerWidths.length, 8),
-    "screenshots.sectionRects": coverage(sectionNodesForContent.length, finalSectionRectCount, 6, false, "sections without a capturable bounding box were omitted"),
+    "screenshots.sectionRects": coverage(sectionNodesForContent.length, finalSectionRectCount, 20, false, "sections without a capturable bounding box were omitted"),
     "components.patterns": finalContent.coverage.components || collectionCoverage["components.patterns"]!,
     "content.blocks": finalContent.coverage.contentBlocks || collectionCoverage["content.blocks"]!,
     "content.hiddenBlocks": finalContent.coverage.hiddenBlocks || collectionCoverage["content.hiddenBlocks"]!,

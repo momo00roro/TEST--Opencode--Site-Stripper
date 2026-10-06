@@ -95,6 +95,60 @@ describe("capturePage", () => {
     expect(result.warnings.some((warning) => warning.includes("cap"))).toBe(true);
   });
 
+  it("CF37: honors section shots up to the full cap", async () => {
+    const { page: base } = makeFakePage();
+    const rects = Array.from({ length: 20 }, (_, index) => ({
+      y: index * 200,
+      height: 200,
+      heading: `Section ${index}`,
+    }));
+    const page = {
+      ...base,
+      evaluate: (async <T>(fn: (() => T) | string): Promise<T> => {
+        const src = typeof fn === "string" ? fn : Function.prototype.toString.call(fn);
+        if (src.includes("maxHeadings")) {
+          return { ...SAMPLE_SNAPSHOT, sectionRects: rects } as unknown as T;
+        }
+        return base.evaluate(fn);
+      }) as BrowserPage["evaluate"],
+    };
+
+    const result = await capturePage(page, {
+      url: "https://example.com/",
+      viewportWidth: 1440,
+      maxSectionShots: LIMITS.maxSectionScreenshotsFull,
+    });
+
+    expect(result.sectionShots).toHaveLength(20);
+  });
+
+  it("CF37: clamps section shots at the full cap", async () => {
+    const { page: base } = makeFakePage({ height: 20_000 });
+    const rects = Array.from({ length: 25 }, (_, index) => ({
+      y: index * 600,
+      height: 600,
+      heading: `Section ${index}`,
+    }));
+    const page = {
+      ...base,
+      evaluate: (async <T>(fn: (() => T) | string): Promise<T> => {
+        const src = typeof fn === "string" ? fn : Function.prototype.toString.call(fn);
+        if (src.includes("maxHeadings")) {
+          return { ...SAMPLE_SNAPSHOT, sectionRects: rects } as unknown as T;
+        }
+        return base.evaluate(fn);
+      }) as BrowserPage["evaluate"],
+    };
+
+    const result = await capturePage(page, {
+      url: "https://example.com/",
+      viewportWidth: 1440,
+      maxSectionShots: 25,
+    });
+
+    expect(result.sectionShots).toHaveLength(LIMITS.maxSectionScreenshotsFull);
+  });
+
   it("returns no screenshot when every format fails", async () => {
     const { page } = makeFakePage({ failTypes: ["webp", "jpeg"] });
     const result = await capturePage(page, { url: "https://example.com/", viewportWidth: 1440 });

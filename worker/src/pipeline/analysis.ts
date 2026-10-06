@@ -289,6 +289,9 @@ export async function runAnalysis(
     ? LIMITS.maxTotalScreenshotBytes
     : LIMITS.maxTotalScreenshotBytes * 2.5;
   const maxVideoShotsCap = liteCapture ? LIMITS.maxVideoShotsLite : LIMITS.maxVideoShots;
+  // CF37: local-full captures every section (extractor caps sections at 20);
+  // hosted lite keeps the 6-clip diet so packs stay byte-identical.
+  const maxSectionShotsCap = liteCapture ? LIMITS.maxSectionScreenshots : LIMITS.maxSectionScreenshotsFull;
   // CF33: hosted-lite navigates on domcontentloaded (skip the networkidle2
   // firehose-track that burns the free CPU); full capture keeps
   // networkidle2+retry. Threaded into every captureOne call below.
@@ -334,7 +337,7 @@ export async function runAnalysis(
         maxBytes: screenshotByteBudget,
         wallBudgetMs,
         waitUntil: navWait,
-        maxSectionShots: wantScreenshots ? LIMITS.maxSectionScreenshots : 0,
+        maxSectionShots: wantScreenshots ? maxSectionShotsCap : 0,
         maxVideoShots: wantScreenshots ? maxVideoShotsCap : 0,
         analysisStartedAt: startedAt,
         ...(options.wallBudgetMs !== undefined ? { wallBudgetMs: options.wallBudgetMs } : {}),

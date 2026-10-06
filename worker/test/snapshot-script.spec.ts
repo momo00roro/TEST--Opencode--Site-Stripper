@@ -1310,4 +1310,13 @@ describe("collectPageSnapshot", () => {
 
     expect(source).toContain("sectionStyles");
   });
+
+  it("emits up to 20 section rects with matching coverage cap (CF37b)", () => {
+    const source = collectPageSnapshot.toString();
+
+    expect(source).toContain("sectionRects.length < 20");
+    expect(source).not.toContain("sectionRects.length < 6");
+    expect(source).toContain("sectionRects.length, 20");
+    expect(source).toContain("finalSectionRectCount, 20");
+  });
 });
