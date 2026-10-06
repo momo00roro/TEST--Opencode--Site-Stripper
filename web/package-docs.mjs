@@ -99,6 +99,119 @@ function tokenInventory(pages) {
   return combined;
 }
 
+// CF34-local: semantic color aliases over the raw frequency inventory.
+// Case-insensitive dedupe (e.g. "#9F58FA" + "#9f58fa" cluster to one alias)
+// while `inventory` keeps every raw spelling untouched. Dependency-free.
+function aliasInventory(inventory) {
+  const colors = inventory?.colors || [];
+  const groups = new Map();
+  for (const token of colors) {
+    const raw = String(token?.value ?? "").trim();
+    if (!raw) continue;
+    const key = raw.toLowerCase();
+    const entry = groups.get(key) || { value: raw, count: 0, pages: [] };
+    entry.count += Number(token.count || 1);
+    for (const page of token.pages || []) if (!entry.pages.includes(page)) entry.pages.push(page);
+    groups.set(key, entry);
+  }
+  // Representative spelling: highest single-token count wins (first-seen
+  // breaks ties), so "#9F58FA" (count 5) beats "#9f58fa" (count 3).
+  const seen = new Map();
+  for (const token of colors) {
+    const key = String(token?.value ?? "").trim().toLowerCase();
+    if (!key || !groups.has(key)) continue;
+    const best = seen.get(key);
+    if (best == null || Number(token.count || 1) > Number(best.count || 1)) seen.set(key, token);
+  }
+  for (const [key, entry] of groups) {
+    const best = seen.get(key);
+    if (best) entry.value = String(best.value).trim();
+  }
+  const ranked = [...groups.values()].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+  const aliases = {};
+  if (ranked.length === 0) return aliases;
+  aliases["brand/primary"] = ranked[0].value;
+  if (ranked.length > 1) aliases["brand/secondary"] = ranked[1].value;
+  const used = new Set(Object.values(aliases).map((value) => String(value).toLowerCase()));
+  const neutrals = ranked
+    .map((entry) => ({ entry, lightness: colorLightness(entry.value) }))
+    .filter((item) => item.lightness != null && isNeutralColor(item.entry.value));
+  if (neutrals.length > 0) {
+    const byLight = [...neutrals].sort((a, b) => a.lightness - b.lightness);
+    const fresh = byLight.filter((item) => !used.has(String(item.entry.value).toLowerCase()));
+    const pool = fresh.length > 0 ? fresh : byLight;
+    if (pool.length === 1) {
+      // A single neutral serves the side of the scale it sits on.
+      if (pool[0].lightness < 0.5) aliases["ink"] = pool[0].entry.value;
+      else aliases["paper"] = pool[0].entry.value;
+    } else {
+      aliases["ink"] = pool[0].entry.value;
+      const lightest = pool[pool.length - 1].entry.value;
+      if (lightest !== aliases["ink"]) aliases["paper"] = lightest;
+    }
+  }
+  return aliases;
+}
+
+// HSL lightness in [0,1], or null when the value is not a parseable color.
+function colorLightness(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  let match = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(text);
+  if (match) {
+    let hex = match[1];
+    if (hex.length <= 4) hex = [...hex].map((ch) => ch + ch).join("");
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+    return (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
+  }
+  match = /^rgba?\(\s*([^)]+)\)$/.exec(text);
+  if (match) {
+    const parts = match[1].split(",").map((part) => part.trim());
+    if (parts.length < 3) return null;
+    const channel = (part) => part.endsWith("%") ? (parseFloat(part) / 100) : (parseFloat(part) / 255);
+    const [r, g, b] = parts.map(channel);
+    if (![r, g, b].every(Number.isFinite)) return null;
+    return (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
+  }
+  match = /^hsla?\(\s*([^)]+)\)$/.exec(text);
+  if (match) {
+    const parts = match[1].split(",").map((part) => part.trim());
+    if (parts.length < 3) return null;
+    const light = parts[2].endsWith("%") ? parseFloat(parts[2]) / 100 : parseFloat(parts[2]);
+    return Number.isFinite(light) ? Math.min(Math.max(light, 0), 1) : null;
+  }
+  if (text === "black") return 0;
+  if (text === "white") return 1;
+  return null;
+}
+
+// Neutral = grayscale (r == g == b) or zero-saturation hsl, plus black/white.
+function isNeutralColor(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (text === "black" || text === "white") return true;
+  let match = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(text);
+  if (match) {
+    let hex = match[1];
+    if (hex.length <= 4) hex = [...hex].map((ch) => ch + ch).join("");
+    return hex.slice(0, 2) === hex.slice(2, 4) && hex.slice(2, 4) === hex.slice(4, 6);
+  }
+  match = /^rgba?\(\s*([^)]+)\)$/.exec(text);
+  if (match) {
+    const parts = match[1].split(",").map((part) => part.trim()).slice(0, 3);
+    const nums = parts.map((part) => part.endsWith("%") ? parseFloat(part) : parseFloat(part));
+    if (!nums.every(Number.isFinite)) return false;
+    return nums[0] === nums[1] && nums[1] === nums[2];
+  }
+  match = /^hsla?\(\s*([^)]+)\)$/.exec(text);
+  if (match) {
+    const parts = match[1].split(",").map((part) => part.trim());
+    if (parts.length < 2) return false;
+    return parseFloat(parts[1]) === 0;
+  }
+  return false;
+}
+
 function w3cTokens(inventory, analysis) {
   const output = { $meta: { schemaVersion: analysis.schemaVersion, sourceUrl: analysis.request.url, note: "Observed/inferred tokens across selected pages; not an exhaustive design-system declaration." } };
   const typeMap = { colors: "color", fontSizes: "fontSize", spacing: "dimension", radii: "dimension", borders: "border", shadows: "shadow" };
@@ -114,6 +227,8 @@ function w3cTokens(inventory, analysis) {
     }
     output[category] = values;
   }
+  // Semantic aliases ride alongside (never replace) the raw token-N keys.
+  output.aliases = aliasInventory(inventory);
   output.semanticSamples = analysis.pages.flatMap((page) => (page.semanticStyles || []).map((sample) => ({ ...sample, page: page.path })));
   output.typography = analysis.pages.map((page) => ({ page: page.path, ...page.typography }));
   return output;
