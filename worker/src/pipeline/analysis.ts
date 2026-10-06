@@ -780,7 +780,19 @@ export async function runAnalysis(
     try {
       // Extract-only mode passes an empty list so no binary is fetched or
       // encoded; the snapshot's reference-only manifest entries above stay.
-      const rehydrated = await rehydrateAssets(wantScreenshots ? assets : [], { fetchImpl, origin: assetOrigin });
+      // CF36-1: local-full (options.capture === "full", passed explicitly
+      // by the local dev server) raises the caps and allows raster
+      // hero/image downloads. Lite/hosted keeps today's call unchanged.
+      const rehydrated = await rehydrateAssets(wantScreenshots ? assets : [], options.capture === "full"
+        ? {
+          fetchImpl,
+          origin: assetOrigin,
+          perFileCap: 512 * 1024,
+          totalCap: 8 * 1024 * 1024,
+          maxFiles: 80,
+          allowRasterKinds: true,
+        }
+        : { fetchImpl, origin: assetOrigin });
       // Poster bytes ride Uint8Array in memory but cannot survive the JSON
       // API (they serialize as {"0":..} bloat and fail client-side
       // validation, killing the whole ZIP download). Where the environment

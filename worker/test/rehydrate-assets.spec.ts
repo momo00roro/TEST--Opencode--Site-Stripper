@@ -421,6 +421,75 @@ describe("rehydrateAssets manifest shape", () => {
   });
 });
 
+describe("rehydrateAssets raster hero/image (CF36-1 local-full)", () => {
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+  const pngRoute = (url: string): Record<string, Response> => ({
+    [url]: new Response(png, { status: 200, headers: { "content-type": "image/png" } }),
+  });
+
+  it("downloads a hero PNG when allowRasterKinds is true", async () => {
+    const summary = await rehydrateAssets(
+      [asset({ url: "https://example.com/hero.png", kind: "hero", alt: "Hero" })],
+      {
+        fetchImpl: stubFetch(pngRoute("https://example.com/hero.png")),
+        origin: ORIGIN,
+        validate: allowAll,
+        allowRasterKinds: true,
+      },
+    );
+
+    expect(summary.downloaded).toBe(1);
+    expect(summary.assets[0]).toMatchObject({
+      source: "downloaded",
+      localPath: "assets/01-hero.png",
+      bytes: png.byteLength,
+      contentType: "image/png",
+    });
+    expect(summary.assets[0]?.content).toBeInstanceOf(Uint8Array);
+  });
+
+  it("keeps a hero PNG reference-only without the flag (hosted default)", async () => {
+    const summary = await rehydrateAssets(
+      [asset({ url: "https://example.com/hero.png", kind: "hero", alt: "Hero" })],
+      {
+        fetchImpl: stubFetch(pngRoute("https://example.com/hero.png")),
+        origin: ORIGIN,
+        validate: allowAll,
+      },
+    );
+
+    expect(summary.downloaded).toBe(0);
+    expect(summary.assets[0]).toMatchObject({ source: "reference-only", skipReason: "non-svg-content-type" });
+    expect(summary.assets[0]?.localPath).toBeUndefined();
+  });
+
+  it("honors perFileCap/totalCap/maxFiles overrides on the local-full path", async () => {
+    const entries = [
+      asset({ url: "https://example.com/a.svg", kind: "logo", alt: "Aaa" }),
+      asset({ url: "https://example.com/b.svg", kind: "logo", alt: "Bbb" }),
+      asset({ url: "https://example.com/c.svg", kind: "logo", alt: "Ccc" }),
+    ];
+    const fetchImpl = stubFetch({
+      "https://example.com/a.svg": svgResponse(SVG),
+      "https://example.com/b.svg": svgResponse(SVG),
+      "https://example.com/c.svg": svgResponse(SVG),
+    });
+    const summary = await rehydrateAssets(entries, {
+      fetchImpl,
+      origin: ORIGIN,
+      validate: allowAll,
+      perFileCap: 512 * 1024,
+      totalCap: 100,
+      maxFiles: 80,
+    });
+
+    expect(summary.downloaded).toBe(2);
+    expect(summary.assets[0]?.source).toBe("downloaded");
+    expect(summary.assets[1]?.source).toBe("downloaded");
+    expect(summary.assets[2]).toMatchObject({ source: "reference-only", skipReason: "total-cap" });
+  });
+});
+
 describe("runAnalysis (CF13)", () => {
   function buildRequest(overrides: Partial<AnalyzeRequest> = {}): AnalyzeRequest {
     return {

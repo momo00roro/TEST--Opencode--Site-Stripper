@@ -102,6 +102,11 @@ export interface RehydrateOptions {
   perFileCap?: number;
   totalCap?: number;
   maxFiles?: number;
+  // CF36-1 local-full only: when true, hero + image kinds also accept
+  // raster bytes (image/jpeg, image/png, image/webp) with the same
+  // content-type sniffing as posters. The same-origin rule still applies
+  // to hero/image (only poster kind gets the cross-origin carve-out).
+  allowRasterKinds?: boolean;
 }
 
 export interface RehydrateSummary {
@@ -237,6 +242,9 @@ export async function rehydrateAssets(
   const perFileCap = options.perFileCap ?? LIMITS.maxAssetDownloadBytesPerFile;
   const totalCap = options.totalCap ?? LIMITS.maxAssetDownloadBytesTotal;
   const maxFiles = options.maxFiles ?? LIMITS.maxAssetDownloads;
+  // CF36-1: local-full raster gate. Hosted (flag unset) keeps today's
+  // SVG-only behavior for hero/image byte-identically.
+  const allowRasterKinds = options.allowRasterKinds === true;
 
   const out: SnapshotAsset[] = new Array(assets.length);
   let downloaded = 0;
@@ -285,7 +293,9 @@ export async function rehydrateAssets(
       (asset.kind === "poster" ? resolveCrossOriginPosterTarget(asset.url) : null);
     const eligible =
       REHYDRATABLE_KINDS.has(asset.kind) ||
-      (asset.kind === "image" && target !== null && isSvgTarget(target));
+      (asset.kind === "image" &&
+        target !== null &&
+        (isSvgTarget(target) || allowRasterKinds));
     return { asset, base, referenceOnly, target, eligible, posterKind: asset.kind === "poster" };
   });
 
@@ -335,9 +345,16 @@ export async function rehydrateAssets(
 
       let response: Response;
       try {
+        // CF36-1: raster-eligible hero/image ask for SVG or raster; every
+        // other non-poster kind keeps today's SVG-only accept header.
+        const rasterEligible = allowRasterKinds && (asset.kind === "hero" || asset.kind === "image");
         response = await options.fetchImpl(target, {
           headers: {
-            accept: posterKind ? "image/jpeg,image/png,image/webp" : SVG_CONTENT_TYPE,
+            accept: posterKind
+              ? "image/jpeg,image/png,image/webp"
+              : rasterEligible
+                ? "image/svg+xml,image/jpeg,image/png,image/webp"
+                : SVG_CONTENT_TYPE,
           },
           redirect: "follow",
         });
@@ -369,16 +386,31 @@ export async function rehydrateAssets(
       }
 
       // CF14: posters ship raster bytes (content-type sniffed, never
-      // extension-trusted); every other kind must be SVG text.
+      // extension-trusted); every other kind must be SVG text — except
+      // CF36-1 local-full, where hero/image also accept raster bytes with
+      // the same sniffing as posters.
       const contentType = response.headers.get("content-type") ?? "";
       const lowered = contentType.toLowerCase();
+      const sniffRaster = (): string | null => {
+        if (lowered.includes("image/jpeg")) return ".jpg";
+        if (lowered.includes("image/png")) return ".png";
+        if (lowered.includes("image/webp")) return ".webp";
+        return null;
+      };
       let ext = ".svg";
       if (posterKind) {
-        if (lowered.includes("image/jpeg")) ext = ".jpg";
-        else if (lowered.includes("image/png")) ext = ".png";
-        else if (lowered.includes("image/webp")) ext = ".webp";
-        else {
+        const raster = sniffRaster();
+        if (!raster) {
           done(referenceOnly("non-image-content-type"));
+          return;
+        }
+        ext = raster;
+      } else if (allowRasterKinds && (asset.kind === "hero" || asset.kind === "image")) {
+        const raster = sniffRaster();
+        if (raster) {
+          ext = raster;
+        } else if (!lowered.includes(SVG_CONTENT_TYPE)) {
+          done(referenceOnly("non-svg-content-type"));
           return;
         }
       } else if (!lowered.includes(SVG_CONTENT_TYPE)) {
@@ -419,7 +451,10 @@ export async function rehydrateAssets(
         localPath: assetFilename(asset, index, target, ext),
         bytes,
         contentType: mime,
-        content: asset.kind === "poster" ? body.bytes : new TextDecoder().decode(body.bytes),
+        // Raster bytes ride Uint8Array so the analysis dataUrl path
+        // (encodeBase64 local-only, reference-only revert hosted) applies
+        // exactly like posters; SVG stays decoded text.
+        content: ext === ".svg" ? new TextDecoder().decode(body.bytes) : body.bytes,
       });
     } catch {
       // Shortfall is recorded, never thrown: one bad asset must not fail
