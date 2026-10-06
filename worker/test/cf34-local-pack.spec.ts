@@ -87,6 +87,79 @@ describe("cf34 motion timeline", () => {
   });
 });
 
+describe("cf34-local task 5: theme.v2 + annotated/responsive pairs", () => {
+  it("emits theme.v2.css, tailwind.theme.mjs and responsive-pairs manifest", () => {
+    const analysisWithTokens = {
+      schemaVersion: "0.2.0",
+      request: { url: "https://example.com", hostname: "example.com", maxPages: 1 },
+      pages: [
+        {
+          path: "/",
+          url: "https://example.com/",
+          title: "Home",
+          viewport: { width: 1440, height: 900 },
+          tokens: {
+            colors: [
+              { value: "#9F58FA", count: 5, source: "observed", confidence: "observed" },
+              { value: "#111111", count: 3, source: "observed", confidence: "observed" },
+            ],
+            fontSizes: [
+              { value: "16px", count: 4, source: "observed", confidence: "observed" },
+              { value: "32px", count: 2, source: "observed", confidence: "observed" },
+            ],
+            spacing: [
+              { value: "8px", count: 3, source: "observed", confidence: "observed" },
+              { value: "24px", count: 2, source: "observed", confidence: "observed" },
+            ],
+            radii: [],
+            borders: [],
+            shadows: [],
+            gradients: [],
+            icons: [],
+            customProperties: [],
+          },
+          typography: {},
+          semanticStyles: [],
+          motion: { transitions: [], animations: [], keyframes: [], animatedSelectors: [] },
+          observedInteractions: [],
+          content: {
+            blocks: [{ order: 0, kind: "heading", tag: "h1", headingLevel: 1, sectionIndex: 0, text: "Welcome", truncated: false }],
+            sections: [{ role: "hero", heading: "Welcome", textExcerpt: "Hello" }],
+          },
+          sectionLayouts: [],
+          screenshot: { kind: "webp", bytes: 24, width: 1440, height: 900 },
+          mobileScreenshot: { kind: "webp", bytes: 12, width: 390, height: 844 },
+        },
+      ],
+      selection: { candidates: [] },
+      pagesDiscovered: 1,
+      pagesSelected: 1,
+      pagesAnalyzed: 1,
+      screenshotsCaptured: 2,
+      screenshotBytesTotal: 36,
+      browserSecondsUsed: 0,
+      issues: [],
+      warnings: [],
+      limitations: [],
+      integrityPassed: true,
+      assets: [],
+      assetCount: 0,
+    };
+    const { files } = buildDocumentationFiles(analysisWithTokens, {});
+    expect(files["theme.v2.css"]).toBeDefined();
+    expect(files["theme.v2.css"]).toContain("@layer");
+    expect(files["tailwind.theme.mjs"]).toBeDefined();
+    expect(files["tailwind.theme.mjs"]).toContain("@theme");
+    expect(files["data/responsive-pairs.json"]).toBeDefined();
+    const pairsDoc = JSON.parse(files["data/responsive-pairs.json"]);
+    expect(Array.isArray(pairsDoc.pairs)).toBe(true);
+    const home = pairsDoc.pairs.find((entry: { page: string }) => entry.page === "/");
+    expect(home).toBeDefined();
+    expect(JSON.stringify(home)).toContain("screenshots/desktop/home");
+    expect(JSON.stringify(home)).toContain("screenshots/mobile/home");
+  });
+});
+
 describe("cf34 ordered rebuild", () => {
   it("orders REBUILD.md tokens→shell→sections with acceptance boxes", () => {
     // REAL SnapshotSection shape (worker/src/browser/snapshot-script.ts):

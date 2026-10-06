@@ -256,6 +256,140 @@ function themeFiles(inventory, pages) {
   return { theme, tailwind };
 }
 
+// CF34-local Task 5 (additive): layered theme.v2 + Tailwind v4 @theme +
+// responsive-pairs manifest + SVG annotation overlays (no raster drawing,
+// no native deps). All helpers are dependency-free and capped.
+
+// CSS var-safe name: "brand/primary" -> "brand-primary".
+function cssVarName(raw, fallback = "token") {
+  const clean = String(raw ?? "").toLowerCase().replace(/\//g, "-").replace(/[^a-z0-9-_]/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+  return clean || fallback;
+}
+
+function parsePx(value) {
+  const match = /^\s*(\d*\.?\d+)\s*px\s*$/i.exec(String(value ?? ""));
+  if (!match) return null;
+  const num = parseFloat(match[1]);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+function themeV2Files(inventory, pages) {
+  const aliases = aliasInventory(inventory);
+  const topColors = (inventory.colors || []).slice(0, 12);
+  const topFontSizes = (inventory.fontSizes || []).slice(0, 8);
+  const topSpacing = (inventory.spacing || []).slice(0, 8);
+  const firstFace = (pages || []).flatMap((page) => page.typography?.fontFaces || [])[0]?.family?.replace(/["'\\;]/g, "") || "";
+  const lines = [];
+  for (const [name, value] of Object.entries(aliases)) {
+    lines.push(`  --${cssVarName(name)}: ${value}; /* observed alias ${name} */`);
+  }
+  topColors.forEach((token, index) => lines.push(`  --color-${index + 1}: ${token.value}; /* ${token.source}/${token.confidence}; ${token.count} observation${token.count === 1 ? "" : "s"} */`));
+  topFontSizes.forEach((token, index) => lines.push(`  --font-size-${index + 1}: ${token.value}; /* ${token.source}/${token.confidence} */`));
+  topSpacing.forEach((token, index) => lines.push(`  --spacing-${index + 1}: ${token.value}; /* ${token.source}/${token.confidence} */`));
+  lines.push(firstFace ? `  --font-family-base: ${firstFace}, system-ui, sans-serif;` : `  --font-family-base: system-ui, sans-serif;`);
+  // Fluid type from observed min/max font sizes (honest: needs >= 2 sizes).
+  const pxSizes = topFontSizes.map((token) => parsePx(token.value)).filter((num) => num != null);
+  const minPx = pxSizes.length > 0 ? Math.min(...pxSizes) : null;
+  const maxPx = pxSizes.length > 0 ? Math.max(...pxSizes) : null;
+  if (minPx != null && maxPx != null && maxPx > minPx) {
+    const midRem = (((minPx + maxPx) / 2 / 16).toFixed(3));
+    lines.push(`  --font-size-fluid: clamp(${minPx}px, ${midRem}rem + 1vw, ${maxPx}px); /* fluid range from observed min/max font sizes */`);
+  } else {
+    lines.push(`  /* No fluid type range — fewer than 2 distinct observed px font sizes. */`);
+  }
+  // Dark scheme only when dark tokens were actually observed; else comment.
+  const hasDark = (inventory.colors || []).some((token) => {
+    const lightness = colorLightness(token.value);
+    return lightness != null && lightness < 0.25;
+  });
+  const darkBlock = hasDark
+    ? `@media (prefers-color-scheme: dark) {\n  @layer tokens {\n    :root {\n      /* Dark tokens observed (lightness < 0.25 present) — verify against the live page before shipping. */\n      color-scheme: dark;\n    }\n  }\n}`
+    : `/* No dark tokens observed — dark scheme omitted. Verify against the live page before adding one. */`;
+  const themeV2 = `@layer tokens, base, components;\n\n@layer tokens {\n  :root {\n${lines.join("\n")}\n  }\n}\n\n@layer base {\n  body {\n    background: var(--paper, var(--color-1, #ffffff));\n    color: var(--ink, #111111);\n    font-family: var(--font-family-base);\n    font-size: var(--font-size-1, 16px);\n  }\n}\n\n@layer components {\n  .btn {\n    background: var(--brand-primary, var(--color-1, #111111));\n    color: var(--paper, #ffffff);\n    padding: var(--spacing-1, 8px) var(--spacing-2, 16px);\n  }\n}\n\n${darkBlock}\n`;
+  // Tailwind v4: @theme tokens from the same capped data. The file is ESM
+  // that exports the token maps plus a copy-paste `themeCss` snippet, so
+  // the literal "@theme" is present for both machines and humans.
+  const colorEntries = Object.fromEntries(topColors.map((token, index) => [`--color-${index + 1}`, token.value]));
+  for (const [name, value] of Object.entries(aliases)) colorEntries[`--color-${cssVarName(name)}`] = value;
+  const fontEntries = Object.fromEntries(topFontSizes.map((token, index) => [`--font-${index + 1}`, token.value]));
+  fontEntries["--font-base"] = firstFace ? `${firstFace}, system-ui, sans-serif` : "system-ui, sans-serif";
+  const spacingEntries = Object.fromEntries(topSpacing.map((token, index) => [`--spacing-${index + 1}`, token.value]));
+  const themeCssBlock = `@theme {\n${Object.entries(colorEntries).map(([key, value]) => `  ${key}: ${value};`).join("\n")}\n${Object.entries(fontEntries).map(([key, value]) => `  ${key}: ${value};`).join("\n")}\n${Object.entries(spacingEntries).map(([key, value]) => `  ${key}: ${value};`).join("\n")}\n}`;
+  const tailwindV4 = `// Tailwind CSS v4 theme tokens (observed; capped top values + aliases).\n// Usage in CSS:\n//   @import "tailwindcss";\n//   ${"@theme"} { ... } — copy the exported themeCss block below.\n// Source: data/tokens.json (aliases + per-category token-N keys).\nexport const themeCss = \`${themeCssBlock.replace(/`/g, "\\`")}\`;\nexport const theme = {\n  colors: ${JSON.stringify(Object.fromEntries(topColors.map((token, index) => [`color-${index + 1}`, token.value])), null, 2)},\n  fonts: ${JSON.stringify(Object.fromEntries(topFontSizes.map((token, index) => [`font-${index + 1}`, token.value])), null, 2)},\n  spacing: ${JSON.stringify(Object.fromEntries(topSpacing.map((token, index) => [`spacing-${index + 1}`, token.value])), null, 2)},\n  aliases: ${JSON.stringify(aliases)},\n};\n`;
+  return { themeV2, tailwindV4 };
+}
+
+function hasShotMeta(shot) {
+  if (!shot || typeof shot !== "object") return false;
+  return shot.kind != null || shot.width != null || shot.height != null || shot.bytes != null;
+}
+
+// Responsive pairs: desktop/mobile screenshot paths per page where shot
+// metadata is present (cleanPage strips dataUrl, so kind/width/height
+// presence is the signal). Never throws; empty pairs carry an honest note.
+function buildResponsivePairs(pages, schemaVersion) {
+  const pairs = [];
+  for (const page of (pages || []).slice(0, 20)) {
+    const desktopMeta = hasShotMeta(page.screenshot) ? page.screenshot : null;
+    const mobileMeta = hasShotMeta(page.mobileScreenshot) ? page.mobileScreenshot : null;
+    if (!desktopMeta && !mobileMeta) continue;
+    const desktop = desktopMeta ? shotPath(page, "desktop", null, desktopMeta) : null;
+    const mobile = mobileMeta ? shotPath(page, "mobile", null, mobileMeta) : null;
+    const status = desktop && mobile ? "paired" : desktop ? "desktop-only" : "mobile-only";
+    pairs.push({
+      page: page.path,
+      desktop,
+      mobile,
+      status,
+      desktopSize: desktopMeta ? { width: desktopMeta.width ?? null, height: desktopMeta.height ?? null } : null,
+      mobileSize: mobileMeta ? { width: mobileMeta.width ?? null, height: mobileMeta.height ?? null } : null,
+    });
+    if (pairs.length >= 20) break;
+  }
+  const note = pairs.length === 0
+    ? "No desktop/mobile screenshot metadata observed — no pairs to compare. Verify responsive behavior against the live page."
+    : pairs.every((entry) => entry.status !== "paired")
+      ? "Only single-variant captures observed (no desktop+mobile pair on the same page). Pair entries list the observed variant; verify the missing variant against the live page."
+      : "Desktop/mobile pairs by page path; screenshot binaries live under screenshots/ (see screenshots/manifest.json).";
+  return { schemaVersion: schemaVersion || "0.2.0", pairs: pairs.slice(0, 20), note };
+}
+
+const xmlEscape = (value) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+// Annotated overlays: SVG manifest only (no raster drawing, no native
+// deps). Section x/y/width/height geometry is not available in the docs
+// renderer (sectionLayouts carry y/height/textAlign at most), so overlays
+// list heading order as <text> elements — honest, no fake rects.
+function buildAnnotatedOverlays(pages) {
+  const overlays = {};
+  let total = 0;
+  for (const page of (pages || []).slice(0, 10)) {
+    const sections = (page.content?.sections || []).slice(0, 10);
+    if (sections.length === 0) continue;
+    const layouts = page.sectionLayouts || [];
+    const names = sections.map((section, index) => {
+      const heading = typeof section.heading === "string" ? section.heading : section.heading?.text || "(unheaded)";
+      const role = section.role || "section";
+      const layout = layouts[index] || {};
+      const geom = Number.isFinite(Number(layout.y)) && Number.isFinite(Number(layout.height))
+        ? ` (y≈${layout.y}, h≈${layout.height})`
+        : "";
+      return { label: `${index + 1}. [${role}] ${heading}${geom}`, index };
+    });
+    for (const item of names) {
+      if (total >= 20) break;
+      const base = slug(page.path);
+      const zipPath = `screenshots/annotated/${base}-${item.index + 1}.svg`;
+      const height = 60 + names.length * 24;
+      const rows = names.map((row, rowIndex) => `    <text x="16" y="${56 + rowIndex * 24}" font-family="monospace" font-size="13" fill="${rowIndex === item.index ? "#f59e0b" : "#e5e7eb"}">${xmlEscape(row.label)}</text>`).join("\n");
+      overlays[zipPath] = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${height}" role="img" aria-label="${xmlEscape(`Section order overlay for ${page.path}`)}">\n  <rect x="0" y="0" width="800" height="${height}" fill="#111827" opacity="0.92"/>\n  <text x="16" y="24" font-family="monospace" font-size="14" font-weight="bold" fill="#ffffff">${xmlEscape(`Overlay: ${page.path} section ${item.index + 1}/${names.length}`)}</text>\n  <text x="16" y="40" font-family="monospace" font-size="11" fill="#9ca3af">Order-only overlay — no section rect geometry observed; do not use for pixel placement.</text>\n${rows}\n</svg>\n`;
+      total += 1;
+    }
+    if (total >= 20) break;
+  }
+  return overlays;
+}
+
 // Builder/stack detection from asset URL fingerprints plus the generator
 // meta as fallback. A generator value alone can mislead (e.g. a WordPress
 // SEO plugin), so asset evidence always takes precedence in the wording.
@@ -786,6 +920,12 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
   const { theme, tailwind } = themeFiles(inventory, pages);
   docs["theme.css"] = theme;
   docs["tailwind.config.js"] = tailwind;
+  // CF34-local Task 5 (additive): theme.v2 + v4 @theme + responsive pairs + SVG overlays.
+  const { themeV2, tailwindV4 } = themeV2Files(inventory, pages);
+  docs["theme.v2.css"] = themeV2;
+  docs["tailwind.theme.mjs"] = tailwindV4;
+  docs["data/responsive-pairs.json"] = json(buildResponsivePairs(pages, analysis.schemaVersion));
+  for (const [zipPath, svg] of Object.entries(buildAnnotatedOverlays(pages))) docs[zipPath] = svg;
   for (const page of pages) docs[`pages/${slug(page.path)}.md`] = pageMarkdown(page);
   return docs;
 }
