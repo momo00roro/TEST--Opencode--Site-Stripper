@@ -403,3 +403,65 @@ describe("cf35-2 layout-carrying pack", () => {
     expect(files["REBUILD.md"]).toContain("- [ ]");
   });
 });
+
+describe("cf35-3 pageCanvasColor body background", () => {
+  const canvasFixture = (pageCanvasColor?: string) => ({
+    schemaVersion: "0.2.0",
+    request: { url: "https://example.com", hostname: "example.com", maxPages: 1 },
+    pages: [
+      {
+        path: "/",
+        url: "https://example.com/",
+        title: "Home",
+        viewport: { width: 1440, height: 900 },
+        tokens: {},
+        typography: {},
+        semanticStyles: [],
+        motion: { transitions: [], animations: [], keyframes: [], animatedSelectors: [] },
+        observedInteractions: [],
+        ...(pageCanvasColor === undefined ? {} : { pageCanvasColor }),
+        content: {
+          blocks: [],
+          sections: [{ role: "hero", heading: "Welcome", textExcerpt: "Hello" }],
+        },
+        sectionLayouts: [],
+      },
+    ],
+    selection: { candidates: [] },
+    pagesDiscovered: 1,
+    pagesSelected: 1,
+    pagesAnalyzed: 1,
+    screenshotsCaptured: 0,
+    screenshotBytesTotal: 0,
+    browserSecondsUsed: 0,
+    issues: [],
+    warnings: [],
+    limitations: [],
+    integrityPassed: true,
+    assets: [],
+    assetCount: 0,
+  });
+
+  it("threads observed canvas color into layout.json, REBUILD shell, and theme.v2.css", () => {
+    const { files } = buildDocumentationFiles(canvasFixture("rgb(15, 17, 19)"), {});
+    const rebuild = files["REBUILD.md"] as string;
+    const shellStart = rebuild.indexOf("## 2. Layout shell");
+    const nextHeader = rebuild.indexOf("## Section 1");
+    const shell = rebuild.slice(shellStart, nextHeader === -1 ? undefined : nextHeader);
+    expect(shell).toContain("rgb(15, 17, 19)");
+    expect(shell.toLowerCase()).toContain("body");
+    const layout = JSON.parse(files["data/layout.json"] as string);
+    expect(layout.bodyBackground).toBe("rgb(15, 17, 19)");
+    expect(layout.pages[0].bodyBackground).toBe("rgb(15, 17, 19)");
+    expect(files["theme.v2.css"] as string).toContain("rgb(15, 17, 19)");
+    expect(files["theme.v2.css"] as string).toContain("--page-bg");
+  });
+
+  it("falls back honestly when no canvas color was observed", () => {
+    const { files } = buildDocumentationFiles(canvasFixture(), {});
+    expect(files["REBUILD.md"] as string).toContain("body background not observed");
+    const layout = JSON.parse(files["data/layout.json"] as string);
+    expect(layout.bodyBackground).toBeNull();
+    expect(files["theme.v2.css"] as string).toContain("--paper");
+  });
+});

@@ -467,6 +467,15 @@ function themeV2Files(inventory, pages) {
   topFontSizes.forEach((token, index) => lines.push(`  --font-size-${index + 1}: ${token.value}; /* ${token.source}/${token.confidence} */`));
   topSpacing.forEach((token, index) => lines.push(`  --spacing-${index + 1}: ${token.value}; /* ${token.source}/${token.confidence} */`));
   lines.push(firstFace ? `  --font-family-base: ${firstFace}, system-ui, sans-serif;` : `  --font-family-base: system-ui, sans-serif;`);
+  // CF35-3: observed page canvas is the authoritative body background.
+  // --page-bg carries the observed value; the base body rule prefers it and
+  // falls back to the previous --paper chain when absent. Additive: theme.css untouched.
+  const observedPageBg = (pages || []).map((page) => page?.pageCanvasColor).find((value) => typeof value === "string" && value.trim());
+  if (observedPageBg) {
+    lines.push(`  --page-bg: ${observedPageBg}; /* observed page canvas — paint body this FIRST */`);
+  } else {
+    lines.push(`  /* No page canvas color observed — body falls back to --paper. */`);
+  }
   // Fluid type from observed min/max font sizes (honest: needs >= 2 sizes).
   const pxSizes = topFontSizes.map((token) => parsePx(token.value)).filter((num) => num != null);
   const minPx = pxSizes.length > 0 ? Math.min(...pxSizes) : null;
@@ -485,7 +494,10 @@ function themeV2Files(inventory, pages) {
   const darkBlock = hasDark
     ? `@media (prefers-color-scheme: dark) {\n  @layer tokens {\n    :root {\n      /* Dark tokens observed (lightness < 0.25 present) — verify against the live page before shipping. */\n      color-scheme: dark;\n    }\n  }\n}`
     : `/* No dark tokens observed — dark scheme omitted. Verify against the live page before adding one. */`;
-  const themeV2 = `@layer tokens, base, components;\n\n@layer tokens {\n  :root {\n${lines.join("\n")}\n  }\n}\n\n@layer base {\n  body {\n    background: var(--paper, var(--color-1, #ffffff));\n    color: var(--ink, #111111);\n    font-family: var(--font-family-base);\n    font-size: var(--font-size-1, 16px);\n  }\n}\n\n@layer components {\n  .btn {\n    background: var(--brand-primary, var(--color-1, #111111));\n    color: var(--paper, #ffffff);\n    padding: var(--spacing-1, 8px) var(--spacing-2, 16px);\n  }\n}\n\n${darkBlock}\n`;
+  const bodyBackgroundDecl = observedPageBg
+    ? `    background: var(--page-bg, var(--paper, var(--color-1, #ffffff)));`
+    : `    background: var(--paper, var(--color-1, #ffffff));`;
+  const themeV2 = `@layer tokens, base, components;\n\n@layer tokens {\n  :root {\n${lines.join("\n")}\n  }\n}\n\n@layer base {\n  body {\n${bodyBackgroundDecl}\n    color: var(--ink, #111111);\n    font-family: var(--font-family-base);\n    font-size: var(--font-size-1, 16px);\n  }\n}\n\n@layer components {\n  .btn {\n    background: var(--brand-primary, var(--color-1, #111111));\n    color: var(--paper, #ffffff);\n    padding: var(--spacing-1, 8px) var(--spacing-2, 16px);\n  }\n}\n\n${darkBlock}\n`;
   // Tailwind v4: @theme tokens from the same capped data. The file is ESM
   // that exports the token maps plus a copy-paste `themeCss` snippet, so
   // the literal "@theme" is present for both machines and humans.
@@ -755,9 +767,15 @@ function motionTimelineMd(pages, timeline) {
 // CF35-2: sections are y-ordered (null y sorts last) for machine consumers;
 // `section` is the 1-based document-order index, `order` is the 0-based twin
 // kept for backward compatibility. Never invents geometry.
+// CF35-3: observed page canvas color (page.pageCanvasColor) is the
+// authoritative body background. Single string per page, no cap needed.
+function pageCanvasBackground(page) {
+  const raw = page?.pageCanvasColor;
+  return typeof raw === "string" && raw.trim() ? raw : null;
+}
+
 function buildLayout(pages) {
-  return {
-    pages: pages.map((page) => {
+  const entries = (pages || []).map((page) => {
       const sections = page.content?.sections || [];
       const layouts = page.sectionLayouts || [];
       const rows = sections.slice(0, 20).map((section, index) => {
@@ -785,9 +803,13 @@ function buildLayout(pages) {
       return {
         path: page.path,
         viewport: page.viewport || null,
+        bodyBackground: pageCanvasBackground(page),
         sections: rows,
       };
-    }),
+    });
+  return {
+    bodyBackground: entries.map((entry) => entry.bodyBackground).find((value) => value != null) ?? null,
+    pages: entries,
   };
 }
 
@@ -890,6 +912,8 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
   lines.push(`Apply \`theme.css\` values first (prefer \`observed\` confidence). Canonical source: \`data/tokens.json\` (\`aliases\` + per-category token-N keys); semantic samples in \`design-tokens.md\` under "Key observed roles".${aliasRefs ? ` Observed aliases: ${aliasRefs}.` : " No semantic aliases observed."}`);
   lines.push("");
   // 2) Layout shell: observed chrome shared across pages.
+  // CF35-3: authoritative body background from observed page canvas color.
+  // surface/* tokens are section/card surfaces, never the page.
   lines.push("## 2. Layout shell — nav/footer chrome", "");
   const shellPages = (pages || []).filter((page) => page.nav && (page.nav.header?.length || page.nav.primary?.length || page.nav.footer?.length));
   if (shellPages.length === 0) {
@@ -899,6 +923,17 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
       const nav = page.nav || {};
       const fmt = (links) => (links || []).map((link) => `${link.text || link.href || "(unlabelled)"}`).join(" / ") || "—";
       lines.push(`- \`${code(page.path)}\` header: ${md(fmt(nav.header))}; primary: ${md(fmt(nav.primary))}; footer: ${md(fmt(nav.footer))} (observed navigation; full hrefs in \`data/navigation.json\`)`);
+    }
+  }
+  const canvasByPage = (pages || []).map((page) => ({ path: page.path, color: pageCanvasBackground(page) })).filter((entry) => entry.color);
+  if (canvasByPage.length === 0) {
+    lines.push("Body background: body background not observed — no page canvas color captured; verify against the live page and screenshots before choosing a body background.");
+  } else {
+    const distinct = [...new Set(canvasByPage.map((entry) => entry.color))];
+    if (distinct.length === 1) {
+      lines.push(`Body background: \`${code(distinct[0])}\` (observed page canvas — paint <body> this FIRST; surface/* tokens are section/card surfaces, not the page)`);
+    } else {
+      for (const entry of canvasByPage) lines.push(`Body background (\`${code(entry.path)}\`): \`${code(entry.color)}\` (observed page canvas — paint <body> this FIRST; surface/* tokens are section/card surfaces, not the page)`);
     }
   }
   lines.push("");
