@@ -148,6 +148,19 @@ capped 90 s orphan + ≈ 0.3 min smoke; no further heavy runs were fired.
 
 ### CF31 — extract-only diagnostic mode (`?screenshots=0`)
 
+### CF32 — two-tier capture profiles (local full, hosted lite)
+
+`AnalysisOptions.capture`: `"full"` is the most capable build (opened-up
+wall 600 s / 25 MB budgets, full 12-clip video cap); `"lite"` is the
+compromised hosted build (free-tier 150 s / 10 MB discipline, 6-clip video
+diet, honest limitations). The Worker route passes `"lite"`, the local
+server passes `"full"`; direct pipeline callers default to full so the
+existing suite is unaffected (budget-exhaustion specs pin `"lite"`
+explicitly). Fixed en route: the route initially hardcoded lite and ignored
+the local `"full"` (caught by a local run showing the lite note; regression
+test locks the deps wiring). Local verification: example.com full mode —
+2 shots, both native-base64 dataUrls, no lite note, 0 issues.
+
 `POST /api/analyze?screenshots=0` now runs the full pipeline with zero
 binaries: no screenshots, video clips, mobile captures, or asset downloads —
 observations, tokens, and DOM-only comparisons still run, all shortfalls

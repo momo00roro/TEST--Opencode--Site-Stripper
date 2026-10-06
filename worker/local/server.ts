@@ -86,6 +86,9 @@ const server = createServer(async (req, res) => {
       const response = await handleRequest(request, env, {
         launcher,
         encodeBase64: (bytes) => Buffer.from(bytes).toString("base64"),
+        // Local is the most capable build (CF32): opened-up budgets, full
+        // video cap. The hosted route passes "lite" instead.
+        capture: "full",
       });
 
       const headers: Record<string, string> = {};

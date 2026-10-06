@@ -12,6 +12,11 @@ export interface AnalyzeRouteDeps {
   encodeBase64?: (bytes: Uint8Array) => string;
   /** Homepage rotation re-sample delay in ms (default 5000; 0 disables). */
   detectRotationMs?: number;
+  /**
+   * Capture profile (CF32): the hosted route defaults to `"lite"`; the
+   * local server injects `"full"`.
+   */
+  capture?: "full" | "lite";
 }
 
 export function resolveLauncher(env: Env, deps: AnalyzeRouteDeps): SessionLauncher {
@@ -94,6 +99,9 @@ export async function handleAnalyze(
       fetchImpl,
       detectRotationMs: deps.detectRotationMs ?? 5000,
       screenshots: screenshotsEnabled(request),
+      // Hosted default is the compromised survivor (CF32); the local
+      // server injects "full" via deps.
+      capture: deps.capture ?? "lite",
     });
     return json(result, 200, { "cache-control": "no-store" });
   }
@@ -120,6 +128,9 @@ export async function handleAnalyze(
         onProgress,
         detectRotationMs: deps.detectRotationMs ?? 5000,
         screenshots: screenshotsEnabled(request),
+        // Hosted default is the compromised survivor (CF32); the local
+        // server injects "full" via deps.
+        capture: deps.capture ?? "lite",
       })
         .then((result) => {
           // Keep each serialized observation bounded to one page instead of

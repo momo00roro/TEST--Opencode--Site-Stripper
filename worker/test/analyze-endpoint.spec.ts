@@ -187,6 +187,22 @@ describe("POST /api/analyze", () => {
     expect(res.limitations.some((line: string) => line.includes("?screenshots=0"))).toBe(true);
   });
 
+  it("wires the capture profile from deps: hosted default is lite, local injects full", async () => {
+    const body = { url: "https://other.example/", maxPages: 1, includeMobile: false };
+    const run = (extra: object) => handleRequest(jsonRequest(body), makeEnv(), {
+      launcher: makeFakeLauncher("fake").launcher,
+      fetchImpl: mockSiteFetchWithDoh({}, { a: ["93.184.216.34"] }),
+      detectRotationMs: 0,
+      ...extra,
+    });
+
+    const hosted = (await (await run({})).json()) as Record<string, any>;
+    expect(hosted.limitations.some((line: string) => line.includes("Hosted lite capture"))).toBe(true);
+
+    const local = (await (await run({ capture: "full" })).json()) as Record<string, any>;
+    expect(local.limitations.some((line: string) => line.includes("Hosted lite capture"))).toBe(false);
+  });
+
   it("workerBase64 round-trips bytes identically to Buffer", () => {
     const bytes = Uint8Array.from({ length: 70000 }, (_, i) => i % 256);
     expect(workerBase64(bytes)).toBe(Buffer.from(bytes).toString("base64"));

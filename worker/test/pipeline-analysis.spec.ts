@@ -349,6 +349,8 @@ describe("runAnalysis (CF06)", () => {
 
     const result = await runAnalysis(launcher, buildRequest({ maxPages: 3 }), {
       fetchImpl: mockSiteFetch(),
+      // The byte-cap path under test is the hosted-lite budget.
+      capture: "lite",
     });
 
     expect(result.pagesAnalyzed).toBe(3);
@@ -409,6 +411,9 @@ describe("runAnalysis (CF06)", () => {
     try {
       const result = await runAnalysis(launcher, buildRequest({ maxPages: 2 }), {
         fetchImpl: mockSiteFetch(),
+        // The mocked clock (+151s) exhausts the hosted-lite wall, not the
+        // opened-up full wall.
+        capture: "lite",
       });
 
       expect(result.pages[0]?.mobileScreenshot).toBeNull();
@@ -582,6 +587,26 @@ describe("runAnalysis (CF06)", () => {
     expect(result.pages[0]?.videoShots).toHaveLength(12);
     expect(result.pages[0]?.videoShots[0]).toMatchObject({ kind: "webp", height: 450, label: "video: Demo" });
     expect(result.pages[0]?.videoShots[0]?.dataUrl).toMatch(/^data:image\/webp;base64,/);
+  });
+
+  it("lite capture diets video clips to the hosted cap with an honest note", async () => {
+    const { launcher } = makeFakeLauncher("fake", {
+      videoTarget: { status: "target", x: 720, y: 500, label: "Demo" },
+      videoPlayer: { started: true, x: 0, y: 100, width: 800, height: 450 },
+    });
+    const result = await runAnalysis(launcher, buildRequest({ maxPages: 1, includeMobile: false }), {
+      fetchImpl: mockSiteFetch(),
+      encodeBase64: (bytes) => Buffer.from(bytes).toString("base64"),
+      capture: "lite",
+    });
+
+    // Homepage + lite video diet; the rest of the facades are disclosed, not shot.
+    expect(result.screenshotsCaptured).toBe(7);
+    expect(result.pages[0]?.videoShots).toHaveLength(6);
+    expect(result.pages[0]?.videoShots[0]).toMatchObject({ kind: "webp", height: 450, label: "video: Demo" });
+    expect(result.pages[0]?.videoShots[0]?.dataUrl).toMatch(/^data:image\/webp;base64,/);
+    expect(result.warnings.some((line) => line.includes("beyond the 6-clip cap"))).toBe(true);
+    expect(result.limitations.some((line) => line.includes("Hosted lite capture"))).toBe(true);
   });
 
   it("renders deferred streams isolated and inlines their dataUrls", async () => {

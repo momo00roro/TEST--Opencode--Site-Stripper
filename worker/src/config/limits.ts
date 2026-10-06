@@ -29,6 +29,12 @@ export const LIMITS = {
   // the pager (CF24) turns next-arrows to discover them. Affordable since
   // isolated renders cost ~4-10s per facade versus ~30s for doomed clicks.
   maxVideoShots: 12,
+  /**
+   * Hosted-lite diet (CF32): the Cloudflare build caps playing-state video
+   * clips per homepage so heavy pages degrade to a smaller honest pack
+   * instead of dying on the free CPU ceiling. Local full capture keeps 12.
+   */
+  maxVideoShotsLite: 6,
   maxTotalScreenshotBytes: 10 * 1024 * 1024,
   maxAssetManifestEntries: 300,
   maxAssetDownloadBytesPerFile: 50 * 1024,

@@ -204,16 +204,25 @@ export interface AnalysisOptions {
    * DOM-only comparisons still run. Defaults to true (full capture).
    */
   screenshots?: boolean;
+  /**
+   * Capture profile (CF32): `"full"` is the most capable build (local
+   * Chromium — opened-up wall and byte budgets, full video cap);
+   * `"lite"` is the compromised hosted build (free-tier wall/bytes, video
+   * diet, honest limitations). Defaults to `"full"`; the Worker route
+   * passes `"lite"`, the local server passes `"full"`.
+   */
+  capture?: "full" | "lite";
   maxInlineImageBytes?: number;
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
   onProgress?: (event: AnalysisProgress) => void;
   /** Homepage rotation re-sample delay in ms; unset disables the check. */
   detectRotationMs?: number;
-  /**
-   * Override for the total analysis wall budget in ms (tests force
-   * wall-skips with 0). Production omits it and the LIMITS default applies.
-   */
-  wallBudgetMs?: number;
+    /**
+     * Override for the total analysis wall budget in ms (tests force
+     * wall-skips with 0). Otherwise the capture profile default applies
+     * (free-tier wall for lite, opened-up wall for full).
+     */
+    wallBudgetMs?: number;
 }
 
 // Bot-verification challenges (CAPTCHAs, sliders, rate walls) are never
@@ -269,6 +278,22 @@ export async function runAnalysis(
   const limitations: string[] = [];
   const pages: AnalysisPage[] = [];
   const wantScreenshots = options.screenshots !== false;
+  // CF32 two-tier budgets: local full capture gets opened-up wall/byte
+  // budgets (guardrails, not targets); hosted lite keeps free-tier
+  // discipline plus the video diet below. Tests that force wall-skips pass
+  // wallBudgetMs explicitly and are unaffected.
+  const liteCapture = options.capture === "lite";
+  const wallBudgetMs = options.wallBudgetMs
+    ?? (liteCapture ? LIMITS.totalAnalysisWallBudgetMs : LIMITS.totalAnalysisWallBudgetMs * 4);
+  const screenshotByteBudget = liteCapture
+    ? LIMITS.maxTotalScreenshotBytes
+    : LIMITS.maxTotalScreenshotBytes * 2.5;
+  const maxVideoShotsCap = liteCapture ? LIMITS.maxVideoShotsLite : LIMITS.maxVideoShots;
+  if (liteCapture && wantScreenshots) {
+    limitations.push(
+      `Hosted lite capture: playing-state video clips are capped at ${LIMITS.maxVideoShotsLite} per homepage (full: ${LIMITS.maxVideoShots}); run locally for the full-fidelity pack.`,
+    );
+  }
   if (!wantScreenshots) {
     limitations.push(
       "Extract-only mode (`?screenshots=0`): no screenshots, video clips, mobile captures, or asset binaries were taken; observations, tokens, and DOM-only comparisons are complete.",
@@ -302,8 +327,10 @@ export async function runAnalysis(
         viewportWidth: LIMITS.desktopViewportWidth,
         captureScreenshot: wantScreenshots,
         fetchImpl,
+        maxBytes: screenshotByteBudget,
+        wallBudgetMs,
         maxSectionShots: wantScreenshots ? LIMITS.maxSectionScreenshots : 0,
-        maxVideoShots: wantScreenshots ? LIMITS.maxVideoShots : 0,
+        maxVideoShots: wantScreenshots ? maxVideoShotsCap : 0,
         analysisStartedAt: startedAt,
         ...(options.wallBudgetMs !== undefined ? { wallBudgetMs: options.wallBudgetMs } : {}),
         // Rotation re-sample is opt-in (costs browser seconds): the API
@@ -380,11 +407,11 @@ export async function runAnalysis(
         limitations.push("Skipped mobile capture: extract-only mode (`?screenshots=0`) captures no screenshots.");
         pages[0]!.responsiveComparison.status = "budget-skipped";
         pages[0]!.responsiveComparison.note = "Mobile capture was skipped because extract-only mode (`?screenshots=0`) captures no screenshots.";
-      } else if (Date.now() - startedAt > LIMITS.totalAnalysisWallBudgetMs) {
+      } else if (Date.now() - startedAt > wallBudgetMs) {
         limitations.push("Skipped mobile capture: wall budget exhausted.");
         pages[0]!.responsiveComparison.status = "budget-skipped";
         pages[0]!.responsiveComparison.note = "Mobile capture was skipped because the analysis wall-time budget was exhausted.";
-      } else if (screenshotBytesTotal >= LIMITS.maxTotalScreenshotBytes) {
+      } else if (screenshotBytesTotal >= screenshotByteBudget) {
         limitations.push("Skipped mobile capture: screenshot byte cap reached.");
         pages[0]!.responsiveComparison.status = "budget-skipped";
         pages[0]!.responsiveComparison.note = "Mobile capture was skipped because the shared screenshot-byte budget was exhausted.";
@@ -394,7 +421,7 @@ export async function runAnalysis(
         try {
           const mobile = await captureOne(session, request.target.url.toString(), {
             viewportWidth: LIMITS.mobileViewportWidth,
-            maxBytes: Math.max(LIMITS.maxTotalScreenshotBytes - screenshotBytesTotal, 0),
+            maxBytes: Math.max(screenshotByteBudget - screenshotBytesTotal, 0),
             fetchImpl,
           });
           captureTimings.push(mobile.timings);
@@ -484,25 +511,25 @@ export async function runAnalysis(
     });
 
     for (const candidate of remaining) {
-      if (Date.now() - startedAt > LIMITS.totalAnalysisWallBudgetMs) {        limitations.push(
-          `Analysis stopped after ${pages.length} pages: the ${LIMITS.totalAnalysisWallBudgetMs / 1000}s wall budget was reached.`,
+      if (Date.now() - startedAt > wallBudgetMs) {        limitations.push(
+          `Analysis stopped after ${pages.length} pages: the ${wallBudgetMs / 1000}s wall budget was reached.`,
         );
         break;
       }
 
       if (
-        (screenshotBytesTotal >= LIMITS.maxTotalScreenshotBytes ||
+        (screenshotBytesTotal >= screenshotByteBudget ||
           desktopTaken >= LIMITS.maxDesktopScreenshots) &&
         !budgetNotice
       ) {
         limitations.push(
-          `The ${LIMITS.maxTotalScreenshotBytes} byte / ${LIMITS.maxDesktopScreenshots} screenshot cap was reached; later pages are analyzed without screenshots.`,
+          `The ${screenshotByteBudget} byte / ${LIMITS.maxDesktopScreenshots} screenshot cap was reached; later pages are analyzed without screenshots.`,
         );
         budgetNotice = true;
       }
 
       const remainingScreenshotBytes = Math.max(
-        LIMITS.maxTotalScreenshotBytes - screenshotBytesTotal,
+        screenshotByteBudget - screenshotBytesTotal,
         0,
       );
       const canScreenshot =
@@ -536,7 +563,7 @@ export async function runAnalysis(
         if (captured.extractionBytes > LIMITS.maxExtractionPayloadBytes) oversizePages += 1;
         if (canScreenshot && !captured.capture.screenshot && !budgetNotice) {
           limitations.push(
-            `The ${LIMITS.maxTotalScreenshotBytes} byte screenshot cap was reached; later pages are analyzed without screenshots.`,
+            `The ${screenshotByteBudget} byte screenshot cap was reached; later pages are analyzed without screenshots.`,
           );
           budgetNotice = true;
         }
@@ -566,8 +593,8 @@ export async function runAnalysis(
       homepageSucceeded &&
       wantScreenshots &&
       mobileTaken < LIMITS.maxMobileScreenshots &&
-      Date.now() - startedAt <= LIMITS.totalAnalysisWallBudgetMs &&
-      screenshotBytesTotal < LIMITS.maxTotalScreenshotBytes &&
+      Date.now() - startedAt <= wallBudgetMs &&
+      screenshotBytesTotal < screenshotByteBudget &&
       pages.length > 1 &&
       pages[1]
     ) {
@@ -577,8 +604,8 @@ export async function runAnalysis(
         const mobileRep = await captureOne(session, representativeUrl, {
           viewportWidth: LIMITS.mobileViewportWidth,
           fetchImpl,
-          captureScreenshot: screenshotBytesTotal < LIMITS.maxTotalScreenshotBytes,
-          maxBytes: Math.max(LIMITS.maxTotalScreenshotBytes - screenshotBytesTotal, 0),
+          captureScreenshot: screenshotBytesTotal < screenshotByteBudget,
+          maxBytes: Math.max(screenshotByteBudget - screenshotBytesTotal, 0),
         });
         captureTimings.push(mobileRep.timings);
         screenshotBytesTotal += mobileRep.screenshotBytes;
@@ -625,7 +652,7 @@ export async function runAnalysis(
       const rest = pages.slice(2);
       for (let offset = 0; offset < rest.length; offset += 1) {
         const page = rest[offset]!;
-        if (Date.now() - startedAt > LIMITS.totalAnalysisWallBudgetMs) {
+        if (Date.now() - startedAt > wallBudgetMs) {
           for (const skipped of rest.slice(offset)) {
             skipped.responsiveComparison.status = "budget-skipped";
             skipped.responsiveComparison.note = "DOM-only mobile comparison was skipped because the analysis wall-time budget was exhausted.";

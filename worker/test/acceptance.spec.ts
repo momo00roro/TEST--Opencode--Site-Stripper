@@ -202,6 +202,8 @@ describe("acceptance (CF12)", () => {
     };
     const result = await runAnalysis(launcher, buildRequest({ maxPages: 3 }), {
       fetchImpl: mockSiteFetch(),
+      // The byte-cap path under test is the hosted-lite budget.
+      capture: "lite",
     });
     expect(result.pagesAnalyzed).toBe(3);
     expect(result.limitations.some((l) => l.includes("screenshot cap"))).toBe(true);
