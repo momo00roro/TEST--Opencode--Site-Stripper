@@ -8,7 +8,6 @@ export function handleHealth(env: Env): Response {
       status: "ok",
       service: "site-stripper-api",
       schemaVersion: SCHEMA_VERSION,
-      environment: env.ENVIRONMENT ?? "unknown",
       time: new Date().toISOString(),
       features: {
         browserRendering: Boolean(env.BROWSER),

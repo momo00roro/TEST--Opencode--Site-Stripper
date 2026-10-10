@@ -9,7 +9,7 @@ Cloudflare Pages + Workers on the **Free tier only**. No VPS, Docker, external b
 | | |
 |---|---|
 | ![Localhost app](docs/images/localhost-ui.jpg) | ![Rebuild gallery](docs/images/showcase-gallery.jpg) |
-| **The app** (`localhost:8917`): paste a URL, get a ZIP pack. | **The proof** ([gallery](https://site-stripper-tests.pages.dev)): 15 one-prompt rebuilds with scores. |
+| **The app** (`localhost:8917/app/`): paste a URL, get a ZIP pack. | **The proof** ([gallery](https://site-stripper-tests.pages.dev)): 15 one-prompt rebuilds with scores. |
 | ![cline.bot clone](docs/images/clone-cline.jpg) | ![base44.com clone](docs/images/clone-base44.jpg) |
 | **cline.bot clone — 93.2** ([live](https://site-stripper-tests.pages.dev/2026-10-09__cline.bot__manual-1/)): tab-switching hero, cookie bar, hover states. | **base44.com clone — 83.7** ([live](https://site-stripper-tests.pages.dev/2026-10-10__base44.com-3/)): dotted paper, prompt box, marquee hedge. |
 | ![Mobile clone](docs/images/clone-cline-mobile.jpg) | |
@@ -18,7 +18,7 @@ Cloudflare Pages + Workers on the **Free tier only**. No VPS, Docker, external b
 ## How it works
 
 ```text
-Static UI (web/) ──POST /api/analyze──▶ Worker API ──▶ Browser Rendering (Chromium)
+Static UI (web/: product page at /, analyzer at /app/) ──POST /api/analyze──▶ Worker API ──▶ Browser Rendering (Chromium)
         │                                       │  one session, sequential tabs,
         │                                       ▼  close each tab immediately
         │                          Bounded versioned observations (no docs, no ZIP)
@@ -35,16 +35,16 @@ Requires Node ≥ 20 and an installed Chrome/Edge.
 
 ```sh
 npm install
-npm run dev -w worker        # served UI + API on http://localhost:8787
+npm run dev -w worker        # homepage http://localhost:8787/; analyzer http://localhost:8787/app/
 ```
 
 Or on the standing local port with auto-restart:
 
 ```sh
-./start-server.bat           # http://localhost:8917
+./start-server.bat           # homepage http://localhost:8917/; analyzer http://localhost:8917/app/
 ```
 
-Analyze a site from the form (up to 10 pages), inspect screenshots and raw JSON, then download the ZIP.
+Use the homepage to read about alpha access, then open `/app/` to analyze a site (up to 10 pages), inspect captures and raw JSON, and download the ZIP. Alpha access does not create an account or require payment.
 
 ## Commands
 
@@ -62,7 +62,7 @@ Three Cloudflare targets, two local modes. Same wrangler, different commands:
 
 | URL | What | Project / name | How it deploys |
 |---|---|---|---|
-| `https://site-stripper-ui.pages.dev` | **Production app** (the form + ZIP download) | Pages `site-stripper-ui` | CI on push to `master` (gated) |
+| `https://site-stripper-ui.pages.dev` | **Product homepage** (the analyzer is at `/app/`) | Pages `site-stripper-ui` | CI on push to `master` (gated) |
 | `https://site-stripper-api.momo00roro.workers.dev` | **Production API** (`POST /api/analyze`, `/health`) | Worker `site-stripper-api` | CI on push to `master` (gated) |
 | `https://site-stripper-tests.pages.dev` | **Rebuild gallery** (15 one-prompt clones + scores, nothing else) | Pages `site-stripper-tests` | Manual direct upload (never CI) |
 | `https://<hash>.site-stripper-ui.pages.dev` | **Preview snapshots** (one deploy frozen in time — not production) | Pages `site-stripper-ui` | Every CI deploy also leaves one |
@@ -71,8 +71,8 @@ Three Cloudflare targets, two local modes. Same wrangler, different commands:
 
 ### Target 1 — Production UI (`site-stripper-ui.pages.dev`)
 
-The face. Static files from `web/` (form, results, client-side ZIP assembly).
-The UI's `<meta name="api-base">` in `web/index.html` points at the Worker
+The product page lives at `/`; the existing analyzer and client-side ZIP assembly live at `/app/`.
+Static files are deployed from `web/`. The analyzer's `<meta name="api-base">` in `web/app/index.html` points at the Worker
 URL (same-origin does not apply once UI and API live on different domains).
 
 - CI: `npx wrangler pages deploy web --project-name site-stripper-ui --branch ${{ github.ref_name }}`
@@ -218,10 +218,12 @@ Never performed: form submits, control clicks, CAPTCHA solving, behavior replay.
 - `scripts/eval/` — eval harness: `PROMPT.md` (1–3 prompt contract), `score.mjs` (composite gate ≥92), `expand-check.mjs` (UI-system adherence), `build-pack.mjs`, `capture-once.ts`, `regen-docs.mjs` (+ its own README; retired probes in `.archive/scripts-eval-probes/`)
 - `showcase/` — published 1-prompt rebuilds, live at `https://site-stripper-tests.pages.dev` (separate Pages project; main UI untouched)
 
-## UI design (cline.bot language, 2026-09-27)
+## Product and analyzer UI
 
-The Pages UI speaks the stolen design language of `https://cline.bot`
-(reference pack captured with this very tool into `.examples/2026-09-27__cline.bot/`):
+The root page presents Site Stripper as a CHEEE product with an illustrated
+mascot, orange and blue accents, an alpha access path, and no account or
+payment flow. The existing analyzer remains at `/app/` and retains its
+light-first, Cline-influenced interface:
 
 - Light-first theme: `#F8FAFB` canvas, `#151516` ink, `#9F58FA` accent,
   DM Sans display + Inter body, hairline borders, eyebrow section labels.
@@ -229,10 +231,12 @@ The Pages UI speaks the stolen design language of `https://cline.bot`
 - Cline-exact components: segmented tabs with purple-underline actives,
   lavender CTAs (purple border, lavender fill, black text), 3-column
   clipped screenshot grid with Desktop/Mobile tabs, full-image overlay viewer.
-- Environment pill derived from `API_BASE`: localhost notice vs
-  Cloudflare metadata-only notice. Raw JSON in a width-clamped accordion.
-- Identity: purple monster-face mark (`web/favicon.svg`, inline SVG lockup
-  in `web/index.html` so the wordmark follows the theme).
+- Environment pill derived from `API_BASE`: local capture notice vs a hosted
+  capture notice that explains screenshots are included when captured. Raw
+  JSON remains in a width-clamped accordion.
+- Identity: the existing monster mark in `web/favicon.svg` and the analyzer
+  lockup. The localhost homepage injects a visible **Launch app** link; the
+  hosted static page does not contain that development shortcut.
 
 ## Status
 

@@ -22,10 +22,11 @@ The product analyzes websites. It does not attempt to clone arbitrary JavaScript
 
 ### 1. Hosted Cloudflare environment
 
-- Cloudflare Pages hosts the static UI.
+- Cloudflare Pages hosts the static CHEEE product page at `/` and analyzer at `/app/`.
 - A Cloudflare Worker exposes the API.
 - Browser Rendering supplies headless Chromium through the `BROWSER` binding.
-- Production currently has no accounts, history, queue, or permanent result storage.
+- The alpha opens the analyzer without accounts, sign-in, checkout, or payment processing.
+- Production has no history, queue, or permanent result storage.
 
 Relevant hosted configuration:
 
@@ -48,7 +49,8 @@ The local path exists for development, debugging, and verification without requi
 
 Local behavior:
 
-- `worker/local/server.ts` serves the static `web/` UI and API routes from one local Node server.
+- `worker/local/server.ts` serves the product page at `/`, analyzer at `/app/`, and API routes from one local Node server.
+- The local homepage injects a visible `Launch app` link; the hosted static page does not include that development shortcut.
 - `worker/local/launcher.ts` exposes a local Chromium backend.
 - `worker/local/chrome.ts` discovers an installed Chrome/Edge executable.
 - `CHROME_PATH`, `PUPPETEER_EXECUTABLE_PATH`, or `CHROME_BIN` can explicitly select the browser.
@@ -118,7 +120,7 @@ These are the limits that actually shape the hosted design. Verify them before e
 1. **10 ms Worker CPU is the hard design driver.** DOM traversal, CSS inspection, token aggregation, parsing, compression, base64 encoding, and large JSON transformation must not run in Worker JavaScript. They must run inside Chromium through `page.evaluate()`, in the client, or through streamed pass-through bytes.
 2. **ZIP assembly must be client-side.** `fflate` or equivalent code in the Pages UI builds the ZIP. The Worker must not buffer screenshots and compress them in a 128 MB isolate.
 3. **One browser session, sequential tabs.** Launch one browser per analysis, respecting the one-new-instance-per-20-seconds limit. Open a tab, capture and extract, close it immediately, then continue. Never retain all analyzed tabs concurrently.
-4. **Browser-minutes are the real budget.** 600 seconds per day divided by approximately 8–12 seconds per page supports roughly 50–75 page loads per day, or approximately 3–4 heavy analyses per day (figma-class ≈ 3 min each; light sites seconds). State this in the UI.
+4. **Browser-minutes are the real budget.** 600 seconds per day divided by approximately 8–12 seconds per page supports roughly 50–75 page loads per day, or approximately 3–4 heavy analyses per day (figma-class ≈ 3 min each; light sites seconds). In the alpha UI, explain that hosted browser capacity is shared across the service; never present it as a per-user entitlement.
 5. **Screenshots must be bounded and Chromium-encoded.** Use `deviceScaleFactor: 1`, capped dimensions, bounded quality, byte caps, and Chromium-generated base64. Do not encode or transform screenshot binaries in Worker JavaScript.
 6. **Extraction payloads must be budgeted.** Large JSON deserialization in the Worker consumes CPU. In-page extraction must prune, deduplicate, summarize, and enforce payload limits before returning data.
 7. **Cache API is free and required.** Repeat or sibling analyses of the same host should reuse cached discovery data instead of spending browser-minutes again.
@@ -127,7 +129,7 @@ These are the limits that actually shape the hosted design. Verify them before e
 
 ```text
 Cloudflare Pages static UI
-  index.html / app.js / package-docs.mjs / styles.css / vendor/zip-store.js
+  index.html (product page) / app/index.html (analyzer) / app.js / package-docs.mjs / styles.css / vendor/zip-store.js
         │ POST /api/analyze, JSON
         ▼
 Cloudflare Worker API
@@ -144,7 +146,7 @@ Local development uses the same conceptual pipeline:
 
 ```text
 Local Node server
-  - serves web/
+  - serves the product page at / and analyzer at /app/
   - handles /health and /api/*
   - injects the local Chromium launcher
   - permits local-only conveniences such as Node base64 encoding
@@ -154,7 +156,7 @@ The client-side ZIP step happens in the user's browser. That is not a hosted ser
 
 ## User flow
 
-1. Enter a public HTTP(S) URL.
+1. Open the analyzer at `/app/` and enter a public HTTP(S) URL. Alpha access does not require an account or payment.
 2. The backend validates the request and resolves the target safely.
 3. It opens one browser session.
 4. It fetches `robots.txt` and `sitemap.xml` with plain `fetch`, not browser time, to improve discovery.
@@ -481,6 +483,8 @@ The local server must preserve the same validation, routing, pipeline, extractio
 Required local behavior:
 
 - Serve `web/` statically.
+- Serve the product page at `/` and the analyzer at `/app/`.
+- Insert the visible `Launch app` link only in the locally served homepage.
 - Expose `/health`.
 - Expose `/api/analyze`.
 - Use the shared request router and pipeline.

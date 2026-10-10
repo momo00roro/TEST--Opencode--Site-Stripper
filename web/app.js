@@ -6,8 +6,8 @@ const META_API_BASE =
 // Local dev serves this same UI from the API server itself, so same-origin
 // must win there: the meta tag points at production, and `??` does not fall
 // through on a non-empty string. Without this, a localhost run silently posts
-// to the hosted Worker and returns a metadata-only ZIP (Trap 4) with no
-// inline screenshots, even though the local encoder supports them.
+// to the hosted Worker and uses its lighter hosted capture profile and shared
+// Browser Run budget, even though the local launcher supports full capture.
 const API_BASE =
   window.SITE_STRIPPER_API_BASE ??
   (location.hostname === "localhost" || location.hostname === "127.0.0.1"
@@ -48,7 +48,7 @@ let lastAnalysis = null;
   pill.hidden = false;
   pill.innerHTML = isLocal
     ? "<strong>Localhost</strong>: screenshots included via local Chrome/Edge capture"
-    : "<strong>Cloudflare</strong>: metadata-only, screenshots excluded by design";
+    : "<strong>Cloudflare</strong>: Screenshots are included when captured; hosted capture may be partial.";
 })();
 
 function dataUrlToBytes(dataUrl) {
@@ -508,8 +508,8 @@ function shotEmptyState(device) {
   const isMobile = device === "mobile";
   const title = isMobile ? "No mobile screenshots in this pack" : "No desktop screenshots in this pack";
   const body = isMobile
-    ? "This run has no mobile captures: enable mobile screenshots or run locally where Chrome/Edge capture is available."
-    : "This run returned metadata only: the host cannot capture pixels, so there is nothing to preview. Download the ZIP for tokens, content, and structure.";
+    ? "No mobile captures were included in this run. Select mobile capture on the analyzer form or use local capture for the full profile."
+    : "No desktop screenshots were included in this run. Capture depends on the source site and hosted limits; use local capture for the full profile.";
   return `
     <div class="showcase-empty">
       <div class="showcase-empty__art" aria-hidden="true">◌</div>

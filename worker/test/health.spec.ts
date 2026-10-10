@@ -13,6 +13,7 @@ describe("GET /health", () => {
     const body = (await response.json()) as Record<string, any>;
     expect(body.status).toBe("ok");
     expect(body.service).toBe("site-stripper-api");
+    expect(body).not.toHaveProperty("environment");
     expect(body.features.browserRendering).toBe(false);
     expect(body.features.maxPages).toBe(10);
     expect(response.headers.get("cache-control")).toBe("no-store");

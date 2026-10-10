@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 const landing = await readFile(new URL("../../web/index.html", import.meta.url), "utf8");
 const alpha = await readFile(new URL("../../web/alpha/index.html", import.meta.url), "utf8");
 const analyzer = await readFile(new URL("../../web/app/index.html", import.meta.url), "utf8");
+const analyzerScript = await readFile(new URL("../../web/app.js", import.meta.url), "utf8");
 
 describe("Site Stripper alpha pages", () => {
   it("keeps product and local-app routes available", () => {
@@ -22,11 +23,17 @@ describe("Site Stripper alpha pages", () => {
   });
 
   it("avoids unapproved prices and unsupported public claims", () => {
-    for (const page of [landing, alpha]) {
+    for (const page of [landing, alpha, analyzer]) {
       expect(page).not.toMatch(/\b(?:MVP|demo|experiment|presentation)\b/i);
       expect(page).not.toMatch(/github\.com/i);
     }
     expect(landing).toContain("Paid plans are being finalized");
     expect(landing).not.toMatch(/(?:S\$|US\$|\$)\s?\d|\bSGD\s?\d/i);
+  });
+
+  it("describes hosted screenshots as available when captured", () => {
+    expect(analyzerScript).not.toContain("metadata-only, screenshots excluded by design");
+    expect(analyzerScript).not.toContain("host cannot capture pixels");
+    expect(analyzerScript).toContain("Screenshots are included when captured; hosted capture may be partial.");
   });
 });
