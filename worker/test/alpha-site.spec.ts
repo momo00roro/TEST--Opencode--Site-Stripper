@@ -13,6 +13,7 @@ describe("Site Stripper alpha pages", () => {
     expect(landing).toContain('href="/alpha/"');
     expect(alpha).toContain('href="/app/"');
     expect(analyzer).toContain('id="analyze-form"');
+    expect(landing).not.toMatch(/>\s*\d{2}\s+files\s*</i);
   });
 
   it("states that alpha access does not create an account or require payment", () => {
