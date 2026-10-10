@@ -1,10 +1,11 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { extname, join, resolve, sep } from "node:path";
+import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleRequest } from "../src/app.js";
 import type { Env } from "../src/types.js";
 import { createLocalLauncher, describeLocalBackend } from "./launcher.js";
+import { injectLocalLaunchButton, resolveLocalStaticPath } from "./static.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const webRoot = resolve(here, "..", "..", "web");
@@ -46,10 +47,8 @@ function toHeaders(req: IncomingMessage): Headers {
 }
 
 async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
-  const relative = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
-  const target = resolve(join(webRoot, relative));
-
-  if (!target.startsWith(webRoot + sep) && target !== webRoot) {
+  const target = resolveLocalStaticPath(pathname, webRoot);
+  if (!target) {
     res.writeHead(403).end("Forbidden");
     return;
   }
@@ -60,7 +59,10 @@ async function serveStatic(pathname: string, res: ServerResponse): Promise<void>
       res.writeHead(404).end("Not found");
       return;
     }
-    const body = await readFile(target);
+    const source = await readFile(target);
+    const body = pathname === "/"
+      ? Buffer.from(injectLocalLaunchButton(source.toString("utf8")), "utf8")
+      : source;
     res.writeHead(200, {
       "content-type": MIME[extname(target).toLowerCase()] ?? "application/octet-stream",
       "cache-control": "no-store",

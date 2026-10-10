@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="api-base" content="https://site-stripper-api.momo00roro.workers.dev" />
+    <title>Site Stripper - Website Analysis Pack</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div class="hero__topbar">
+          <svg
+            class="hero__mark"
+            viewBox="0 0 340 72"
+            role="img"
+            aria-label="Site Stripper — Website Analysis Pack"
+          >
+            <title>Site Stripper</title>
+            <g transform="translate(4,4)">
+              <path d="M12 22 L18 6 L28 20 Z" fill="#6D28D9"/>
+              <path d="M36 20 L46 6 L52 22 Z" fill="#6D28D9"/>
+              <rect x="2" y="12" width="60" height="50" rx="15" fill="#9F58FA"/>
+              <circle cx="22" cy="34" r="9" fill="#FFFFFF"/>
+              <circle cx="42" cy="34" r="9" fill="#FFFFFF"/>
+              <circle cx="23.5" cy="35.5" r="4" fill="#151516"/>
+              <circle cx="43.5" cy="35.5" r="4" fill="#151516"/>
+              <path d="M20 48 Q32 56 44 48" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none"/>
+            </g>
+            <text x="80" y="33" font-family="'DM Sans', Inter, system-ui, sans-serif" font-size="24" font-weight="500" letter-spacing="0.5" fill="currentColor">Site Stripper</text>
+            <text x="81" y="54" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="600" letter-spacing="2.5" fill="#9F58FA">WEBSITE ANALYSIS PACK</text>
+          </svg>
+          <button id="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to dark mode">☾</button>
+        </div>
+        <p class="eyebrow">Website analysis pack</p>
+        <h1>Point at a site.<br />Steal its <span class="hero__emph">soul</span>.</h1>
+        <p class="lede">
+          Point at a public site. Get screenshots, design tokens, content structure, and JSON that an
+          AI agent can rebuild from. This is a Cloudflare-only MVP.
+        </p>
+        <p id="env-pill" class="env-pill" aria-live="polite" hidden></p>
+
+        <form id="analyze-form" class="command-bar" autocomplete="off">
+          <label class="field command-bar__url">
+            <span class="field__label">Website URL</span>
+            <input
+              id="url"
+              name="url"
+              type="url"
+              inputmode="url"
+              placeholder="https://example.com"
+              required
+              spellcheck="false"
+            />
+          </label>
+
+          <div class="row command-bar__options">
+            <label class="field field--small">
+              <span class="field__label">Max pages</span>
+              <input id="max-pages" name="maxPages" type="number" min="1" max="10" value="10" />
+            </label>
+            <label class="checkbox">
+              <input id="include-mobile" name="includeMobile" type="checkbox" checked />
+              <span>Include mobile screenshots</span>
+            </label>
+          </div>
+
+          <button id="submit" type="submit">Analyze website</button>
+        </form>
+      </header>
+
+      <section id="status" class="card status" hidden aria-live="polite">
+        <p class="eyebrow">Progress</p>
+        <ol class="phase-timeline" aria-label="Analysis phases">
+          <li id="phase-validate" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Validate</span></li>
+          <li id="phase-capture" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Capture</span></li>
+          <li id="phase-discover" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Discover</span></li>
+          <li id="phase-document" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Document</span></li>
+          <li id="phase-package" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Package</span></li>
+        </ol>
+        <div id="progress-wrap" class="progress-wrap" hidden>
+          <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+          <div id="progress-meta" class="progress-meta"></div>
+        </div>
+        <div id="status-text"></div>
+      </section>
+
+      <section id="budget" class="budget" hidden>
+        <p class="eyebrow eyebrow--center">Budget</p>
+        <h2>Browser Budget</h2>
+        <div class="budget-bar"><div id="budget-fill" class="budget-fill"></div></div>
+        <div id="budget-text" class="budget-text"></div>
+      </section>
+
+      <section id="selection-summary" hidden>
+        <p class="eyebrow eyebrow--center">Discovery</p>
+        <h2>Discovered Pages &amp; Selection</h2>
+        <div id="selection-stats" class="selection-stats"></div>
+        <div class="sub-tabs" role="tablist" aria-label="Filter pages by selection">
+          <button type="button" id="selection-tab-selected" class="sub-tab" role="tab" aria-selected="true" aria-controls="candidate-list">Selected</button>
+          <button type="button" id="selection-tab-excluded" class="sub-tab" role="tab" aria-selected="false" aria-controls="candidate-list-excluded" tabindex="-1">Not selected</button>
+        </div>
+        <div id="candidate-list" class="candidate-list" role="tabpanel" aria-labelledby="selection-tab-selected" tabindex="0"></div>
+        <div id="candidate-list-excluded" class="candidate-list candidate-list--scroll" role="tabpanel" aria-labelledby="selection-tab-excluded" tabindex="0" hidden></div>
+      </section>
+
+      <section id="screenshot-preview" class="screenshot-preview" hidden>
+        <p class="eyebrow eyebrow--center">Captures</p>
+        <h2>Screenshots</h2>
+        <div class="sub-tabs" role="tablist" aria-label="Filter screenshots by device">
+          <button type="button" id="shots-tab-desktop" class="sub-tab" role="tab" aria-selected="true" aria-controls="screenshot-container">Desktop</button>
+          <button type="button" id="shots-tab-mobile" class="sub-tab" role="tab" aria-selected="false" aria-controls="screenshot-container" tabindex="-1">Mobile</button>
+        </div>
+        <div id="screenshot-container"></div>
+      </section>
+
+      <section id="pages-panel" hidden>
+        <p class="eyebrow eyebrow--center">Analysis</p>
+        <h2>Analyzed Pages</h2>
+        <div id="pages-list" class="pages-list"></div>
+      </section>
+
+      <section id="download-panel" class="deliverable" hidden>
+        <h2>Deliverable: Download Analysis Pack</h2>
+        <div class="deliverable__stats" id="deliverable-stats" aria-live="polite"></div>
+        <p id="package-info" class="package-info"></p>
+        <button id="download" type="button">Download ZIP</button>
+      </section>
+
+      <section id="result" class="result" hidden>
+        <p class="eyebrow eyebrow--center">Output</p>
+        <h2>Raw JSON Response</h2>
+        <details class="raw-details">
+          <summary>View raw JSON response</summary>
+          <pre id="result-body"></pre>
+        </details>
+      </section>
+
+      <aside class="note">
+        <strong>Free-tier budget.</strong> Browser rendering is limited to 10 minutes per day, which is
+          roughly 3-4 full analyses. Heavy media sites may fail or return a partial report.
+      </aside>
+    </main>
+
+    <script src="../vendor/zip-store.js"></script>
+    <script src="../package.js"></script>
+    <script type="module" src="../app.js"></script>
+  </body>
+</html>
