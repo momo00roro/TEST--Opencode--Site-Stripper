@@ -1,0 +1,59 @@
+/* Observed @font-face files (CF36-2, downloaded at capture time on local-full runs only).
+ * 8 of 8 observed file(s) shipped under assets/fonts/; the rest are URL references (see comments below).
+ * Pair with theme.css --font-family-base when rebuilding type. */
+@font-face {
+  font-family: "Inter";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-400.woff2") format("woff2");
+} /* observed on https://www.softr.io/; original: https://cdn.prod.website-files.com/6772e8855f7859bc8df95c78/68028c26b7930e1cfa76f563_Inter-Regular.woff2 */
+@font-face {
+  font-family: "Inter";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-700.woff2") format("woff2");
+} /* observed on https://www.softr.io/; original: https://cdn.prod.website-files.com/6772e8855f7859bc8df95c78/68028c267716b69d6019b1b6_Inter-Bold.woff2 */
+@font-face {
+  font-family: "Inter";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-600.woff2") format("woff2");
+} /* observed on https://www.softr.io/; original: https://cdn.prod.website-files.com/6772e8855f7859bc8df95c78/68028c26524d801222ceeb6b_Inter-SemiBold.woff2 */
+@font-face {
+  font-family: "Inter";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-500.woff2") format("woff2");
+} /* observed on https://www.softr.io/; original: https://cdn.prod.website-files.com/6772e8855f7859bc8df95c78/68028c26c673a69f638e4c0d_Inter-Medium.woff2 */
+@font-face {
+  font-family: "Satoshi Variable";
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/satoshi-variable-300-900.ttf") format("truetype");
+} /* observed on https://www.softr.io/; original: https://cdn.prod.website-files.com/6772e8855f7859bc8df95c78/6772e9bd3737d05e92ba9e0e_Satoshi-Variable.ttf */
+@font-face {
+  font-family: "Satoshi";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/satoshi-500.ttf") format("truetype");
+} /* observed on https://www.softr.io/; original: https://cdn.prod.website-files.com/6772e8855f7859bc8df95c78/6772e9bd5a8000f04b3a0d34_Satoshi-Medium.ttf */
+@font-face {
+  font-family: "Satoshi";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/satoshi-400.ttf") format("truetype");
+} /* observed on https://www.softr.io/; original: https://cdn.prod.website-files.com/6772e8855f7859bc8df95c78/6772e9bd78bd0f58ed9fdd16_Satoshi-Regular.ttf */
+@font-face {
+  font-family: "Satoshi";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/satoshi-700.ttf") format("truetype");
+} /* observed on https://www.softr.io/; original: https://cdn.prod.website-files.com/6772e8855f7859bc8df95c78/6772e9bdb2e956bd628b84c0_Satoshi-Bold.ttf */

@@ -1,14 +1,22 @@
-import { capturePage, renderIsolatedVideoShot, type CaptureResult, type CaptureTimings, type SectionShot, type ShotPayload } from "../browser/capture";
+import { capturePage, renderIsolatedVideoShot, type CaptureResult, type CaptureTimings, type ObservedHoverEffect, type SectionShot, type ShotPayload, type TabPanel } from "../browser/capture";
 import type {
   PageSnapshot,
   SnapshotAsset,
   SnapshotBreakpoints,
   SnapshotCollectionCoverage,
   SnapshotContent,
+  SnapshotCtaFill,
   SnapshotEmbed,
+  SnapshotEyebrow,
   SnapshotGeometry,
   SnapshotHoverState,
+  SnapshotIconFlag,
+  SnapshotImageTreatment,
   SnapshotMotion,
+  SnapshotNavChrome,
+  SnapshotProseLink,
+  SnapshotRotatingText,
+  SnapshotScrollStrip,
   SnapshotSection,
   SnapshotLayoutSample,
   SnapshotSectionLayout,
@@ -87,7 +95,7 @@ export interface AnalysisPage {
   selected: boolean;
   priority: number | null;
   selectedBecause: string;
-  headings: { level: number; text: string }[];
+  headings: { level: number; text: string; breaks?: number[]; fontFamily?: string; fontWeight?: string; y?: number; height?: number; marginTop?: string; marginBottom?: string }[];
   linkCount: number;
   navLinkCount: number;
   pageCanvasColor: string | null;  nav: AnalysisNav;
@@ -130,6 +138,24 @@ export interface AnalysisPage {
   formActions: string[];
   content: SnapshotContent;
   assets: SnapshotAsset[];
+  // CF39 promptability (local-full only; omitted for hosted-lite).
+  imageTreatments?: SnapshotImageTreatment[];
+  ctaFills?: SnapshotCtaFill[];
+  iconFlags?: SnapshotIconFlag[];
+  // CF40 tab panels (local-full only; omitted for hosted-lite).
+  tabPanels?: TabPanel[];
+  // CF43 layout-shift guard value in px (local-full only; omitted for hosted-lite).
+  layoutDriftPx?: number;
+  // CF45 taste: kicker/eyebrow labels (local-full only; omitted for hosted-lite).
+  eyebrows?: SnapshotEyebrow[];
+  // CF46 observed hover replay (local-full only; omitted for hosted-lite).
+  hoverEffects?: ObservedHoverEffect[];
+  // CF47 eye-detail: header chrome, scroll strips, prose links (local-full only).
+  navChrome?: SnapshotNavChrome;
+  scrollStrips?: SnapshotScrollStrip[];
+  proseLink?: SnapshotProseLink;
+  // CF47: rotating prompt-box placeholders (local-full only).
+  rotatingPlaceholders?: SnapshotRotatingText[];
 }
 
 export interface ResponsiveComparison {
@@ -311,6 +337,9 @@ export async function runAnalysis(
   let selection: SelectionReport | null = null;
   let homepageSnapshot: PageSnapshot | null = null;
   let homepagePlaceholders: VideoPlaceholder[] = [];
+  // CF38: canvas stills ride out of the homepage capture scope for the asset
+  // rehydration pass below (where the downloaded-asset list is assembled).
+  let homepageCanvasStills: Array<{ x: number; y: number; width: number; height: number; bytes: number; base64?: string }> = [];
   let homepagePath = "/";
   let screenshotBytesTotal = 0;
   let screenshotsCaptured = 0;
@@ -338,6 +367,14 @@ export async function runAnalysis(
         wallBudgetMs,
         waitUntil: navWait,
         maxSectionShots: wantScreenshots ? maxSectionShotsCap : 0,
+        // CF38: canvas stills are local-full only; hosted lite captures none.
+        maxCanvasStills: wantScreenshots && !liteCapture ? 2 : 0,
+        // CF40: tab panels are local-full only; hosted lite captures none.
+        collectTabPanels: !liteCapture,
+        // CF41: layout-shift guard is local-full only; hosted lite skips it.
+        detectLayoutShift: !liteCapture,
+        // CF46: hover replay is local-full only; hosted lite captures none.
+        collectHoverEffects: !liteCapture,
         maxVideoShots: wantScreenshots ? maxVideoShotsCap : 0,
         analysisStartedAt: startedAt,
         ...(options.wallBudgetMs !== undefined ? { wallBudgetMs: options.wallBudgetMs } : {}),
@@ -348,6 +385,7 @@ export async function runAnalysis(
       captureTimings.push(homepage.timings);
       homepageSnapshot = homepage.capture.snapshot;
       homepagePlaceholders = homepage.videoPlaceholders;
+      homepageCanvasStills = homepage.capture.canvasStills ?? [];
       homepagePath = homepage.path;
       screenshotBytesTotal += homepage.screenshotBytes;
       screenshotsCaptured += homepage.screenshotCount;
@@ -367,6 +405,7 @@ export async function runAnalysis(
         pageType: "homepage",
         encodeBase64: options.encodeBase64,
         maxInlineImageBytes: options.maxInlineImageBytes,
+        capture: options.capture,
       });
       homepageRecord.sectionShots = homepage.sectionShots;
       homepageRecord.videoShots = homepage.videoShots;
@@ -558,6 +597,9 @@ export async function runAnalysis(
           maxBytes: remainingScreenshotBytes,
           fetchImpl,
           waitUntil: navWait,
+          collectTabPanels: !liteCapture,
+          detectLayoutShift: !liteCapture,
+          collectHoverEffects: !liteCapture,
         });
         captureTimings.push(captured.timings);
         if (isChallengeSnapshot(captured.capture.snapshot)) {
@@ -588,6 +630,7 @@ export async function runAnalysis(
             pageType: candidate.label || humanizeSegment(candidate.path),
             encodeBase64: options.encodeBase64,
             maxInlineImageBytes: options.maxInlineImageBytes,
+            capture: options.capture,
           }),
         );
       } catch (error) {
@@ -850,6 +893,29 @@ export async function runAnalysis(
       limitations.push("Asset rehydration was skipped after an unexpected error; all assets remain URL references.");
     }
 
+    // CF38: canvas stills (local-full) become exact-pixel PNG assets so a
+    // rebuild places the real hero frame instead of approximating high-frequency
+    // canvas art. Lite captures none, so this loop is a no-op for hosted packs.
+    const canvasStills = homepageCanvasStills;
+    for (let index = 0; index < canvasStills.length; index += 1) {
+      const still = canvasStills[index]!;
+      if (!still.base64) continue;
+      assets.push({
+        url: `canvas:${index}`,
+        kind: "hero",
+        alt: `canvas still ${still.width}x${still.height} (use verbatim for the hero canvas)`,
+        width: still.width,
+        height: still.height,
+        usedOn: homepagePath,
+        source: "downloaded",
+        localPath: `assets/canvas-${index + 1}.png`,
+        rectY: still.y,
+        contentType: "image/png",
+        bytes: still.bytes,
+        dataUrl: `data:image/png;base64,${still.base64}`,
+      });
+    }
+
     // CF25: downloaded thumbnails become composited stand-ins on the homepage
     // record (placement from the uncaptured facade). Local dev inlines the
     // dataUrl the poster path already produced; hosted stays metadata-only.
@@ -931,6 +997,10 @@ export async function runAnalysis(
     const runTimings = sumCaptureTimings(captureTimings);
     const result = {
       schemaVersion: SCHEMA_VERSION,
+      // CF47: capture timestamp (local-full only — hosted-lite responses stay
+      // byte-identical). Packs older than ~14 days should be re-captured;
+      // live marketing sites drift (CTA panels, nav) within days.
+      ...(options.capture === "full" ? { capturedAt: new Date().toISOString() } : {}),
       backend: launcher.name,
       request: {
         url: request.target.url.toString(),
@@ -1038,7 +1108,11 @@ async function captureOne(
     viewportWidth: number;
     captureScreenshot?: boolean;
     maxSectionShots?: number;
+    maxCanvasStills?: number;
     maxVideoShots?: number;
+    collectTabPanels?: boolean;
+    detectLayoutShift?: boolean;
+    collectHoverEffects?: boolean;
     maxBytes?: number;
     fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
     detectRotationMs?: number;
@@ -1087,7 +1161,11 @@ async function captureOne(
       viewportWidth: options.viewportWidth,
       ...(options.captureScreenshot === false ? { captureScreenshot: false } : {}),
       ...(options.maxSectionShots !== undefined ? { maxSectionShots: options.maxSectionShots } : {}),
+      ...(options.maxCanvasStills !== undefined ? { maxCanvasStills: options.maxCanvasStills } : {}),
       ...(options.maxVideoShots !== undefined ? { maxVideoShots: options.maxVideoShots } : {}),
+      ...(options.collectTabPanels !== undefined ? { collectTabPanels: options.collectTabPanels } : {}),
+      ...(options.detectLayoutShift !== undefined ? { detectLayoutShift: options.detectLayoutShift } : {}),
+      ...(options.collectHoverEffects !== undefined ? { collectHoverEffects: options.collectHoverEffects } : {}),
       ...(options.maxBytes !== undefined ? { maxBytes: options.maxBytes } : {}),
       ...(options.detectRotationMs !== undefined ? { detectRotationMs: options.detectRotationMs } : {}),
       ...(options.waitUntil !== undefined ? { waitUntil: options.waitUntil } : {}),
@@ -1248,6 +1326,9 @@ interface RecordOptions {
   pageType: string;
   encodeBase64?: (bytes: Uint8Array) => string;
   maxInlineImageBytes?: number;
+  // CF39: "full" keeps promptability fields; anything else strips them so
+  // hosted-lite responses stay byte-identical.
+  capture?: "full" | "lite";
 }
 
 // Observed navigation links, deduplicated by href and bounded per area so the
@@ -1341,6 +1422,12 @@ function toRecord(
   options: RecordOptions,
 ): AnalysisPage {
   const snapshot = captured.capture.snapshot;
+  // CF39: promptability fields ride local-full only. Anything else (hosted
+  // lite, or callers that do not pass capture) strips them so responses stay
+  // byte-identical to before. See stripPromptabilityForLite (unit-tested).
+  const isFull = options.capture === "full";
+  const headings = snapshot.headings;
+  const sectionLayouts = snapshot.sectionLayouts;
   let screenshot: AnalysisScreenshot | null = null;
 
   if (captured.capture.screenshot && captured.capture.screenshotKind) {
@@ -1360,7 +1447,7 @@ function toRecord(
     if (dataUrl) screenshot.dataUrl = dataUrl;
   }
 
-  return {
+  const record: AnalysisPage = {
     url: snapshot.url || options.url,
     path: new URL(options.url).pathname.replace(/\/+$/u, "") || "/",
     title: snapshot.title,
@@ -1372,7 +1459,7 @@ function toRecord(
     selected: true,
     priority: options.priority,
     selectedBecause: options.selectedBecause,
-    headings: snapshot.headings,
+    headings,
     linkCount: snapshot.links.length,
     pageCanvasColor: snapshot.pageCanvasColor,
     navLinkCount: snapshot.links.filter((link) => link.inNav).length,
@@ -1418,10 +1505,66 @@ function toRecord(
     hoverStates: snapshot.hoverStates,
     embeds: snapshot.embeds,
     videos: snapshot.videos,
-    sectionLayouts: snapshot.sectionLayouts,
+    sectionLayouts,
     social: snapshot.social,
     formActions: snapshot.formActions,
     content: { ...snapshot.content, rotatingText: captured.capture.rotatingText ?? [] },
     assets: snapshot.assets,
+    imageTreatments: snapshot.imageTreatments ?? [],
+    ctaFills: snapshot.ctaFills ?? [],
+    iconFlags: snapshot.iconFlags ?? [],
+    tabPanels: captured.capture.tabPanels ?? [],
+    ...(captured.capture.layoutDriftPx !== undefined ? { layoutDriftPx: captured.capture.layoutDriftPx } : {}),
+    eyebrows: snapshot.eyebrows ?? [],
+    hoverEffects: captured.capture.hoverEffects ?? [],
+    navChrome: snapshot.navChrome,
+    scrollStrips: snapshot.scrollStrips ?? [],
+    proseLink: snapshot.proseLink,
+    ...(captured.capture.rotatingPlaceholders?.length
+      ? { rotatingPlaceholders: captured.capture.rotatingPlaceholders }
+      : {}),
   };
+  return isFull ? record : stripPromptabilityForLite(record);
+}
+
+// CF39 promptability gate (unit-tested): removes every local-full-only field
+// so hosted-lite responses stay byte-identical to before these fields existed.
+// Key order of surviving keys is preserved (new keys were appended last).
+export function stripPromptabilityForLite(page: AnalysisPage): AnalysisPage {
+  const { imageTreatments: _treatments, ctaFills: _fills, iconFlags: _flags, tabPanels: _panels, layoutDriftPx: _drift, eyebrows: _eyebrows, hoverEffects: _hoverFx, navChrome: _nav, scrollStrips: _strips, proseLink: _prose, rotatingPlaceholders: _placeholders, ...rest } = page;
+  const lite: AnalysisPage = {
+    ...rest,
+    headings: (page.headings || []).map((entry) => {
+      const copy = { ...entry };
+      delete copy.fontFamily;
+      delete copy.fontWeight;
+      delete copy.y;
+      delete copy.height;
+      delete copy.marginTop;
+      delete copy.marginBottom;
+      return copy;
+    }),
+    sectionLayouts: (page.sectionLayouts || []).map((layout) => ({
+      ...layout,
+      components: (layout.components || []).map((component) => {
+        const copy = { ...component };
+        delete copy.x;
+        delete copy.y;
+        return copy;
+      }),
+    })),
+  };
+  // CF45 taste: tab divider specs ride content.tabSets — strip the key so
+  // hosted-lite stays byte-identical, preserving labels/selection.
+  const tabSets = page.content?.tabSets;
+  if (Array.isArray(tabSets)) {
+    lite.content = {
+      ...page.content,
+      tabSets: tabSets.map((set) => {
+        const { separators: _separators, ...kept } = set;
+        return kept;
+      }),
+    };
+  }
+  return lite;
 }

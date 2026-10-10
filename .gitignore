@@ -5,5 +5,6 @@ dist/
 *.log
 .examples/
 .testing/
+.archive/
 temp-*.png
 screenshot-localhost-*.png

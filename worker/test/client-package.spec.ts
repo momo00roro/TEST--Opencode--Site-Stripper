@@ -385,6 +385,20 @@ describe("client documentation generation", () => {
     expect(validateDocumentationPackage(files, {})).toEqual([]);
   });
 
+  it("wires a shipped canvas still into the section build spec (CF38)", () => {
+    const analysis = fixture();
+    (analysis.pages[0] as Record<string, unknown>).sectionLayouts = [{ y: 0, height: 1000 }];
+    (analysis as Record<string, unknown>).assets = [
+      { url: "canvas:0", kind: "hero", source: "downloaded", localPath: "assets/canvas-1.png", alt: "canvas still", width: 476, height: 412, rectY: 120, usedOn: "https://example.com/", dataUrl: "data:image/png;base64,iVBORw0KGgo=" },
+    ];
+    (analysis as Record<string, unknown>).assetCount = 1;
+    const { files } = buildDocumentationFiles(analysis, {});
+
+    expect(files["REBUILD.md"]).toContain("Canvas: use the shipped `assets/canvas-1.png`");
+    expect(files["REBUILD.md"]).toContain("VERBATIM");
+    expect(files["REBUILD.md"]).toContain("assets/canvas-1.png");
+  });
+
   it("feeds generated docs and binaries to the STORE ZIP writer", () => {
     const screenshotFiles = { "screenshots/desktop/home.webp": new Uint8Array([1]) };
     const { files } = buildDocumentationFiles(fixture(), screenshotFiles);

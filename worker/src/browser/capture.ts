@@ -1,7 +1,7 @@
 import { ALLOWED_PORTS, ALLOWED_PROTOCOLS, LIMITS } from "../config/limits";
 import { isBlockedHostname } from "../validation/hostnames";
 import { isBlockedIpLiteral } from "../validation/ip";
-import { collectPageSnapshot, collectHeadingTexts, diffRotatingText, labelSnapshotHeadings, type PageSnapshot, type SnapshotRotatingText } from "./snapshot-script";
+import { collectPageSnapshot, collectHeadingTexts, collectPlaceholderTexts, diffRotatingText, labelSnapshotHeadings, labelSnapshotPlaceholders, type PageSnapshot, type SnapshotRotatingText } from "./snapshot-script";
 import type { AnalysisSession, BrowserPage, ScreenshotOptions, WaitUntil } from "./types";
 
 export interface CaptureOptions {
@@ -15,6 +15,31 @@ export interface CaptureOptions {
   captureScreenshot?: boolean;
   /** Homepage only: section-clipped screenshots from snapshot.sectionRects. */
   maxSectionShots?: number;
+  /**
+   * CF38 local-full only: clip each <canvas> into a shippable PNG still. 0 /
+   * undefined (hosted lite) captures none, keeping the hosted pack identical.
+   */
+  maxCanvasStills?: number;
+  /**
+   * CF40 local-full only: click each tab in inventoried tablists and record
+   * per-tab panel copy for faithful CSS-only switching. False/unset (hosted
+   * lite) captures none, keeping the hosted pack identical.
+   */
+  collectTabPanels?: boolean;
+  /**
+   * CF41 local-full only: re-measure section boxes after screenshots and warn
+   * when layout shifted (stale rects misalign section clips). False/unset
+   * (hosted lite) skips it, keeping the hosted pack identical.
+   */
+  detectLayoutShift?: boolean;
+  /**
+   * CF46 local-full only: hover visible links/buttons with a trusted pointer
+   * (synthetic-event fallback) and record computed-style deltas. Captures
+   * JS-driven hover states that static CSS parsing can never see. Runs AFTER
+   * all screenshots; restores with mouse-away + Escape. False/unset (hosted
+   * lite) captures none, keeping the hosted pack identical.
+   */
+  collectHoverEffects?: boolean;
   /**
    * Homepage only: playing-state video captures. Facade elements
    * (`vimeo-video`, `[data-video]`, lite embeds) are tried autoplay-first
@@ -47,6 +72,16 @@ export interface ShotPayload {
   base64?: string;
   /** Raw bytes when a backend ignored `encoding` (test doubles). */
   data?: Uint8Array;
+}
+
+// CF38 local-full: a clipped PNG still of a script-rendered <canvas> scene
+// (hero particle/ASCII art). Shipped as an exact-pixel asset so a static
+// rebuild can place the real frame instead of approximating high-frequency art.
+export interface CanvasStill extends ShotPayload {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface SectionShot extends ShotPayload {
@@ -109,6 +144,14 @@ export interface CaptureResult {
   screenshotBytes: number;
   screenshotKind: ScreenshotKind | null;
   sectionShots: SectionShot[];
+  /** CF38 local-full: exact-pixel PNG stills of script-rendered canvases. */
+  canvasStills: CanvasStill[];
+  /** CF40 local-full: per-tab panel copy for CSS-only tab switching. */
+  tabPanels: TabPanel[];
+  /** CF46 local-full: observed hover effects (trusted pointer replay). */
+  hoverEffects: ObservedHoverEffect[];
+  /** CF43 local-full: post-shoot layout re-measure drift in px (CF41 guard value; undefined when the guard did not run). */
+  layoutDriftPx?: number;
   /** Playing-state clips of video facades, autoplay-first (CF21). */
   videoShots: SectionShot[];
   /**
@@ -123,6 +166,8 @@ export interface CaptureResult {
   warnings: string[];
   rotatingText: SnapshotRotatingText[];
   rotationChecked: boolean;
+  // CF47: rotating input placeholders (prompt boxes), same shape as headings.
+  rotatingPlaceholders: SnapshotRotatingText[];
   /** CF29 Phase 0 per-phase wall-time attribution. */
   timings: CaptureTimings;
 }
@@ -224,6 +269,30 @@ async function evaluateWithTimeout<T>(page: BrowserPage, fn: (() => T) | string,
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
+}
+
+// CF38: self-contained <canvas> box probe (Trap 5 - literals + browser globals
+// only, no module-scope refs). Returns document-coordinate boxes for sized
+// canvases (cap 4) so the capture pass can clip each into a PNG still.
+function canvasRectsScript(): Array<{ x: number; y: number; width: number; height: number }> {
+  const out: Array<{ x: number; y: number; width: number; height: number }> = [];
+  const nodes = document.querySelectorAll("canvas");
+  for (let i = 0; i < nodes.length && out.length < 4; i += 1) {
+    try {
+      const el = nodes[i] as unknown as { getBoundingClientRect: () => { left: number; top: number; width: number; height: number } };
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 24 || rect.height < 24) continue;
+      out.push({
+        x: Math.round(rect.left + (window.scrollX || 0)),
+        y: Math.round(rect.top + (window.scrollY || 0)),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      });
+    } catch {
+      // Unreadable canvas; skip silently.
+    }
+  }
+  return out;
 }
 
 /**
@@ -2159,6 +2228,384 @@ export async function renderIsolatedVideoShot(
   }
 }
 
+/** CF40 local-full: per-tab panel copy so rebuilds CSS-switch tabs with REAL copy. */
+export interface TabPanel {
+  tabset: number;
+  tab: string;
+  selected: boolean;
+  panelText: string;
+}
+async function tabPanelCollector(): Promise<TabPanel[]> {
+  const out: TabPanel[] = [];
+  const sleep = (ms: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms); });
+  try {
+    const doc = document;
+    const lists = Array.from(doc.querySelectorAll('[role="tablist"]')).slice(0, 3);
+    for (let li = 0; li < lists.length; li += 1) {
+      const tabs = Array.from(lists[li].querySelectorAll('[role="tab"]')).slice(0, 6) as Element[];
+      if (tabs.length < 2) continue;
+      let defIdx = 0;
+      for (let k = 0; k < tabs.length; k += 1) {
+        try { if (tabs[k].getAttribute("aria-selected") === "true") { defIdx = k; break; } } catch { /* ignore */ }
+      }
+      for (let ti = 0; ti < tabs.length; ti += 1) {
+        if (out.length >= 12) break;
+        const tab = tabs[ti] as Element & { click?: () => void; innerText?: string; textContent?: string | null };
+        const label = String(tab.innerText || tab.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+        try {
+          const tag = String(tab.tagName || "").toLowerCase();
+          const href = String(tab.getAttribute ? tab.getAttribute("href") || "" : "");
+          if (tag === "a" && href !== "" && href !== "#" && href.charAt(0) !== "#") continue;
+          if (typeof tab.click === "function") tab.click();
+        } catch { /* ignore */ }
+        await sleep(450);
+        let panelText = "";
+        try {
+          const cid = tab.getAttribute ? tab.getAttribute("aria-controls") || "" : "";
+          let panel: Element | null = null;
+          if (cid) { try { panel = doc.getElementById(cid); } catch { panel = null; } }
+          if (!panel) {
+            const panels = Array.from(doc.querySelectorAll('[role="tabpanel"]')) as Element[];
+            for (const candidate of panels) {
+              try {
+                const box = candidate.getBoundingClientRect();
+                if (box && box.width > 50 && box.height > 30) { panel = candidate; break; }
+              } catch { /* ignore */ }
+            }
+          }
+          if (panel) {
+            const text = String((panel as unknown as { innerText?: string }).innerText || "").replace(/\s+/g, " ").trim();
+            panelText = text.slice(0, 1500);
+          }
+        } catch { /* ignore */ }
+        out.push({ tabset: li, tab: label, selected: ti === defIdx, panelText });
+      }
+      try {
+        const def = tabs[defIdx] as unknown as { click?: () => void };
+        if (def && typeof def.click === "function") def.click();
+        await sleep(300);
+      } catch { /* ignore */ }
+      if (out.length >= 12) break;
+    }
+  } catch { /* ignore */ }
+  return out;
+}
+export function tabPanelScript(): string {
+  return `(${tabPanelCollector.toString()})()`;
+}
+
+/** CF41 layout-shift guard: fresh section boxes AFTER all screenshots. */
+export interface SectionBox {
+  heading: string;
+  y: number;
+  height: number;
+}
+/** CF46 observed hover replay: trusted-pointer + synthetic-event probing. */
+export interface HoverCandidate {
+  selector: string;
+  label: string;
+  x: number;
+  y: number;
+}
+export interface ObservedHoverChange {
+  property: string;
+  before: string;
+  after: string;
+}
+export interface ObservedHoverEffect {
+  label: string;
+  selector: string;
+  changes: ObservedHoverChange[];
+}
+function sectionBoxCollector(): SectionBox[] {
+  const out: SectionBox[] = [];
+  try {
+    const nodes = Array.from(document.querySelectorAll("section, [role='region']")).slice(0, 20);
+    for (const node of nodes) {
+      try {
+        const el = node as unknown as Element;
+        const style = getComputedStyle(el) as unknown as Record<string, string>;
+        if (style.display === "none" || style.visibility === "hidden") continue;
+        const box = el.getBoundingClientRect();
+        if (!box || box.height < 200 || box.height > 6000) continue;
+        const h = el.querySelector("h1, h2, h3, h4, h5, h6");
+        const heading = String((h as unknown as { innerText?: string } | null)?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 80);
+        out.push({ heading, y: Math.max(Math.round(box.top + (window.scrollY || 0)), 0), height: Math.round(box.height) });
+        if (out.length >= 20) break;
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+  return out;
+}
+export function layoutShiftScript(): string {
+  return `(${sectionBoxCollector.toString()})()`;
+}
+/** In-page hover-replay helpers (serialized; self-contained, no imports). */
+const HOVER_PROPS = ["backgroundColor", "color", "borderColor", "transform", "opacity", "linkColor"];
+function hoverCandidateCollector(): HoverCandidate[] {
+  const out: HoverCandidate[] = [];
+  const seen = new Set<string>();
+  const boxOf = (node: unknown): { left: number; top: number; width: number; height: number } | null => {
+    try {
+      const r = (node as unknown as { getBoundingClientRect?: () => { left: number; top: number; width: number; height: number } }).getBoundingClientRect?.();
+      if (r) return { left: r.left, top: r.top, width: r.width, height: r.height };
+    } catch { /* ignore */ }
+    return null;
+  };
+  const styleOf = (node: unknown): Record<string, string> | null => {
+    try {
+      return getComputedStyle(node as Element) as unknown as Record<string, string>;
+    } catch { return null; }
+  };
+  const pushEl = (node: unknown): void => {
+    if (out.length >= 12) return;
+    const el = node as unknown as Element;
+    const box = boxOf(el);
+    if (!box || box.width < 40 || box.height < 20) return;
+    const style = styleOf(el);
+    if (!style || style.display === "none" || style.visibility === "hidden") return;
+    // Stable selector: id wins, else tag + nth-of-type chain (depth 5).
+    let selector = "";
+    try {
+      const id = el.getAttribute?.("id");
+      if (id && /^[A-Za-z][\w:.-]*$/.test(id)) {
+        selector = `#${id}`;
+      } else {
+        const parts: string[] = [];
+        let cur: Element | null = el;
+        for (let depth = 0; depth < 5 && cur && cur.tagName !== "HTML"; depth += 1) {
+          const tag = cur.tagName.toLowerCase();
+          let nth = 1;
+          let sib = cur.previousElementSibling;
+          while (sib) {
+            if (sib.tagName.toLowerCase() === tag) nth += 1;
+            sib = sib.previousElementSibling;
+          }
+          parts.unshift(`${tag}:nth-of-type(${nth})`);
+          cur = cur.parentElement;
+        }
+        selector = parts.join(" > ");
+      }
+    } catch { selector = ""; }
+    if (!selector || seen.has(selector)) return;
+    seen.add(selector);
+    const label = String(((el as unknown as { innerText?: string }).innerText || (el as unknown as { textContent?: string }).textContent || "").replace(/\s+/g, " ").trim()).slice(0, 60);
+    out.push({ selector, label, x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) });
+  };
+  try {
+    // Pass 1: real controls (links, buttons, ARIA buttons/tabs), capped so
+    // container hovers (pass 2) always get slots.
+    const controls = Array.from(document.querySelectorAll("a[href], button, [role='button'], [role='tab']"));
+    for (const node of controls) {
+      if (out.length >= 8) break;
+      pushEl(node);
+    }
+    // Pass 2: hover-affordance containers — JS-driven card hovers live on
+    // plain DIVs (which wrap their CTA links). Largest first (cards before
+    // inner wrappers), pointer cursor or link-wrapping, mid-size, bounded.
+    if (out.length < 12) {
+      const found: { el: Element; area: number }[] = [];
+      const divs = Array.from(document.querySelectorAll("div")).slice(0, 250);
+      for (const node of divs) {
+        const el = node as unknown as Element;
+        const box = boxOf(el);
+        if (!box) continue;
+        const area = box.width * box.height;
+        if (area < 8000 || area > 220000) continue;
+        const style = styleOf(el);
+        if (!style || style.display === "none" || style.visibility === "hidden") continue;
+        const wrapsLink = !!(el as unknown as { querySelector?: (s: string) => unknown }).querySelector?.("a[href], button");
+        if (String(style.cursor || "") !== "pointer" && !wrapsLink) continue;
+        found.push({ el, area });
+      }
+      found.sort((a, b) => b.area - a.area);
+      for (const entry of found) {
+        if (out.length >= 12) break;
+        pushEl(entry.el);
+      }
+    }
+  } catch { /* ignore */ }
+  return out;
+}
+function hoverReadStyles(selector: string): Record<string, string> | null {
+  try {
+    const el = document.querySelector(selector) as unknown as Element | null;
+    if (!el) return null;
+    const style = getComputedStyle(el) as unknown as Record<string, string>;
+    // CF46: nested link/button color (cards often restyle their CTAs on
+    // hover while their own text color stays put).
+    let linkColor = "";
+    try {
+      const link = (el as unknown as { querySelector?: (s: string) => unknown }).querySelector?.("a[href], button") as unknown as Element | null;
+      if (link && link !== el) linkColor = String((getComputedStyle(link) as unknown as Record<string, string>).color || "");
+    } catch { linkColor = ""; }
+    return {
+      backgroundColor: String(style.backgroundColor || ""),
+      color: String(style.color || ""),
+      borderColor: String(style.borderColor || ""),
+      transform: String(style.transform || ""),
+      opacity: String(style.opacity || ""),
+      linkColor,
+    };
+  } catch {
+    return null;
+  }
+}
+function hoverSynthetic(selector: string): boolean {
+  try {
+    const el = document.querySelector(selector) as unknown as Element | null;
+    if (!el) return false;
+    const opts = { bubbles: true, cancelable: true, composed: true };
+    el.dispatchEvent(new MouseEvent("mouseover", opts));
+    el.dispatchEvent(new MouseEvent("mouseenter", opts));
+    el.dispatchEvent(new MouseEvent("mousemove", opts));
+    return true;
+  } catch {
+    return false;
+  }
+}
+/** Scroll into view + return fresh VIEWPORT coords (trusted moves need them). */
+function hoverScrollIntoView(selector: string): { x: number; y: number } | null {
+  try {
+    const el = document.querySelector(selector) as unknown as Element | null;
+    if (!el) return null;
+    // Nearest: visible elements don't scroll at all (coords stay valid);
+    // below-fold targets scroll minimally. Busy-wait settles smooth scrolls
+    // so the re-read rect matches where the pointer will land.
+    (el as unknown as { scrollIntoView?: (opts?: unknown) => void }).scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    const start = Date.now();
+    while (Date.now() - start < 350) { /* settle smooth scroll */ }
+    const r = (el as unknown as { getBoundingClientRect?: () => { left: number; top: number; width: number; height: number } }).getBoundingClientRect?.();
+    if (!r || r.width <= 0 || r.height <= 0) return null;
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  } catch {
+    return null;
+  }
+}
+function hoverClearState(): void {
+  try {
+    const els = Array.from(document.querySelectorAll(":hover"));
+    for (const el of els.slice(0, 4)) {
+      try {
+        el.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, cancelable: true, composed: true }));
+        el.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true, cancelable: true, composed: true }));
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+}
+
+/** Trusted pointer move via backend mouse (CDP input). Best effort. */
+async function trustedHover(page: BrowserPage, x: number, y: number): Promise<boolean> {
+  const raw = page as unknown as {
+    mouse?: { move?: (x: number, y: number) => Promise<void> };
+  };
+  try {
+    if (raw.mouse && typeof raw.mouse.move === "function") {
+      await raw.mouse.move(x, y);
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+const sleepMs = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * CF46 node-side hover replay: for each candidate, snapshot computed styles,
+ * hover (trusted pointer, synthetic fallback), re-read, and record deltas.
+ * Bounded (10 candidates, 300ms settle); every step best-effort.
+ */
+export async function collectObservedHovers(page: BrowserPage, warnings: string[]): Promise<ObservedHoverEffect[]> {
+  const effects: ObservedHoverEffect[] = [];
+  let candidates: HoverCandidate[] = [];
+  try {
+    const found = await evaluateWithTimeout<HoverCandidate[] | null>(page, `(${hoverCandidateCollector.toString()})()`, 20_000);
+    if (Array.isArray(found)) candidates = found.slice(0, 10);
+  } catch {
+    return effects;
+  }
+  for (const candidate of candidates) {
+    if (effects.length >= 8 || !candidate || !candidate.selector) continue;
+    try {
+      const before = await evaluateWithTimeout<Record<string, string> | null>(
+        page,
+        `(${hoverReadStyles.toString()})(${JSON.stringify(candidate.selector)})`,
+        10_000,
+      );
+      if (!before) continue;
+      // Scroll into view first: trusted moves need viewport coords, and
+      // below-fold targets otherwise never receive the pointer.
+      const point = await evaluateWithTimeout<{ x: number; y: number } | null>(
+        page,
+        `(${hoverScrollIntoView.toString()})(${JSON.stringify(candidate.selector)})`,
+        10_000,
+      );
+      if (!point) continue;
+      let hovered = await trustedHover(page, point.x, point.y);
+      if (!hovered) {
+        const ok = await evaluateWithTimeout<boolean>(
+          page,
+          `(${hoverSynthetic.toString()})(${JSON.stringify(candidate.selector)})`,
+          10_000,
+        );
+        if (!ok) continue;
+      }
+      await sleepMs(650);
+      const after = await evaluateWithTimeout<Record<string, string> | null>(
+        page,
+        `(${hoverReadStyles.toString()})(${JSON.stringify(candidate.selector)})`,
+        10_000,
+      );
+      // Restore: mouse away + Escape (dismiss hover-opened menus).
+      try {
+        await trustedHover(page, 4, 4);
+      } catch { /* ignore */ }
+      try {
+        await evaluateWithTimeout(page, `(${hoverClearState.toString()})()`, 10_000);
+      } catch { /* ignore */ }
+      if (!after) continue;
+      const changes: ObservedHoverChange[] = [];
+      for (const property of HOVER_PROPS) {
+        const b = String(before[property] ?? "");
+        const a = String(after[property] ?? "");
+        if (b !== a && b && a) changes.push({ property, before: b.slice(0, 80), after: a.slice(0, 80) });
+      }
+      if (changes.length > 0) {
+        effects.push({ label: String(candidate.label || "control").slice(0, 60), selector: candidate.selector.slice(0, 120), changes: changes.slice(0, 5) });
+      }
+    } catch {
+      // Per-candidate failure; continue with the rest.
+    }
+  }
+  if (effects.length === 0) warnings.push("Hover replay observed no state changes; hover micro-states rebuild from declared rules only.");
+  return effects;
+}
+/** Max |y| (or |height|) drift between snapshot rects and fresh boxes, matched
+ * by heading then index. Returns 0 on insufficient evidence (never false-warn).
+ * Unit-tested pure helper; the browser re-measure itself is best-effort. */
+export function maxLayoutDrift(expected: SectionBox[], actual: SectionBox[]): number {
+  if (!Array.isArray(expected) || !Array.isArray(actual) || expected.length < 2 || actual.length < 2) return 0;
+  let max = 0;
+  const used = new Set<number>();
+  for (const exp of expected) {
+    let idx = -1;
+    if (exp.heading) {
+      idx = actual.findIndex((act, i) => !used.has(i) && act.heading === exp.heading);
+    }
+    if (idx < 0) {
+      const expIdx = expected.indexOf(exp);
+      if (expIdx >= 0 && expIdx < actual.length && !used.has(expIdx)) idx = expIdx;
+    }
+    if (idx < 0) continue;
+    used.add(idx);
+    const act = actual[idx];
+    max = Math.max(max, Math.abs(act.y - exp.y), Math.abs(act.height - exp.height));
+  }
+  return used.size >= 2 ? max : 0;
+}
+
 export async function capturePage(
   page: BrowserPage,
   options: CaptureOptions,
@@ -2332,15 +2779,24 @@ export async function capturePage(
   // read that matches proves nothing about slower rotations — the analysis
   // records that honesty in limitations.
   let rotatingText: SnapshotRotatingText[] = [];
+  let rotatingPlaceholders: SnapshotRotatingText[] = [];
   let rotationChecked = false;
   if (options.detectRotationMs !== undefined && options.detectRotationMs > 0) {
     const rotationStart = Date.now();
     rotationChecked = true;
     try {
       const before = labelSnapshotHeadings(snapshot.headings);
+      const beforePh = labelSnapshotPlaceholders(snapshot.content?.controls ?? []);
       await new Promise((resolve) => setTimeout(resolve, options.detectRotationMs));
       const after = await evaluateWithTimeout(page, collectHeadingTexts, 10_000);
       rotatingText = diffRotatingText(before, after ?? []);
+      // CF47: same window catches rotating prompt-box placeholders.
+      try {
+        const afterPh = await evaluateWithTimeout(page, collectPlaceholderTexts, 10_000);
+        rotatingPlaceholders = diffRotatingText(beforePh, afterPh ?? []);
+      } catch {
+        rotatingPlaceholders = [];
+      }
     } catch {
       warnings.push("Rotation re-sample failed; rotating hero text, if any, is undetected.");
     }
@@ -2462,6 +2918,44 @@ export async function capturePage(
   }
 
   sectionShotsMs = Date.now() - sectionStart;
+
+  // CF38: canvas stills (local-full only). A script-rendered <canvas> scene is a
+  // single high-frequency frame that no HTML/CSS rebuild can approximate, so we
+  // clip the canvas box into a lossless PNG asset the rebuild places verbatim.
+  // Gated by maxCanvasStills: hosted lite (0/unset) never runs the probe and
+  // stays byte-identical.
+  const canvasStills: CanvasStill[] = [];
+  if (screenshotKind && (options.maxCanvasStills ?? 0) > 0) {
+    let canvasBudget = maxBytes - (screenshot?.bytes ?? 0) - sectionShots.reduce((total, shot) => total + shot.bytes, 0);
+    try {
+      const rects = await evaluateWithTimeout(page, canvasRectsScript, LIMITS.perPageExtractionBudgetMs);
+      for (const rect of (rects ?? []).slice(0, options.maxCanvasStills ?? 0)) {
+        if (canvasBudget <= 0) break;
+        const clipX = Math.max(0, Math.round(rect.x));
+        const clipY = Math.max(0, Math.round(rect.y));
+        const clipW = Math.max(0, Math.min(Math.round(rect.width), options.viewportWidth - clipX));
+        const clipH = Math.max(0, Math.round(rect.height));
+        if (clipW < 24 || clipH < 24) continue;
+        try {
+          const taken = await snapShot(page, {
+            type: "png",
+            clip: { x: clipX, y: clipY, width: clipW, height: clipH },
+            captureBeyondViewport: true,
+          });
+          if (taken.bytes <= canvasBudget) {
+            canvasStills.push({ x: clipX, y: clipY, width: clipW, height: clipH, ...taken });
+            canvasBudget -= taken.bytes;
+          } else {
+            warnings.push(`Canvas still at ${clipX},${clipY} dropped: byte budget exhausted.`);
+          }
+        } catch {
+          warnings.push(`Canvas still at ${clipX},${clipY} failed.`);
+        }
+      }
+    } catch {
+      warnings.push("Canvas still capture failed.");
+    }
+  }
 
   // Video playing-state captures (CF21): runs LAST so a stuck player modal
   // can only affect shots already taken. AUTOPLAY-FIRST per facade: scroll
@@ -2809,18 +3303,71 @@ export async function capturePage(
     nativeVideoMs = Date.now() - nativeStart;
   }
 
+  // CF40 local-full: tab-panel copy AFTER all screenshots (clicking tabs must
+  // never alter screenshot state). Best effort; restores the default tab.
+  let tabPanels: TabPanel[] = [];
+  if (options.collectTabPanels) {
+    try {
+      const panels = await evaluateWithTimeout<TabPanel[] | null>(page, tabPanelScript(), 30_000);
+      if (Array.isArray(panels)) tabPanels = panels.filter((entry) => entry && typeof entry.tab === "string").slice(0, 12);
+    } catch {
+      warnings.push("Tab-panel capture failed; tabs rebuild as static default.");
+    }
+  }
+
+  // CF46 local-full: observed hover replay AFTER screenshots AND tab clicks.
+  // Trusted pointer move first (captures CSS :hover AND JS-driven states),
+  // synthetic mouse events as fallback (JS-driven only). Restores with
+  // mouse-away + Escape; hover-opened menus are transient post-shot noise.
+  let hoverEffects: ObservedHoverEffect[] = [];
+  if (options.collectHoverEffects) {
+    try {
+      hoverEffects = await collectObservedHovers(page, warnings);
+    } catch {
+      warnings.push("Hover-effect replay failed; hover micro-states rebuild from declared rules only.");
+    }
+  }
+
+  // CF41 local-full: layout-shift guard AFTER all screenshots. If lazy media
+  // expanded the page after snapshot rects were measured, section clips
+  // misalign — warn so rebuilds trust copy/layout over shots.
+  // CF43: the drift value is also returned so the pack can cite it.
+  let layoutDriftPx: number | undefined;
+  if (options.detectLayoutShift) {
+    try {
+      const fresh = await evaluateWithTimeout<SectionBox[] | null>(page, layoutShiftScript(), 20_000);
+      const drift = maxLayoutDrift(
+        (snapshot.sectionRects || []).map((rect) => ({ heading: rect.heading || "", y: rect.y, height: rect.height })),
+        Array.isArray(fresh) ? fresh : [],
+      );
+      layoutDriftPx = Math.round(drift);
+      if (drift > 100) {
+        warnings.push(
+          `Layout shifted during capture (up to ${Math.round(drift)}px); section screenshots may misalign with layout y/h — build from REBUILD copy/layout and use shots as loose reference.`,
+        );
+      }
+    } catch {
+      // Re-measure is best effort; silence keeps packs clean.
+    }
+  }
+
   return {
     snapshot,
     screenshot,
     screenshotBytes: screenshot?.bytes ?? 0,
     screenshotKind,
     sectionShots,
+    canvasStills,
     videoShots,
     pendingVideoStreams,
+    tabPanels,
+    ...(layoutDriftPx !== undefined ? { layoutDriftPx } : {}),
+    hoverEffects,
     pageHeightPx,
     warnings,
     rotatingText,
     rotationChecked,
+    rotatingPlaceholders,
     timings: {
       navMs,
       settleMs,

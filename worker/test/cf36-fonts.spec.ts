@@ -90,8 +90,8 @@ describe("collectFontAssets (CF36-2)", () => {
   });
 
   it("prefers same-origin URLs first and caps at MAX_FONT_DOWNLOADS", () => {
-    expect(MAX_FONT_DOWNLOADS).toBe(10);
-    const faces = Array.from({ length: 12 }, (_, index) => ({
+    expect(MAX_FONT_DOWNLOADS).toBe(16);
+    const faces = Array.from({ length: 20 }, (_, index) => ({
       family: `F${index}`,
       src: `url(https://cdn.example/f${index}.woff2)`,
       weight: "400",
@@ -101,6 +101,31 @@ describe("collectFontAssets (CF36-2)", () => {
 
     expect(collected).toHaveLength(MAX_FONT_DOWNLOADS);
     expect(collected[0]?.url).toBe("https://example.com/fonts/local.woff2");
+  });
+
+  it("ranks families the page actually renders above merely-declared faces", () => {
+    const pages = [
+      {
+        typography: {
+          fontFaces: [
+            { family: "Northem", src: `url(/assets/northem.woff2) format("woff2")`, weight: "400" },
+            { family: "Body", src: `url(/next/body.woff2) format("woff2")`, weight: "400" },
+          ],
+          fontFamilies: [{ value: "Body, Arial, sans-serif" }],
+          lineHeights: [],
+          letterSpacings: [],
+        },
+        url: "https://example.com/",
+        path: "/",
+      },
+    ];
+
+    const collected = collectFontAssets(pages, ORIGIN);
+
+    expect(collected.map((entry) => entry.url)).toEqual([
+      "https://example.com/next/body.woff2",
+      "https://example.com/assets/northem.woff2",
+    ]);
   });
 });
 

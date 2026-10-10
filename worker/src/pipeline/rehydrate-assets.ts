@@ -45,7 +45,7 @@ const SVG_CONTENT_TYPE = "image/svg+xml";
 // MAX_FONT_DOWNLOADS; only woff2/woff/ttf/otf URL patterns (never
 // extension-trusted alone: the content-type sniff below must also agree, and
 // data: URLs are skipped at collection time).
-export const MAX_FONT_DOWNLOADS = 10;
+export const MAX_FONT_DOWNLOADS = 16;
 
 const FONT_EXT_RE = /\.(woff2|woff|ttf|otf)(\?|#|$)/i;
 
@@ -130,7 +130,10 @@ export function fontFilename(
 }
 
 interface FontFaceSource {
-  typography?: { fontFaces?: Array<{ family?: unknown; src?: unknown; weight?: unknown }> | null } | null;
+  typography?: {
+    fontFaces?: Array<{ family?: unknown; src?: unknown; weight?: unknown }> | null;
+    fontFamilies?: Array<{ value?: unknown }> | null;
+  } | null;
   url?: unknown;
   path?: unknown;
 }
@@ -142,22 +145,43 @@ interface FontFaceSource {
  * pipeline downloads like every other asset. Callers gate this on
  * local-full only; hosted/lite never calls it, so their packs are unchanged.
  */
+const IGNORED_FAMILY = /^(sans-serif|serif|monospace|cursive|fantasy|system-ui|-apple-system|ui-sans-serif|ui-serif|ui-monospace|inherit|initial|unset)$/i;
+
+/** Family names (lowercased) actually rendered on a page, from computed styles.
+ * Excludes generic keywords and *Fallback shims so only real families count. */
+function usedFamiliesOf(page: FontFaceSource): Set<string> {
+  const out = new Set<string>();
+  for (const fam of page?.typography?.fontFamilies ?? []) {
+    for (const token of String(fam?.value ?? "").split(",")) {
+      const name = token.replace(/["']/g, "").trim().toLowerCase();
+      if (name && !IGNORED_FAMILY.test(name) && !/fallback$/.test(name)) out.add(name);
+    }
+  }
+  return out;
+}
+
 export function collectFontAssets(
   pages: FontFaceSource[],
   origin: string,
   maxFiles: number = MAX_FONT_DOWNLOADS,
 ): SnapshotAsset[] {
   const seen = new Set<string>();
-  const sameOrigin: SnapshotAsset[] = [];
-  const crossOrigin: SnapshotAsset[] = [];
+  const ranked: { entry: SnapshotAsset; key: number[] }[] = [];
+  let order = 0;
   for (const page of pages ?? []) {
     const faces = page?.typography?.fontFaces ?? [];
+    const usedFamilies = usedFamiliesOf(page);
     const usedOn = typeof page?.url === "string" && page.url ? page.url
       : typeof page?.path === "string" && page.path ? page.path
       : origin;
     for (const face of faces) {
       const family = String(face?.family ?? "unknown").replace(/["']/g, "").trim().slice(0, 120) || "unknown";
       const weight = String(face?.weight ?? "400").trim().slice(0, 20) || "400";
+      // CF38: a family that is merely DECLARED (e.g. a self-hosted face whose
+      // files 404, or a phantom var font) can outrank the families the page
+      // actually renders and exhaust the download cap. Rank rendered families
+      // first, then same-origin, then woff2 over woff/ttf/otf.
+      const renderedFam = usedFamilies.has(family.toLowerCase()) ? 0 : 1;
       for (const raw of extractFontUrls(String(face?.src ?? ""))) {
         if (!isFontUrl(raw)) continue;
         let absolute: string;
@@ -168,6 +192,8 @@ export function collectFontAssets(
         }
         if (!/^https?:/i.test(absolute) || seen.has(absolute)) continue;
         seen.add(absolute);
+        const ext = fontExtFromUrl(absolute) ?? "";
+        const sameOrigin = (() => { try { return new URL(absolute).origin === origin ? 0 : 1; } catch { return 1; } })();
         const entry: SnapshotAsset = {
           url: absolute,
           kind: "font",
@@ -178,16 +204,16 @@ export function collectFontAssets(
           fontFamily: family,
           fontWeight: weight,
         };
-        try {
-          if (new URL(absolute).origin === origin) sameOrigin.push(entry);
-          else crossOrigin.push(entry);
-        } catch {
-          continue;
-        }
+        ranked.push({ entry, key: [renderedFam, sameOrigin, ext === ".woff2" ? 0 : 1, order] });
+        order += 1;
       }
     }
   }
-  return [...sameOrigin, ...crossOrigin].slice(0, Math.max(0, maxFiles));
+  ranked.sort((a, b) => {
+    for (let i = 0; i < 3; i += 1) if (a.key[i] !== b.key[i]) return a.key[i] - b.key[i];
+    return a.key[3] - b.key[3];
+  });
+  return ranked.slice(0, Math.max(0, maxFiles)).map((item) => item.entry);
 }
 
 // CF25 fallback thumbnails: facades that never played (wall/byte skips) and

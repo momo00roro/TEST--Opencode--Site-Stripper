@@ -170,8 +170,8 @@ describe("collectPageSnapshot", () => {
     expect(snapshot.lang).toBe("en");
     expect(snapshot.metaDescription).toBe("A demo site");
     expect(snapshot.headings).toEqual([
-      { level: 1, text: "Welcome to the site", truncated: false, breaks: [] },
-      { level: 2, text: "Features", truncated: false, breaks: [] },
+      { level: 1, text: "Welcome to the site", truncated: false, breaks: [], fontFamily: "Inter" },
+      { level: 2, text: "Features", truncated: false, breaks: [], fontFamily: "Inter" },
     ]);
 
     const about = snapshot.links.find((link) => link.text === "About");
@@ -719,7 +719,7 @@ describe("collectPageSnapshot", () => {
     };
     const snapshot = collectPageSnapshot();
 
-    expect(snapshot.hoverStates).toContainEqual({ selector: ".card:hover", trigger: "hover", changedProperties: ["background", "transform"] });
+    expect(snapshot.hoverStates).toContainEqual({ selector: ".card:hover", trigger: "hover", changedProperties: ["background", "transform"], changedValues: ["background: linear-gradient(135deg, #000, #fff)", "transform: translateY(-2px)"] });
     expect(snapshot.tokens.gradients.map((token) => token.value)).toContain("linear-gradient(135deg, #000, #fff)");
     expect(snapshot.tokens.gradients[0]).toMatchObject({ source: "cssom-rule", confidence: "observed" });
     expect(snapshot.typography.fontFamilies.map((token) => token.value)).toContain("Inter, sans-serif");

@@ -32,6 +32,25 @@ The [`plans/`](./plans/) directory tracks design RFCs and implementation roadmap
 | **2026-10-03** | [`2026-10-03-capture-budget-optimization.md`](./plans/2026-10-03-capture-budget-optimization.md) | CF29: capture budget optimization — measure-first investigation of the ~3 min/run video-heavy burn | *Resolved → CF30* |
 | **2026-10-04** | [`2026-10-04-cf30-native-base64-and-orphan-guard.md`](./plans/2026-10-04-cf30-native-base64-and-orphan-guard.md) | CF30: Chromium-native base64 (Trap 4, drops Worker-side encoding) + 90 s browser-session orphan guard | **Completed** |
 | **2026-10-05** | [`2026-10-04-cf30-native-base64-and-orphan-guard.md`](./plans/2026-10-04-cf30-native-base64-and-orphan-guard.md) (CF31 section) | CF31: extract-only mode (`?screenshots=0`) — observations without binaries, doubles as the 1102 diagnostic | **Completed** |
+| **2026-10-06** | [`2026-10-06-cf34-local-fidelity.md`](./plans/2026-10-06-cf34-local-fidelity.md) | CF34: local-full fidelity track — design RFC + TDD implementation record merged (section shots, canvas, fonts, placeholders); hosted lite byte-identical | **Completed** |
+| **2026-10-08** | [`2026-10-08-cf39-promptability-directives.md`](./plans/2026-10-08-cf39-promptability-directives.md) | CF39–CF40: pack→agent promptability directives (display face, treatments, CTA fills, icons, tab panels) + eval harness (`scripts/eval/`) | **Completed** |
+| **2026-10-09** | [`2026-10-09-cf43-cf44-drift-surface-expansion.md`](./plans/2026-10-09-cf43-cf44-drift-surface-expansion.md) | CF41–CF44: drift guard, headline positions, `design-system.md` expansion kit, `expand-check.mjs` | **Completed** |
+| **2026-10-10** | [`2026-10-10-cf45-cf46-taste-hover-replay.md`](./plans/2026-10-10-cf45-cf46-taste-hover-replay.md) | CF45–CF46: taste capture (CTA/tile/tab/hover/eyebrow/margins) + observed hover replay + h3/h4 roles | **Completed** |
+| **2026-10-11** | [`2026-10-11-cf47-eye-detail.md`](./plans/2026-10-11-cf47-eye-detail.md) | CF47: eye-comparison detail capture — rendered heading weight, CTA borders, nav chrome (brand/dropdowns/actions), scroll strips, prose links, placeholder rotation, `capturedAt` recency | **Completed** |
+
+---
+
+## Supporting references
+
+* **[`images/`](./images/)** — screenshots embedded in the root README
+  (localhost app, rebuild gallery, cline/base44 clones, mobile 390 px).
+  Captured headless via `puppeteer-core` + `sharp`; re-shoot any time with
+  the same flow.
+* **`../scripts/eval/README.md`** — the live eval harness contract
+  (`PROMPT.md`, `score.mjs` ≥92 gate, `expand-check.mjs`, `build-pack.mjs`,
+  `capture-once.ts`, `regen-docs.mjs`).
+* **`../.archive/`** — gitignored local history: superseded packs/rebuilds,
+  plus `scripts-eval-probes/` (16 retired one-off measurement scripts, indexed).
 
 ---
 

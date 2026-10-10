@@ -899,6 +899,173 @@ function buildComponentsMd(components) {
   return lines.join("\n");
 }
 
+// CF44 expansion kit: the site's UI system + art direction as build rules for
+// NEW sections/pages the pack never captured. Clone fidelity uses REBUILD.md;
+// anything new uses THIS file plus theme.css. Two knowledge kinds are marked
+// explicitly: "Observed" (measured on the captured pages — cite the source)
+// and "House rule" (pack-wide standard every rebuild follows).
+function buildDesignSystemMd(analysis, pages, assets, inventory) {
+  const lines = [`# Design system — ${md(analysis.request.hostname)} (build NEW sections/pages from this)`, ""];
+  lines.push("This file is the art-direction contract for anything the pack does not show: new sections, new pages, new states. REBUILD.md reproduces what exists; this file extends it in-style. Machine sources: `data/tokens.json` (aliases + token-N), `theme.css`, `data/components.json`, `data/motion.json`.", "");
+  const first = (values, n) => (values || []).slice(0, n);
+  const shipped = new Set();
+  for (const asset of assets || []) {
+    if (asset && asset.source === "downloaded" && asset.kind === "font" && asset.fontFamily) {
+      shipped.add(String(asset.fontFamily).replace(/["']/g, "").trim().toLowerCase());
+    }
+  }
+  // 1) Palette: observed role samples first, aliases second.
+  lines.push("## 1. Palette (observed roles — new work uses these, nothing else)", "");
+  for (const line of keyRoles(pages, inventory)) lines.push(line);
+  const aliases = aliasInventory(inventory || tokenInventory(pages), pages);
+  const aliasRefs = Object.entries(aliases).map(([name, value]) => `${name} \`${code(value)}\``).join(", ");
+  lines.push(aliasRefs ? `- Aliases: ${aliasRefs}.` : "- No semantic aliases observed.");
+  const canvas = (pages || []).map((page) => pageCanvasBackground(page)).find(Boolean);
+  if (canvas) lines.push(`- Page canvas: \`${code(canvas)}\` — new pages paint <body> this first.`);
+  lines.push("");
+  // 2) Type: display vs body + compact scale.
+  const bodyRole = (pages[0]?.semanticStyles || []).find((sample) => sample && (sample.role === "body-copy" || sample.role === "body"));
+  const bodyFam = String(bodyRole?.fontFamily || "").split(",")[0].replace(/["']/g, "").trim();
+  const renderedFaces = [];
+  for (const page of pages || []) {
+    for (const heading of page?.headings || []) {
+      const fam = String(heading?.fontFamily || "").replace(/["']/g, "").trim();
+      if (fam && shipped.has(fam.toLowerCase()) && fam.toLowerCase() !== bodyFam.toLowerCase() && !renderedFaces.includes(fam)) renderedFaces.push(fam);
+      if (renderedFaces.length >= 2) break;
+    }
+    if (renderedFaces.length >= 2) break;
+  }
+  lines.push("## 2. Type (display face for headlines/hero/buttons/nav/tabs; body face for prose)", "");
+  if (renderedFaces.length > 0) lines.push(`- Display: ${renderedFaces.map((fam) => `\`${code(fam)}\``).join(", ")} (rendered + shipped — headlines, hero, buttons, nav, tabs).`);
+  else lines.push("- Display: no shipped display face distinguished — reuse the heading role family below.");
+  lines.push(bodyFam ? `- Body: \`${code(bodyFam)}\` (prose, captions, placeholders).` : "- Body: body family not sampled — reuse `theme.css` base.");
+  const scaleRoles = ["heading-1", "heading-2", "heading-3", "body-copy", "button", "link", "navigation", "eyebrow", "caption", "form"];
+  const seenRoles = new Set();
+  for (const page of pages || []) {
+    for (const sample of page?.semanticStyles || []) {
+      if (!sample || !sample.role || seenRoles.has(sample.role)) continue;
+      if (!scaleRoles.some((role) => String(sample.role).toLowerCase().includes(role))) continue;
+      seenRoles.add(sample.role);
+      const bits = [sample.fontSize && `size ${code(sample.fontSize)}`, sample.fontWeight && `weight ${code(sample.fontWeight)}`, sample.lineHeight && `lh ${code(sample.lineHeight)}`, sample.letterSpacing && `tracking ${code(sample.letterSpacing)}`, sample.color && `color ${code(sample.color)}`].filter(Boolean).join(", ");
+      if (bits) lines.push(`- ${md(sample.role)}: ${bits}.`);
+      if (seenRoles.size >= 10) break;
+    }
+    if (seenRoles.size >= 10) break;
+  }
+  if (seenRoles.size === 0) lines.push("- No semantic type samples observed — derive sizes from `screenshots/` proportions, keep the two faces above.");
+  // CF45 taste: kicker/eyebrow treatment + title rhythm (margins).
+  const brow0 = (pages || []).flatMap((page) => page?.eyebrows || []).find((brow) => brow && brow.text);
+  if (brow0) {
+    const bits = [brow0.fontFamily && `family ${code(brow0.fontFamily)}`, brow0.fontSize && `size ${code(brow0.fontSize)}`, brow0.fontWeight && `weight ${code(brow0.fontWeight)}`, brow0.letterSpacing && `tracking ${code(brow0.letterSpacing)}`, brow0.color && `color ${code(brow0.color)}`].filter(Boolean).join(", ");
+    lines.push(`- Kicker/eyebrow ("${md(brow0.text)}"): ${bits || "unstyled"} — new section kickers match this treatment exactly, never body text.`);
+  }
+  const rhythmic = (pages || []).flatMap((page) => page?.headings || []).find((heading) => (heading.level === 1 || heading.level === 2) && (heading.marginTop || heading.marginBottom));
+  if (rhythmic) {
+    lines.push(`- Title rhythm: H${rhythmic.level} "${md(String(rhythmic.text || "").slice(0, 60))}"${rhythmic.marginTop && rhythmic.marginTop !== "0px" ? ` margin-top ${code(rhythmic.marginTop)}` : ""}${rhythmic.marginBottom && rhythmic.marginBottom !== "0px" ? ` margin-bottom ${code(rhythmic.marginBottom)}` : ""} — match this air around new titles.`);
+  }
+  lines.push("- House rule: new headlines reuse the Display face at an existing scale step; never introduce a third family.");
+  lines.push("");
+  // 3) Rhythm: spacing / radii / shadow scales.
+  const top = (category, n) => first(inventory?.[category] || [], n).map((token) => `\`${code(token.value)}\``).join(", ");
+  lines.push("## 3. Rhythm (spacing, radii, elevation — stay on these scales)", "");
+  lines.push(top("spacing", 8) ? `- Spacing scale (most observed): ${top("spacing", 8)}.` : "- Spacing: no spacing tokens observed.");
+  lines.push(top("radii", 6) ? `- Radii scale: ${top("radii", 6)} — new cards/buttons reuse the nearest observed radius, never invent one.` : "- Radii: no radii observed — reuse REBUILD CTA/tile radii.");
+  const shadows = inventory?.shadows || [];
+  lines.push(shadows.length > 0 ? `- Shadows (${shadows.length} observed): ${first(shadows, 2).map((token) => `\`${code(token.value)}\``).join("; ")} — flat surfaces stay flat unless the site shows elevation.` : "- Shadows: none observed — keep new surfaces flat.");
+  lines.push("");
+  // 4) Component recipes: buttons, tiles, tabs, pills, shell, icons.
+  lines.push("## 4. Component recipes (compose new sections from these)", "");
+  const fills = [];
+  const fillPads = {};
+  for (const page of pages || []) {
+    for (const fill of page?.ctaFills || []) {
+      if (fill && fill.bg) {
+        fills.push(`"${md(String(fill.label || "CTA").slice(0, 40))}" bg \`${code(fill.bg)}\`${fill.radius ? ` radius \`${code(fill.radius)}\`` : ""}`);
+        if (fill.padding) fillPads[fill.padding] = (fillPads[fill.padding] || 0) + 1;
+      }
+      if (fills.length >= 6) break;
+    }
+    if (fills.length >= 6) break;
+  }
+  const topPad = Object.entries(fillPads).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+  lines.push(fills.length > 0 ? `- Buttons: ${fills.join("; ")}${topPad ? `; typical padding \`${code(topPad)}\`` : ""} (observed fills — primary/dark/outline variants keep these exact bg+radius+padding).` : "- Buttons: no CTA fills observed — reuse the button role sample in §2.");
+  const tiles = [...new Set((pages || []).flatMap((page) => page?.imageTreatments || []).map((treatment) => treatment?.tileBg).filter(Boolean))].slice(0, 3);
+  lines.push(tiles.length > 0 ? `- Cards/tiles: background ${tiles.map((tile) => `\`${code(tile)}\``).join(", ")} (observed tile wash — logo/feature cards sit on this, never pure contrast).` : "- Cards/tiles: no tile wash observed — cards sit directly on section bg.");
+  const tabSets = (pages || []).flatMap((page) => page?.content?.tabSets || []);
+  const tabLabels = [...new Set(tabSets.flatMap((set) => (set?.tabs || []).map((tab) => tab?.label).filter(Boolean)))].slice(0, 8);
+  lines.push(tabLabels.length > 0 ? `- Tabs: labels like ${tabLabels.map((label) => `"${md(label)}"`).join(", ")} — new tabsets reuse the radio-input + <label> CSS-only switch (zero-JS), default tab first.` : "- Tabs: no tabsets observed — if new content needs tabs, use the radio-input + <label> CSS-only switch (zero-JS), default tab first.");
+  const tabSeps = [...new Set(tabSets.flatMap((set) => set?.separators ? [set.separators] : []))].slice(0, 2);
+  if (tabSeps.length > 0) lines.push(`- Tab dividers: ${tabSeps.map((spec) => `\`${code(spec)}\``).join(" / ")} between tabs (observed — dividers are borders, not gaps; keep them on rebuilds and new tabsets).`);
+  lines.push("- House rule: new interactive elements are real <a>/<button>/<label> with :hover + :focus-visible (subtle color/lift/underline, never layout-shifting); dismissable bars use hidden checkbox + <label>; in-page jumps use <a href=\"#id\"> + :target background-color highlight only. Zero <script>, zero external URLs.");
+  const iconCount = (pages || []).reduce((total, page) => total + (page?.iconFlags || []).length, 0);
+  const iconSizes = [...new Set((pages || []).flatMap((page) => page?.iconFlags || []).map((flag) => flag?.w && flag?.h ? `${flag.w}×${flag.h}` : "").filter(Boolean))].slice(0, 4);
+  lines.push(iconCount > 0 ? `- Icons: ${iconCount} inline-SVG glyph(s) observed${iconSizes.length > 0 ? ` at ${iconSizes.join(", ")}px` : ""} — new icons are redrawn inline SVG at screenshot scale (stroke icons, currentColor), never emoji, never omitted.` : "- Icons: no inline icons observed — new icons are minimal stroke SVG, currentColor.");
+  lines.push("- Shell: new pages reuse the REBUILD §2 nav/footer chrome verbatim (same links, same order); only the main content changes.");
+  lines.push("");
+  // 5) Motion language.
+  const durs = {};
+  const easings = {};
+  for (const page of pages || []) {
+    for (const transition of page?.motion?.transitions || []) {
+      if (transition?.duration) durs[transition.duration] = (durs[transition.duration] || 0) + 1;
+      if (transition?.easing) easings[transition.easing] = (easings[transition.easing] || 0) + 1;
+    }
+  }
+  const topDurs = Object.entries(durs).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([dur]) => `\`${code(dur)}\``).join(", ");
+  const topEasings = Object.entries(easings).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([easing]) => `\`${code(easing)}\``).join(", ");
+  lines.push("## 5. Motion (observed timings — new hover/reveal uses these)", "");
+  lines.push(topDurs ? `- Transitions: durations ${topDurs}${topEasings ? `, easings ${topEasings}` : ""} (machine source: \`data/motion.json\`).` : "- Transitions: none observed — use subtle .18s ease.");
+  const hoverCount = (pages || []).reduce((total, page) => total + (page?.hoverStates || []).length, 0);
+  lines.push(hoverCount > 0 ? `- Hover language: ${hoverCount} declared hover/focus rule(s) — color/lift/underline micro-states, never layout shifts, never hover-only content.` : "- Hover language: no hover rules observed — color/lift/underline micro-states, never layout shifts.");
+  const hoverPool = (pages || []).flatMap((page) => page?.hoverStates || []);
+  // CF45 taste: prefer a transform-bearing example (lift/scale micro-motion
+  // is the signature interaction); fall back to the first valued rule.
+  const hoverEx = hoverPool.find((state) => (state.changedValues || []).some((value) => /transform|translate|scale|rotate/i.test(value)))
+    || hoverPool.find((state) => (state.changedValues || []).length > 0);
+  if (hoverEx) lines.push(`- Micro-motion example: ${code(hoverEx.trigger)} on \`${code(hoverEx.selector)}\` → ${(hoverEx.changedValues || []).map(code).join("; ")} — replay these exact values on new interactive elements.`);
+  // CF46: hover-replay effects (trusted-pointer observations incl. JS-driven
+  // states). These override declared-rule guesses wherever both exist.
+  const fxPool = (pages || []).flatMap((page) => page?.hoverEffects || []).filter((fx) => fx && Array.isArray(fx.changes) && fx.changes.length > 0).slice(0, 4);
+  if (fxPool.length > 0) {
+    lines.push("- Observed hover replay (measured live — JS-driven states included):");
+    for (const fx of fxPool) {
+      const bits = (fx.changes || []).map((change) => {
+        const prop = String(change?.property || "") === "linkColor" ? "nested links/buttons color" : String(change?.property || "");
+        return `\`${code(prop)}: ${code(change.before)}\` → \`${code(change.after)}\``;
+      }).join("; ");
+      lines.push(`  - "${md(String(fx.label || "control").slice(0, 50))}": ${bits}.`);
+    }
+  }
+  lines.push("");
+  // 6) Grid + breakpoints.
+  const containers = [...new Set((pages || []).flatMap((page) => page?.geometry?.containerWidths || []).filter((width) => Number(width) > 0))].sort((a, b) => b - a).slice(0, 3);
+  const queries = [...new Set((pages || []).flatMap((page) => page?.breakpoints?.mediaQueries || []).map((entry) => entry?.query).filter(Boolean))].slice(0, 4);
+  const reflows = (pages || []).flatMap((page) => page?.responsiveComparison?.layoutChanges || []).filter((item) => item?.changed).slice(0, 6);
+  lines.push("## 6. Grid + responsive (desktop-first 1440px, verify at 390px)", "");
+  lines.push(containers.length > 0 ? `- Content width: observed containers ${containers.map((width) => `\`${code(width)}px\``).join(", ")} — new sections share the same max-width + gutters.` : "- Content width: no containers observed — match REBUILD section widths.");
+  lines.push(queries.length > 0 ? `- Breakpoints: ${queries.map((query) => `\`${code(query)}\``).join(", ")}.` : "- Breakpoints: no media queries observed.");
+  if (reflows.length > 0) {
+    lines.push("- Observed reflow (mirror this on new sections):");
+    for (const item of reflows) lines.push(`  - ${md(item.role)}: ${md(item.desktop ? `${item.desktop.width}×${item.desktop.height} ${item.desktop.display} ${item.desktop.columns}` : "?")} → ${md(item.mobile ? `${item.mobile.width}×${item.mobile.height} ${item.mobile.display} ${item.mobile.columns}` : "?")}.`);
+  }
+  lines.push("- House rule (mobile ≤1000px, verify at 390px): stack columns; fluid media (`max-width:100%;height:auto`, no fixed px wider than viewport); headings wrap naturally (no forced <br>, no desktop max-width leaking through, no fixed heights); tab rows reflow to 2 columns; grids collapse (providers 6→3, logos 5→2, features 2→1); nav links collapse (logo + actions remain); no horizontal overflow.");
+  lines.push("");
+  // 7) Imagery + art direction.
+  const filters = [...new Set((pages || []).flatMap((page) => page?.imageTreatments || []).map((treatment) => String(treatment?.filter || "").match(/(grayscale\([^)]*\)|sepia\([^)]*\)|saturate\([^)]*\)|hue-rotate\([^)]*\))/g) || []).flat())].slice(0, 3);
+  lines.push("## 7. Imagery + art direction", "");
+  lines.push(filters.length > 0 ? `- Treatment: computed \`${code(filters.join(" "))}\` on photographic/brand imagery (files ship unmodified — apply in CSS) + tile wash from §4.` : "- Treatment: no computed image filters observed — ship imagery unmodified.");
+  lines.push("- House rule: canvas/video regions reuse shipped stills/posters verbatim at REBUILD x/y; reference-only CDN assets become dimension-accurate neutral placeholders (never hotlink, never omit the card); new illustration follows the site's observed idiom (flat/stroke/grayscale — match, don't decorate).");
+  lines.push("");
+  // 8) Voice + recipes.
+  const voice = pages[0]?.content?.tone?.voice || pages[0]?.content?.tone;
+  lines.push("## 8. Voice + expansion recipes", "");
+  lines.push(`- Voice: ${voice ? md(typeof voice === "string" ? voice : JSON.stringify(voice)).slice(0, 200) : "see `content-style.md`"} — new copy matches this register and sentence length; never lorem, never paraphrase of existing sections.`);
+  lines.push("- New SECTION in 5 steps: (1) pick the closest REBUILD section as layout pattern (centered narrow / 2-col media+copy / N-col grid); (2) set section padding from that pattern's rhythm so the title lands on-grid; (3) set the title in Display face at an existing scale step, body in Body face; (4) compose only §4 recipes + shipped `assets/` (grayscale + tile per §7); (5) render at 1440px vs the pattern section, then at 390px (no overflow, no clipped text).");
+  lines.push("- New PAGE: reuse the §2/shell chrome verbatim (REBUILD §2 nav/footer); order new sections hero → proof → detail → CTA like the homepage; one H1, section H2s in Display face; same body canvas (§1).");
+  lines.push("- Constraints (all new work): font families ⊆ shipped `assets/fonts/`; colors ⊆ §1 roles/aliases (nearest observed wins ties); radii/shadows ⊆ §3 scales; zero <script>, zero external URLs, all refs local; mobile reflow per §6 house rule; verify 1440px + 390px renders before calling it done.");
+  return lines.join("\n");
+}
+
 // CF35-2: layout-carrying REBUILD helpers (dependency-free, no imports).
 // describeColumns turns an observed grid-columns value into a rebuild-ready
 // spec ("2 columns: 729.469px + 530.516px"); 'none'/single/empty means the
@@ -968,6 +1135,29 @@ function placeholderDirectives(assets, cap = 5) {
     .map((asset) => `- \`${code(asset.url || "unknown URL")}\` (${md(asset.alt || asset.kind)}): ${placeholderSpec(asset)}`);
 }
 
+// CF38: sectionShots can be FEWER than sections (short bands like a stats strip
+// are not captured), so shots[index] drifts out of sync after the first gap.
+// Align shots to sections in order by matching each shot's pixel height to a
+// section layout height (tolerance 2%). A section with no matching shot stays
+// null and renders an honest "no shot" note rather than pointing at the wrong
+// image — a wrong screenshot reference silently mis-builds an entire section.
+function alignSectionShots(layouts, shots) {
+  const out = new Array((layouts || []).length).fill(null);
+  let si = 0;
+  for (let li = 0; li < out.length && si < (shots || []).length; li += 1) {
+    const lh = Number(layouts[li]?.height);
+    const sh = Number(shots[si]?.height);
+    if (Number.isFinite(lh) && Number.isFinite(sh) && Math.abs(lh - sh) <= Math.max(4, sh * 0.02)) { out[li] = shots[si]; si += 1; }
+  }
+  return out;
+}
+
+// CF38: analytics/tracking pixels (twitter t.co, analytics.twitter.com, etc.)
+// are 1x1 non-visual fetches. They must never appear as cards in the build spec.
+const ANALYTICS_HOST = /(^|\.)(t\.co|analytics\.twitter\.com|twitter\.com|google-analytics\.com|googletagmanager\.com|doubleclick\.net|facebook\.com\/tr)/i;
+function isAnalyticsAsset(asset) {
+  try { return ANALYTICS_HOST.test(new URL(asset?.url || "", "http://localhost").host); } catch { return false; }
+}
 // CF17: ordered agent build spec — global theme, then sections in order with
 // copy, layout, assets, and behaviors, then explicit known gaps.
 // CF34-local ordering: 1) Tokens refs (data/tokens.json aliases),
@@ -979,6 +1169,8 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
   // 1) Tokens first: aliases ride alongside raw token-N keys, never replace them.
   const aliases = aliasInventory(inventory || tokenInventory(pages), pages);
   const aliasRefs = Object.entries(aliases).map(([name, value]) => `${name} \`${code(value)}\``).join(", ");
+  // CF38: exact-pixel canvas stills shipped as downloaded hero assets.
+  const canvasAssets = (assets || []).filter((asset) => asset && asset.kind === "hero" && asset.source === "downloaded" && typeof asset.localPath === "string" && /canvas-\d+\.png$/.test(asset.localPath));
   lines.push("## 1. Tokens — apply before any section", "");
   lines.push(`Apply \`theme.css\` values first (prefer \`observed\` confidence). Canonical source: \`data/tokens.json\` (\`aliases\` + per-category token-N keys); semantic samples in \`design-tokens.md\` under "Key observed roles".${aliasRefs ? ` Observed aliases: ${aliasRefs}.` : " No semantic aliases observed."}`);
   lines.push("");
@@ -994,6 +1186,21 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
       const nav = page.nav || {};
       const fmt = (links) => (links || []).map((link) => `${link.text || link.href || "(unlabelled)"}`).join(" / ") || "—";
       lines.push(`- \`${code(page.path)}\` header: ${md(fmt(nav.header))}; primary: ${md(fmt(nav.primary))}; footer: ${md(fmt(nav.footer))} (observed navigation; full hrefs in \`data/navigation.json\`)`);
+      // CF47 eye-detail: header chrome idiom (brand mark, dropdown triggers,
+      // trailing action fills/borders). Local-full only.
+      const chrome = page.navChrome;
+      if (chrome && (chrome.brandMark || (chrome.dropdowns || []).length > 0 || (chrome.actions || []).length > 0)) {
+        const bits = [];
+        if (chrome.brandMark && chrome.brandMark === "svg") bits.push(`brand mark is inline <svg> — redraw the logo mark as inline SVG at screenshot scale, do NOT use text`);
+        else if (chrome.brandMark === "img") bits.push(`brand mark is an <img> logo — use the downloaded logo asset if shipped under assets/, else redraw it as inline SVG at screenshot scale, do NOT use plain text`);
+        else bits.push(`brand mark is plain text`);
+        if ((chrome.dropdowns || []).length > 0) bits.push(`dropdown triggers (chevron/aria — keep the glyph + hover menu affordance): ${(chrome.dropdowns || []).map((d) => `"${md(String(d).slice(0, 40))}"`).join(", ")}`);
+        for (const action of chrome.actions || []) {
+          if (!action || !action.label) continue;
+          bits.push(`"${md(String(action.label).slice(0, 60))}": background \`${code(action.bg || "transparent")}\`, border ${action.border && action.border !== "none" ? `\`${code(action.border)}\`` : "none (borderless text/button — do NOT add an outline)"}`);
+        }
+        lines.push(`- Header chrome (\`${code(page.path)}\`): ${bits.join("; ")}.`);
+      }
     }
   }
   const canvasByPage = (pages || []).map((page) => ({ path: page.path, color: pageCanvasBackground(page) })).filter((entry) => entry.color);
@@ -1007,26 +1214,160 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
       for (const entry of canvasByPage) lines.push(`Body background (\`${code(entry.path)}\`): \`${code(entry.color)}\` (observed page canvas — paint <body> this FIRST; surface/* tokens are section/card surfaces, not the page)`);
     }
   }
+  // CF38: emit the FULL observed type scale (every semantic role), not just the
+  // largest heading. Agents otherwise guess heading-2/3, button, and link sizes
+  // and drift a few px per element — the sampled values are exact and free.
+  // CF38: families that actually exist in the pack (shipped font files, or a
+  // declared @font-face). A role whose FIRST family is neither is a phantom var
+  // (e.g. a --font-geist stack with no served file) that renders as the next
+  // fallback — flag it so agents substitute instead of chasing a missing face.
+  const shippedFamilies = new Set();
+  for (const asset of assets || []) {
+    if (asset && asset.source === "downloaded" && asset.kind === "font" && asset.fontFamily) {
+      shippedFamilies.add(String(asset.fontFamily).replace(/["']/g, "").trim().toLowerCase());
+    }
+  }
+  const declaredFamilies = new Set();
+  for (const page of pages || []) {
+    for (const face of page?.typography?.fontFaces || []) {
+      if (face?.family) declaredFamilies.add(String(face.family).replace(/["']/g, "").trim().toLowerCase());
+    }
+  }
+  const familyServed = (stack) => {
+    const first = String(stack || "").split(",")[0].replace(/["']/g, "").trim().toLowerCase();
+    return Boolean(first) && (shippedFamilies.has(first) || declaredFamilies.has(first));
+  };
+  const roles = (pages[0]?.semanticStyles || []).filter((sample) => sample && sample.role);
+  if (roles.length > 0) {
+    lines.push(`Type scale (observed roles on \`${code(pages[0].path)}\` — apply these exact sizes/weights/tracking; do not guess):`);
+    for (const sample of roles) {
+      const bits = [
+        sample.fontFamily && `family ${code(sample.fontFamily)}`,
+        sample.fontSize && `size ${code(sample.fontSize)}`,
+        sample.fontWeight && `weight ${code(sample.fontWeight)}`,
+        sample.lineHeight && `line-height ${code(sample.lineHeight)}`,
+        sample.letterSpacing && `tracking ${code(sample.letterSpacing)}`,
+        sample.color && `color ${code(sample.color)}`,
+      ].filter(Boolean).join(", ");
+      const phantom = sample.fontFamily && !familyServed(sample.fontFamily) ? " — first family not served by the pack: substitute the closest SHIPPED family" : "";
+      if (bits) lines.push(`- ${md(sample.role)}: ${bits}${phantom}`);
+    }
+  } else {
+    const pageType = largestHeadingType(pages[0]);
+    if (pageType) lines.push(`Display type: ${md(pageType.fontFamily || "unknown")} ${code(pageType.fontSize || "?")} weight ${code(pageType.fontWeight || "?")}.`);
+  }
+  // CF45 taste: kicker/eyebrow labels (short tracked uppercase above headings).
+  // Local-full only; absent on hosted-lite.
+  const eyebrowSamples = [];
+  for (const page of pages || []) {
+    for (const brow of page?.eyebrows || []) {
+      if (brow && brow.text) eyebrowSamples.push(brow);
+      if (eyebrowSamples.length >= 3) break;
+    }
+    if (eyebrowSamples.length >= 3) break;
+  }
+  if (eyebrowSamples.length > 0) {
+    const brow = eyebrowSamples[0];
+    const bits = [
+      brow.fontFamily && `family ${code(brow.fontFamily)}`,
+      brow.fontSize && `size ${code(brow.fontSize)}`,
+      brow.fontWeight && `weight ${code(brow.fontWeight)}`,
+      brow.letterSpacing && `tracking ${code(brow.letterSpacing)}`,
+      brow.color && `color ${code(brow.color)}`,
+    ].filter(Boolean).join(", ");
+    lines.push(`- eyebrow/kicker ("${md(brow.text)}"): ${bits || "unstyled"} (observed label above a heading — reuse this exact treatment for new section kickers, never body text).`);
+  }
+  // CF39 promptability: the rendered display face. Role defaults (e.g. DM Sans)
+  // are often unshipped while big titles render in a shipped grotesque. Direct
+  // the shipped family explicitly so agents don't substitute body Inter.
+  // Prefer an h1/h2 family that DIFFERS from body copy (body-colored labels
+  // like "Trusted by" otherwise win over the real display face).
+  const bodyRole = roles.find((sample) => sample && (sample.role === "body-copy" || sample.role === "body"));
+  const bodyFam = String(bodyRole?.fontFamily || "").split(",")[0].replace(/["']/g, "").trim().toLowerCase();
+  const displayFaces = [];
+  const displayFallbacks = [];
+  for (const page of pages || []) {
+    for (const heading of page?.headings || []) {
+      if (heading && (heading.level === 1 || heading.level === 2) && heading.fontFamily) {
+        const fam = String(heading.fontFamily).replace(/["']/g, "").trim();
+        const key = fam.toLowerCase();
+        if (!fam || !shippedFamilies.has(key)) continue;
+        const entry = { key, fam, level: heading.level, text: String(heading.text || "").slice(0, 80), weight: String(heading.fontWeight || "").slice(0, 30) };
+        if (key !== bodyFam && !displayFaces.some((d) => d.key === key)) displayFaces.push(entry);
+        else if (!displayFallbacks.some((d) => d.key === key)) displayFallbacks.push(entry);
+      }
+      if (displayFaces.length >= 3) break;
+    }
+    if (displayFaces.length >= 3) break;
+  }
+  const displayPrimary = displayFaces[0] || displayFallbacks[0];
+  if (displayPrimary) {
+    lines.push(`Display face (rendered + shipped — use for the H1, hero subhead, section titles, buttons, nav, and tabs; do NOT use the role default or body Inter): ${md(displayPrimary.fam)}${displayPrimary.weight ? ` weight ${code(displayPrimary.weight)}` : ""} (H${displayPrimary.level} "${md(displayPrimary.text)}" renders in it).`);
+  }
+  // CF42 promptability: headline boxes (document y/height) so rebuilds place
+  // titles at exact vertical positions — the main raw-pixel gap. Local-full
+  // only; absent on hosted-lite.
+  const headlinePositions = [];
+  for (const page of pages || []) {
+    for (const heading of page?.headings || []) {
+      if (heading && (heading.level === 1 || heading.level === 2) && Number.isFinite(Number(heading.y)) && Number.isFinite(Number(heading.height))) {
+        headlinePositions.push({ level: heading.level, text: String(heading.text || "").slice(0, 80), y: Number(heading.y), height: Number(heading.height), marginTop: heading.marginTop || "", marginBottom: heading.marginBottom || "" });
+      }
+      if (headlinePositions.length >= 8) break;
+    }
+    if (headlinePositions.length >= 8) break;
+  }
+  if (headlinePositions.length > 0) {
+    lines.push(`Headline positions (document-relative — set section padding so each title lands at its y; vertical rhythm dominates raw pixels):`);
+    for (const entry of headlinePositions) {
+      const margins = `${entry.marginTop && entry.marginTop !== "0px" ? `, margin-top ${code(entry.marginTop)}` : ""}${entry.marginBottom && entry.marginBottom !== "0px" ? `, margin-bottom ${code(entry.marginBottom)}` : ""}`;
+      lines.push(`- H${entry.level} "${md(entry.text)}": top y=${entry.y}px, height=${entry.height}px${margins}.`);
+    }
+  }
+  // CF38: consent/cookie overlays are section-less copy blocks, so they are not
+  // any section's copy and a rebuild silently omits a visible element (present
+  // on the captured screenshots). Emit an explicit fixed-position directive.
+  const overlayBlocks = [];
+  for (const page of pages || []) {
+    for (const block of page?.content?.blocks || []) {
+      const floating = block?.sectionIndex === null || block?.sectionIndex === undefined;
+      if (floating && /cookie|consent|privacy notice/i.test(block?.text || "")) overlayBlocks.push(block);
+    }
+  }
+  if (overlayBlocks.length > 0) {
+    lines.push("## Fixed overlays (position: fixed — sit outside the section flow)", "");
+    for (const block of overlayBlocks.slice(0, 2)) {
+      lines.push(`- Cookie-consent bar pinned to the viewport bottom: render \`position:fixed; left:0; right:0; bottom:0\` (static, zero-JS is fine) with the copy "${md(block.text)}" and Accept All / Decline Non-Essential / Manage Preferences controls.`);
+    }
+    lines.push("");
+  }
   lines.push("");
   // 3) Per-section blocks in document order.
   pages.forEach((page) => {
     const sections = page.content?.sections || [];
     const layouts = page.sectionLayouts || [];
     const shots = page.sectionShots || [];
+    const alignedShots = alignSectionShots(layouts, shots);
     const pageAssets = assets.filter((asset) => asset && asset.usedOn === page.url);
     sections.slice(0, 20).forEach((section, index) => {
       const layout = layouts[index] || {};
       const heading = typeof section.heading === "string" ? section.heading : section.heading?.text;
       lines.push(`## Section ${index + 1}: ${md(heading || "Untitled")} (\`${code(page.path)}\`)`, "");
-      const shot = shots[index];
-      const shotRef = shot ? shotPath(page, "section", index, shot) : `screenshots/sections/${slug(page.path)}-${index + 1}.webp`;
-      lines.push(`Screenshot: \`${code(shotRef)}\`${shot ? ` (${shot.width || "?"}×${shot.height || "?"})` : " (expected capture path; no binary in this pack)"} — match geometry against \`data/layout.json\`.`);
+      const shot = alignedShots[index];
+      const shotRef = shot ? shotPath(page, "section", shots.indexOf(shot), shot) : `screenshots/sections/${slug(page.path)}-${index + 1}.webp`;
+      lines.push(`Screenshot: \`${code(shotRef)}\`${shot ? ` (${shot.width || "?"}×${shot.height || "?"})` : " (no section shot captured — match the desktop/mobile full-page capture instead)"} — rebuild to match at ${pages[0]?.viewport?.width || 1440}px.`);
       const styles = section.sectionStyles || {};
       const styleBits = [`bg \`${code(styles.backgroundColor || layout.background || "transparent")}\``, `text \`${code(styles.color || "inherit")}\``, `font \`${code(styles.fontSize || "inherit")}\``, `padding \`${code(styles.padding || "inherit")}\``, `radius \`${code(styles.borderRadius || "inherit")}\``].join(", ");
       lines.push(`Tokens: see \`data/tokens.json\` aliases${aliasRefs ? ` (${aliasRefs})` : ""}; section style: ${styleBits}.`);
-      const copy = (page.content?.blocks || []).filter((block) => block.sectionIndex === index).slice(0, 8);
-      const copyText = copy.map((block) => md(block.text).slice(0, 120)).join(" / ") || (section.textExcerpt ? md(section.textExcerpt).slice(0, 300) : "(see pages/*.md for verbatim text)");
-      lines.push(`Copy: ${copyText}`);
+      const copy = (page.content?.blocks || []).filter((block) => block.sectionIndex === index && ["heading", "paragraph", "list-item"].includes(block.kind));
+      if (copy.length > 0) {
+        lines.push("Copy (verbatim — do not paraphrase, do not truncate):");
+        for (const block of copy) lines.push(`- ${md(block.text)}`);
+      } else if (section.textExcerpt) {
+        lines.push(`Copy (verbatim): ${md(section.textExcerpt)}`);
+      } else {
+        lines.push("Copy: (see pages/*.md for verbatim text)");
+      }
       // CF35-2: observed geometry per section — position, columns spec,
       // background, components, and the page's largest heading type. Absent
       // layout renders an honest fallback, never invented single-column copy.
@@ -1044,40 +1385,187 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
               : `position not observed`;
         const columnsSpec = describeColumns(layout.columns);
         const bg = String(layout.background ?? "").trim() ? `\`${code(layout.background)}\`` : "not observed";
-        const comps = (layout.components || []).map((c) => `${c.kind || "node"} ${c.w ?? "?"}x${c.h ?? "?"}`).join(", ") || "no observed components";
+        const comps = (layout.components || []).map((c) => {
+          const size = `${c.kind || "node"} ${c.w ?? "?"}x${c.h ?? "?"}`;
+          const pos = Number.isFinite(Number(c.x)) && Number.isFinite(Number(c.y)) ? ` @${c.x},${c.y}` : "";
+          return size + pos;
+        }).join(", ") || "no observed components";
         const align = String(layout.textAlign ?? "").trim() ? `, align ${md(layout.textAlign)}` : "";
         lines.push(`Layout: ${position}; columns ${columnsSpec}${align}; background ${bg}; components: ${md(comps)}`);
       }
-      const typeSample = largestHeadingType(page);
-      if (typeSample) {
-        lines.push(`Type: ${md(typeSample.role)} — ${md(typeSample.fontFamily || "unknown family")} ${code(typeSample.fontSize || "?")}, weight ${code(typeSample.fontWeight || "?")}, tracking ${code(typeSample.letterSpacing || "?")} (largest observed heading role on \`${code(page.path)}\`)`);
-      } else {
-        lines.push(`Type: type not observed on this page — no heading semanticStyles sampled; verify against the live page.`);
+      const sectionCanvas = canvasAssets.find((asset) => {
+        const ry = Number(asset.rectY);
+        const ly = Number(layout.y);
+        const lh = Number(layout.height);
+        return Number.isFinite(ry) && Number.isFinite(ly) && Number.isFinite(lh) && ry >= ly && ry < ly + lh;
+      });
+      if (sectionCanvas) {
+        const canvasComp = (layout.components || []).find((c) => String(c.kind || "").toLowerCase() === "canvas" && Number.isFinite(Number(c.x)) && Number.isFinite(Number(c.y)));
+        const place = canvasComp ? ` Place it at x=${canvasComp.x}px, y=${canvasComp.y}px within the page (document-relative).` : "";
+        lines.push(`Canvas: use the shipped \`${code(sectionCanvas.localPath)}\` (${sectionCanvas.width}×${sectionCanvas.height}) VERBATIM for the canvas component — it is the exact live frame; do NOT approximate or redraw it.${place}`);
       }
-      const local = pageAssets.filter((asset) => asset.source === "downloaded" && asset.localPath);
-      const refAssets = pageAssets.filter((asset) => asset.source !== "downloaded");
-      const refs = refAssets.length;
-      lines.push(`Assets: ${local.map((asset) => `prefer \`${code(asset.localPath)}\``).join(", ") || "no downloaded assets"}${refs > 0 ? `; ${refs} URL reference(s) — recreate, do not hotlink` : ""}`);
-      // CF36-3: dimension-accurate placeholder directive per reference-only
-      // image/poster/video asset (recorded manifest width/height only).
-      const directives = placeholderDirectives(refAssets, 5);
-      if (directives.length > 0) {
-        lines.push(`Placeholders (required — NEVER hotlink the source CDN; NEVER omit the card):`);
-        for (const directive of directives) lines.push(directive);
-        if (refs > directives.length && refAssets.filter((asset) => asset && (asset.kind === "image" || asset.kind === "poster" || asset.kind === "video")).length > directives.length) {
-          lines.push(`- …and ${refAssets.filter((asset) => asset && (asset.kind === "image" || asset.kind === "poster" || asset.kind === "video")).length - directives.length} more — same placeholder rule applies (see \`data/assets.json\` for dimensions).`);
-        }
-      }
-      const tabs = (page.content?.tabSets || []).map((set) => set.tabs.map((tab) => `${tab.label}${tab.selected ? "*" : ""}`).join("/")).join("; ");
-      if (tabs) lines.push(`Tabs: ${md(tabs)} (* = default; show all panels unless only one is visible)`);
+      const tabSetsHere = page.content?.tabSets || [];
+      const tabs = tabSetsHere.map((set) => set.tabs.map((tab) => `${tab.label}${tab.selected ? "*" : ""}`).join("/")).join("; ");
+      // CF45 taste: divider spec between tabs (majority vote at capture).
+      const seps = [...new Set(tabSetsHere.map((set) => set?.separators).filter(Boolean))];
+      if (tabs) lines.push(`Tabs: ${md(tabs)} (* = default; show all panels unless only one is visible)${seps.length > 0 ? ` — tabs divided by ${seps.map((spec) => `\`${code(spec)}\``).join(" / ")}` : ""}`);
       lines.push(`- [ ] Section ${index + 1} matches \`${code(shotRef)}\` at ${pages[0]?.viewport?.width || 1440}px with tokens above and verbatim copy.`);
       lines.push("");
     });
   });
+  // CF40: per-tab panel copy for faithful CSS-only switching (local-full only;
+  // absent on hosted-lite). Tabs without panel copy stay static (never invent).
+  const tabPanelGroups = [];
+  for (const page of pages || []) {
+    for (const panel of page?.tabPanels || []) {
+      if (panel && panel.tab && panel.panelText && String(panel.panelText).trim()) tabPanelGroups.push(panel);
+      if (tabPanelGroups.length >= 12) break;
+    }
+    if (tabPanelGroups.length >= 12) break;
+  }
+  if (tabPanelGroups.length > 0) {
+    lines.push("## Tab panels (per-tab copy — CSS-switch with REAL copy, never invent)", "");
+    lines.push("Rebuild tabsets as radio-input + <label> CSS-only switches (`:checked` shows the matching panel, zero-JS). Use the panel copy below verbatim per tab; keep the pack-screenshotted tab selected by default. A tab with no panel copy here keeps its static default panel (do not invent content).");
+    let lastSet = -1;
+    for (const panel of tabPanelGroups) {
+      if (panel.tabset !== lastSet) { lines.push("", `### Tabset ${Number(panel.tabset || 0) + 1}`); lastSet = panel.tabset; }
+      lines.push(`- Tab "${md(String(panel.tab).slice(0, 80))}"${panel.selected ? " (default selected)" : ""}: ${md(String(panel.panelText).slice(0, 600))}`);
+    }
+    lines.push("");
+  }
+  // CF46: observed hover replay — trusted-pointer probing AFTER screenshots,
+  // so JS-driven hover states (invisible to static CSS parsing) ship as
+  // replay directives with measured before→after values. Local-full only.
+  const hoverFx = [];
+  for (const page of pages || []) {
+    for (const fx of page?.hoverEffects || []) {
+      if (fx && Array.isArray(fx.changes) && fx.changes.length > 0) hoverFx.push(fx);
+      if (hoverFx.length >= 8) break;
+    }
+    if (hoverFx.length >= 8) break;
+  }
+  if (hoverFx.length > 0) {
+    lines.push("## Observed hover effects (replay exactly — measured by hovering, zero-JS)", "");
+    lines.push("Each effect below was observed live by hovering the element after screenshots: reproduce the after-state on `:hover` (and `:focus-visible`) with these exact values. Descendant rules (e.g. links inside a hovered card) ride the same trigger.");
+    for (const fx of hoverFx) {
+      const bits = fx.changes.map((change) => {
+        const prop = String(change?.property || "") === "linkColor" ? "nested links/buttons color" : String(change?.property || "");
+        return `\`${code(prop)}: ${code(change.before)}\` → \`${code(change.after)}\``;
+      }).join("; ");
+      lines.push(`- "${md(String(fx.label || "control").slice(0, 60))}": ${bits}.`);
+    }
+    lines.push("");
+  }
+  // CF47 eye-detail: horizontal scroll strips + prose-link idiom. Local-full
+  // only; absent on hosted-lite. Strips prove the overflow idiom (scroll-x
+  // with a clipped last item) so rebuilds never wrap them into grids.
+  const stripLines = [];
+  for (const page of pages || []) {
+    for (const strip of page?.scrollStrips || []) {
+      if (strip && Number.isFinite(Number(strip.visibleW)) && Number.isFinite(Number(strip.scrollW))) {
+        stripLines.push(`- "${md(String(strip.label || "strip").slice(0, 60))}": visible ${strip.visibleW}px of ${strip.scrollW}px scroll width — single-row \`overflow-x:auto\` (no wrap, no grid), last item clipped at the fold; mobile keeps the scroll row.`);
+      }
+      if (stripLines.length >= 6) break;
+    }
+    if (stripLines.length >= 6) break;
+  }
+  if (stripLines.length > 0) {
+    lines.push("## Scroll strips (overflow idiom — never wrap into grids)", "");
+    for (const entry of stripLines) lines.push(entry);
+    lines.push("");
+  }
+  for (const page of pages || []) {
+    const prose = page?.proseLink;
+    if (prose && typeof prose.underline === "boolean") {
+      lines.push("## Prose links", "");
+      lines.push(prose.underline ? `Body-copy links are underlined (\`${code(prose.color || "")}\`)${prose.context ? ` — seen in "${md(String(prose.context).slice(0, 60))}"` : ""} — keep inline <a> underlines inside paragraphs, not button styling.` : `Body-copy links are NOT underlined (\`${code(prose.color || "")}\`)${prose.context ? ` — seen in "${md(String(prose.context).slice(0, 60))}"` : ""} — match the plain-link idiom inside paragraphs.`);
+      lines.push("");
+      break;
+    }
+  }
   if ((components || []).length > 0) {
     lines.push("## Components — build once, reuse", "");
     for (const entry of components) lines.push(`- ${md(entry.name)} ×${entry.count} on ${entry.pages.map((page) => `\`${code(page)}\``).join(", ")} (see \`components.md\` + \`data/components.json\`)`);
     lines.push("");
+  }
+  // CF38: global asset appendix — emitted ONCE (previously repeated, in full,
+  // inside every section, burying the spec). Downloaded files to use directly,
+  // reference-only media to placeholder at recorded size, analytics pixels to
+  // drop entirely.
+  const downloadedAssets = assets.filter((a) => a && a.source === "downloaded" && (a.localPath || a.path));
+  const nonDownloadedAssets = assets.filter((a) => a && a.source !== "downloaded");
+  const analyticsAssets = nonDownloadedAssets.filter(isAnalyticsAsset);
+  const refOnlyAssets = nonDownloadedAssets.filter((a) => !isAnalyticsAsset(a) && (a.kind === "image" || a.kind === "poster" || a.kind === "video"));
+  if (downloadedAssets.length || refOnlyAssets.length || analyticsAssets.length) {
+    lines.push("## Assets", "");
+    if (downloadedAssets.length) {
+      lines.push(`Use these downloaded files directly (relative paths under \`assets/\`):`);
+      for (const a of downloadedAssets) lines.push(`- \`${code(a.localPath || a.path || "")}\`${a.alt ? ` — ${md(a.alt)}` : ""}`);
+      lines.push("");
+    }
+    // CF39 promptability: computed rendering treatments (filter/tiles), CTA
+    // fills, and inline-icon flags. Local-full only; absent on hosted-lite.
+    const treatmentByUrl = new Map();
+    for (const page of pages || []) {
+      for (const treatment of page?.imageTreatments || []) {
+        if (treatment && treatment.url && !treatmentByUrl.has(treatment.url)) treatmentByUrl.set(treatment.url, treatment);
+      }
+    }
+    const treatmentDirectives = [];
+    const isZeroRadius = (value) => !value || /^0(px|%)?(\s+0(px|%)?)*$/.test(String(value).trim());
+    for (const asset of downloadedAssets) {
+      const treatment = asset && treatmentByUrl.get(asset.url);
+      if (!treatment) continue;
+      const bits = [];
+      // Direct only stable color-mapping filters. Level filters (brightness /
+      // contrast) and opacity are often animation/hover states — a captured
+      // brightness(0) would turn logos black against a gray screenshot.
+      const colorMaps = String(treatment.filter || "").match(/(grayscale\([^)]*\)|sepia\([^)]*\)|saturate\([^)]*\)|hue-rotate\([^)]*\))/g) || [];
+      if (colorMaps.length > 0) bits.push(`apply \`filter: ${colorMaps.join(" ")}\` to the <img> (computed rendering; the file is a color master)`);
+      if (treatment.tileBg) bits.push(`wrap in a tile: background \`${code(treatment.tileBg)}\`${!isZeroRadius(treatment.tileRadius) ? `, radius \`${code(treatment.tileRadius)}\`` : ""}`);
+      if (bits.length > 0) treatmentDirectives.push(`- \`${code(asset.localPath || asset.path || "")}\`${asset.alt ? ` (${md(asset.alt)})` : ""}: ${bits.join("; ")}${treatment.tilePadding ? `; tile padding \`${code(treatment.tilePadding)}\`` : ""}.`);
+      if (treatmentDirectives.length >= 20) break;
+    }
+    if (treatmentDirectives.length > 0) {
+      lines.push(`Image treatment (computed — apply in CSS; files ship unmodified):`);
+      for (const entry of treatmentDirectives) lines.push(entry);
+      lines.push("");
+    }
+    const ctaFillLines = [];
+    for (const page of pages || []) {
+      for (const fill of page?.ctaFills || []) {
+        if (fill && fill.bg) ctaFillLines.push(`- "${md(String(fill.label || "CTA").slice(0, 60))}": background \`${code(fill.bg)}\`${fill.radius ? `, radius \`${code(fill.radius)}\`` : ""}${fill.border ? (fill.border !== "none" ? `, border \`${code(fill.border)}\`` : ", border none (borderless — do NOT add an outline)") : ""}${fill.padding ? `, padding \`${code(fill.padding)}\`` : ""}${fill.fontSize ? `, ${code(fill.fontSize)}${fill.fontWeight ? `/${code(fill.fontWeight)}` : ""}` : ""} (computed — match this, not white).`);
+        if (ctaFillLines.length >= 12) break;
+      }
+      if (ctaFillLines.length >= 12) break;
+    }
+    if (ctaFillLines.length > 0) {
+      lines.push(`CTA fills (computed button/link backgrounds):`);
+      for (const entry of ctaFillLines) lines.push(entry);
+      lines.push("");
+    }
+    const iconLines = [];
+    for (const page of pages || []) {
+      for (const flag of page?.iconFlags || []) {
+        if (flag) iconLines.push(`- "${md(String(flag.label || "icon").slice(0, 60))}"${flag.w && flag.h ? ` (control ~${flag.w}×${flag.h}px contains ${flag.svgCount || 1} svg glyph(s))` : ""}${flag.color ? `, color \`${code(flag.color)}\`` : ""}: glyph is inline <svg> (not downloadable) — redraw glyph(s) as inline SVG at screenshot scale, do NOT omit.`);
+        if (iconLines.length >= 12) break;
+      }
+      if (iconLines.length >= 12) break;
+    }
+    if (iconLines.length > 0) {
+      lines.push(`Inline icons (not downloadable — redraw, never omit):`);
+      for (const entry of iconLines) lines.push(entry);
+      lines.push("");
+    }
+    if (refOnlyAssets.length) {
+      lines.push(`Placeholders (required — NEVER hotlink the source CDN; NEVER omit the card):`);
+      for (const a of refOnlyAssets) lines.push(`- \`${code(a.url || "")}\` (${md(a.alt || a.kind)}): ${placeholderSpec(a)}`);
+      lines.push("");
+    }
+    if (analyticsAssets.length) {
+      lines.push(`Analytics pixels (${analyticsAssets.length} URL(s), 1×1, non-visual): do NOT render, do NOT fetch.`);
+      lines.push("");
+    }
   }
   const skipped = assets.filter((asset) => asset && asset.source !== "downloaded");
   const reasons = {};
@@ -1085,6 +1573,39 @@ function buildRebuildMd(analysis, pages, assets, inventory, components) {
   lines.push("## Known gaps", "");
   lines.push(`- ${skipped.length} reference-only asset(s): ${Object.entries(reasons).map(([reason, count]) => `${count}× ${reason}`).join(", ") || "none"}.`);
   for (const line of analysis.limitations || []) lines.push(`- Limitation: ${md(line).slice(0, 200)}`);
+  // CF47: rotating prompt-box placeholders (second-read evidence).
+  let rotationLines = 0;
+  for (const page of pages || []) {
+    for (const rotation of page?.rotatingPlaceholders || []) {
+      if (rotationLines >= 3) break;
+      if (rotation && rotation.before && rotation.after) {
+        lines.push(`- Placeholder rotation (${code(page.path)}): prompt input cycled "${md(String(rotation.before).slice(0, 100))}" → "${md(String(rotation.after).slice(0, 100))}" within seconds — render the default state statically, never fake rotation.`);
+        rotationLines += 1;
+      }
+    }
+    if (rotationLines >= 3) break;
+  }
+  // CF43: surface capture warnings (e.g. the CF41 layout-shift drift guard)
+  // so the agent trusts copy/layout over misaligned shots. Bounded: packs
+  // stay quiet when capture was clean.
+  const warnLines = [];
+  const seenWarnings = new Set();
+  for (const page of pages || []) {
+    for (const warning of page.warnings || []) {
+      const text = md(warning).slice(0, 220);
+      if (seenWarnings.has(text)) continue;
+      seenWarnings.add(text);
+      warnLines.push(`- Capture warning (${code(page.path)}): ${text}`);
+    }
+    if (typeof page.layoutDriftPx === "number" && page.layoutDriftPx > 100) warnLines.push(`- Layout drift ${page.layoutDriftPx}px on ${code(page.path)}: section shots may misalign — build from copy/layout.`);
+  }
+  for (const warning of analysis.warnings || []) {
+    const text = md(warning).slice(0, 220);
+    if (seenWarnings.has(text)) continue;
+    seenWarnings.add(text);
+    warnLines.push(`- Capture warning: ${text}`);
+  }
+  for (const line of warnLines.slice(0, 6)) lines.push(line);
   lines.push("", "Verify each section against `data/layout.json` and `screenshots/` before calling the rebuild done.");
   return lines.join("\n");
 }
@@ -1220,7 +1741,7 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
   // animated row; machine-readable source ships as data/motion.json.
   const timeline = motionTimeline(pages);
   const timelineMd = motionTimelineMd(pages, timeline);
-  const hover = pages.map((page) => `## ${md(page.path)}\n\n${(page.hoverStates || []).map((state) => `- ${code(state.trigger)} \`${code(state.selector)}\` → ${(state.changedProperties || []).map(code).join(", ") || "unspecified changes"}`).join("\n") || "- no hover/focus/active rules observed"}`).join("\n\n");
+  const hover = pages.map((page) => `## ${md(page.path)}\n\n${(page.hoverStates || []).map((state) => `- ${code(state.trigger)} \`${code(state.selector)}\` → ${(state.changedProperties || []).map(code).join(", ") || "unspecified changes"}${(state.changedValues || []).length > 0 ? ` (${(state.changedValues || []).map(code).join("; ")})` : ""}`).join("\n") || "- no hover/focus/active rules observed"}`).join("\n\n");
   const responsive = pages.map((page) => {
     const comparison = page.responsiveComparison;
     return `## ${md(page.path)}\n\nStatus: ${md(comparison?.status || "unknown")}${comparison?.status === "dom-only" ? " — DOM comparison from an extract-only 390px pass; no mobile screenshot" : ""}\n\nDesktop: ${comparison?.desktopViewport?.width || page.viewport?.width || "unknown"}×${comparison?.desktopViewport?.height || page.viewport?.height || "unknown"}; mobile: ${comparison?.mobileViewport ? `${comparison.mobileViewport.width}×${comparison.mobileViewport.height}` : "not captured"}.\n\n${md(comparison?.note || "No comparison available.")}\n\n${(comparison?.layoutChanges || []).filter((item) => item.changed).map((item) => `- ${md(item.role)}: ${item.desktop ? `${item.desktop.width}×${item.desktop.height} ${md(item.desktop.display)} columns ${md(item.desktop.columns)}` : "not present"} → ${item.mobile ? `${item.mobile.width}×${item.mobile.height} ${md(item.mobile.display)} columns ${md(item.mobile.columns)}` : "not present"}`).join("\n") || "No differences in the sampled layout roles."}`;
@@ -1268,7 +1789,7 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
   const pageEmbeds = pages.flatMap((page) => (page.embeds || []).map((embed) => ({ ...embed, embeddedOn: page.path })));
   const coverage = pages.flatMap((page) => coverageList(page).map(([key, item]) => `- ${md(page.path)} / ${md(key)}: ${item.emittedCount}/${item.sourceCount}; cap ${item.cap}${item.deduplicatedCount ? `; ${item.deduplicatedCount} collapsed` : ""}; ${item.truncated ? `partial (${md(item.reason || "truncated")})` : "complete within cap"}`));
   const docs = {
-    "README.md": `# Website analysis — ${md(analysis.request.hostname)}\n\nSource: ${md(analysis.request.url)}  \nPages: ${analysis.pagesAnalyzed}/${analysis.pagesSelected} selected; ${analysis.pagesDiscovered} discovered  \nScreenshot captures: ${analysis.screenshotsCaptured}; binaries included: ${manifest.shots.filter((shot) => shot.hasBinary).length}/${manifest.shots.length}  \nBrowser time: ${analysis.browserSecondsUsed}s  \nObservation status: ${analysis.integrityPassed ? "valid" : "partial/failed"}\n\n## Analyzed pages\n\n${pageRows.join("\n")}\n\n## Important interpretation\n\nJSON records are canonical bounded observations. Samples are evidence, not exhaustive CSS or interaction replay. See \`data/report.json\` for caps, omissions, warnings, and confidence.\n`,
+    "README.md": `# Website analysis — ${md(analysis.request.hostname)}\n\nSource: ${md(analysis.request.url)}${analysis.capturedAt ? `  \nCaptured: ${md(analysis.capturedAt)} (packs older than ~14 days should be re-captured — live marketing sites drift within days)` : ""}  \nPages: ${analysis.pagesAnalyzed}/${analysis.pagesSelected} selected; ${analysis.pagesDiscovered} discovered  \nScreenshot captures: ${analysis.screenshotsCaptured}; binaries included: ${manifest.shots.filter((shot) => shot.hasBinary).length}/${manifest.shots.length}  \nBrowser time: ${analysis.browserSecondsUsed}s  \nObservation status: ${analysis.integrityPassed ? "valid" : "partial/failed"}\n\n## Analyzed pages\n\n${pageRows.join("\n")}\n\n## Important interpretation\n\nJSON records are canonical bounded observations. Samples are evidence, not exhaustive CSS or interaction replay. See \`data/report.json\` for caps, omissions, warnings, and confidence.\n`,
     "website-overview.md": `# Website overview\n\n${md(pages[0]?.title || analysis.request.hostname)} at ${md(analysis.request.url)}.\n${pages[0]?.social?.ogTitle ? `\nShare title: ${md(pages[0].social.ogTitle)}\n` : ""}${pages[0]?.social?.ogDescription ? `\nShare description: ${md(pages[0].social.ogDescription)}\n` : ""}${stackInfo.marks.length > 0 || stackInfo.generator ? `\nDetected stack: ${stackInfo.marks.join("; ") || "unknown"}${stackInfo.generator && !stackInfo.marks.join(" ").toLowerCase().includes(stackGenFirst.toLowerCase()) ? ` — generator meta: ${md(stackInfo.generator)}` : ""}\n` : ""}${pages[0]?.social?.themeColor ? `\nTheme color: \`${code(pages[0].social.themeColor)}\`\n` : ""}\n${pageRows.join("\n")}\n\nObserved primary navigation is in \`data/navigation.json\`; observed affordances are in \`data/interactions.json\`.\n`,
     "information-architecture.md": `# Information architecture\n\n⏎ marks where a heading wraps to a new rendered line at the captured viewport — reproduce these breaks (raw word indices in \`data/pages.json\` \`headings[].breaks\`).\n\n${pages.map((page) => `## ${md(page.title)} (\`${code(page.path)}\`)\n\n${(page.headings || []).map((heading) => `${"#".repeat(Math.min(Math.max(heading.level, 1), 6))} ${md(withBreaks(heading))}${heading.truncated ? " _(heading clipped; see capture coverage)_" : ""}`).join("\n")}\n`).join("\n")}`,
     "design-tokens.md": `# Design tokens\n\nTokens are frequency-ranked observations across the selected pages, with source/confidence. Values are not asserted to be a complete design system.\n\n## Key observed roles\n\n${keyRoles(pages, inventory).join("\n") || "No semantic style samples observed."}\n\n## All observed values\n\n${categoryRows.join("\n")}\n\n${tokenRows.join("\n") || "No token values observed."}\n\nSemantic samples by page/role are in \`data/tokens.json\`.\n`,
@@ -1287,12 +1808,13 @@ function renderMarkdown(analysis, inventory, assets, manifest) {
     "data/tokens.json": json(w3cTokens(inventory, analysis)),
     "data/components.json": json({ schemaVersion: analysis.schemaVersion, components: componentInventory(pages), pages: pages.map((page) => ({ path: page.path, count: page.content?.components?.length || 0, sourcePatterns: page.content?.coverage?.components || null, patterns: page.content?.components || [] })), note: "Pattern fingerprints are heuristics based on semantic structure and safe class hints; not a source framework component tree. components[] groups fingerprints + repeated section roles with count >= 2." }),
     "components.md": buildComponentsMd(componentInventory(pages)),
+    "design-system.md": buildDesignSystemMd(analysis, pages, assets, inventory),
     "data/navigation.json": json({ homepage: analysis.request.url, selectedPages: (analysis.selection?.candidates || []).filter((candidate) => candidate.selected).map((candidate) => ({ path: candidate.path, url: candidate.url, label: candidate.label, priority: candidate.priority, reason: candidate.reason })), observed: pages.map((page) => ({ path: page.path, header: page.nav?.header || [], primary: page.nav?.primary || [], footer: page.nav?.footer || [] })) }),
     "data/selection.json": json(analysis.selection || { maxPages: analysis.request.maxPages, pagesDiscovered: analysis.pagesDiscovered, pagesSelected: analysis.pagesSelected, candidates: [] }),
     "data/interactions.json": json({ schemaVersion: analysis.schemaVersion, pages: pages.map((page) => ({ path: page.path, affordances: page.observedInteractions || [], hoverStates: page.hoverStates || [], controls: page.content?.controls || [], formActions: page.formActions || [], coverage: { controls: page.content?.coverage?.controls || null, interactions: page.content?.coverage?.interactions || null }, limitation: "Static DOM affordances and declared CSS state rules only; no source JavaScript behavior was replayed, no form was submitted." })) }),
     "data/motion.json": json({ schemaVersion: analysis.schemaVersion, timeline, pages: pages.map((page) => ({ path: page.path, rows: timeline.filter((row) => row.page === page.path), scrollTriggersInferred: timeline.some((row) => row.page === page.path && String(row.scrollTrigger).startsWith("inferred")) })), note: "One row per observed transition/animation/keyframe; scrollTrigger is 'unknown' unless sticky/fixed rules were observed (marked inferred). Timings are observed CSS values; GSAP snippets in motion-and-interactions.md are rebuild transcriptions, never replayed behavior." }),
     "data/assets.json": json({ assets: assets.map((asset) => asset && (asset.content instanceof Uint8Array || typeof asset.dataUrl === "string") ? { ...asset, content: undefined, dataUrl: undefined } : asset), count: assets.length, sourceCount: analysis.assetCount, complete: assets.length === analysis.assetCount, embeds: pageEmbeds, embedCount: pageEmbeds.length }),
-    "data/report.json": json({ schemaVersion: analysis.schemaVersion, sourceUrl: analysis.request.url, pagesDiscovered: analysis.pagesDiscovered, pagesSelected: analysis.pagesSelected, pagesAnalyzed: analysis.pagesAnalyzed, screenshotsCaptured: analysis.screenshotsCaptured, screenshotBytesCaptured: analysis.screenshotBytesTotal, screenshotBinariesIncluded: manifest.shots.filter((shot) => shot.hasBinary).length, browserSecondsUsed: analysis.browserSecondsUsed, timings: analysis.timings, issues: analysis.issues, warnings: analysis.warnings, limitations: analysis.limitations, coverage, observationIntegrityPassed: analysis.integrityPassed, packageIntegrityPassed: true }),
+    "data/report.json": json({ schemaVersion: analysis.schemaVersion, ...(analysis.capturedAt ? { capturedAt: analysis.capturedAt } : {}), sourceUrl: analysis.request.url, pagesDiscovered: analysis.pagesDiscovered, pagesSelected: analysis.pagesSelected, pagesAnalyzed: analysis.pagesAnalyzed, screenshotsCaptured: analysis.screenshotsCaptured, screenshotBytesCaptured: analysis.screenshotBytesTotal, screenshotBinariesIncluded: manifest.shots.filter((shot) => shot.hasBinary).length, browserSecondsUsed: analysis.browserSecondsUsed, timings: analysis.timings, issues: analysis.issues, warnings: analysis.warnings, limitations: analysis.limitations, coverage, observationIntegrityPassed: analysis.integrityPassed, packageIntegrityPassed: true }),
     "screenshots/manifest.json": json(manifest),
     "data/layout.json": json(buildLayout(pages)),
     "REBUILD.md": buildRebuildMd(analysis, pages, assets, inventory, componentInventory(pages)),

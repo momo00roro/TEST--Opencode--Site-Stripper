@@ -5,6 +5,21 @@ export interface RawHeading {
   // Word indices that start a new rendered line at the capture viewport
   // (e.g. [0, 5] = wraps before word 5). h1-h3 only, first 12 measured.
   breaks: number[];
+  // CF39 promptability: first family of the heading's own computed stack
+  // (e.g. "Space Grotesk"), so docs can direct the rendered display face
+  // instead of a sampled role default. Stripped for hosted-lite.
+  fontFamily?: string;
+  // CF47 eye-detail: rendered weight of the same deepest-text leaf (sites
+  // sample 700 on the role but render 800 on the leaf). Stripped for lite.
+  fontWeight?: string;
+  // CF42 promptability: document-relative box so rebuilds place headlines at
+  // exact y (vertical rhythm is the main raw-pixel gap). Stripped for lite.
+  y?: number;
+  height?: number;
+  // CF45 taste: the heading's own vertical margins (block rhythm around
+  // titles — eyebrow→title→sub spacing agents otherwise guess). Stripped.
+  marginTop?: string;
+  marginBottom?: string;
 }
 
 export interface RawLink {
@@ -91,6 +106,20 @@ export interface SnapshotTab {
 
 export interface SnapshotTabSet {
   tabs: SnapshotTab[];
+  // CF45 taste: divider spec between tabs ("1px solid rgb(...)" — majority
+  // vote of tab borders; absent when tabs are borderless). Stripped for lite.
+  separators?: string;
+}
+
+// CF45 taste: kicker/eyebrow labels (short tracked uppercase labels above
+// headings — the section-title idiom). Styled evidence; stripped for lite.
+export interface SnapshotEyebrow {
+  text: string;
+  fontFamily: string;
+  fontSize: string;
+  fontWeight: string;
+  letterSpacing: string;
+  color: string;
 }
 
 export interface SnapshotFooterGroup {
@@ -122,6 +151,90 @@ export interface SnapshotSectionComponent {
   kind: string;
   w: number;
   h: number;
+  // CF39 promptability: document-relative placement (e.g. canvas at x/y),
+  // so REBUILD can state position, not just size. Stripped for hosted-lite.
+  x?: number;
+  y?: number;
+}
+
+// CF39 promptability: per-image rendering treatment that changes pixels
+// without changing the file (CSS filter, opacity, tile background). Only
+// images with a non-default treatment are recorded. Stripped for hosted-lite.
+export interface SnapshotImageTreatment {
+  url: string;
+  filter: string;
+  opacity: number | null;
+  tileBg: string;
+  tileRadius: string;
+  // CF45 taste: tile wrapper padding (logo tiles breathe by padding, not
+  // margin — agents guess this). Stripped for hosted-lite.
+  tilePadding: string;
+  rectX: number | null;
+  rectY: number | null;
+}
+
+// CF39 promptability: CTA/button fills (computed background + radius) for
+// prominent links/buttons, so rebuilds match button fills, not just labels.
+// Stripped for hosted-lite.
+export interface SnapshotCtaFill {
+  label: string;
+  bg: string;
+  radius: string;
+  // CF45 taste: CTA box metrics (padding + type — button sizing is a visible
+  // gap agents guess). Stripped for hosted-lite.
+  padding: string;
+  fontSize: string;
+  fontWeight: string;
+  // CF47 eye-detail: computed border ("none" or "1px solid rgb(...)") —
+  // borderless text-CTAs vs outlined buttons are different components.
+  border: string;
+  rectX: number | null;
+  rectY: number | null;
+  w: number | null;
+  h: number | null;
+}
+
+// CF39 promptability: clickable elements whose glyph is inline <svg> (not a
+// downloadable <img>), so rebuilds redraw them instead of omitting. Stripped
+// for hosted-lite.
+export interface SnapshotIconFlag {
+  label: string;
+  w: number | null;
+  h: number | null;
+  color: string;
+  svgCount: number;
+}
+
+// CF47 eye-detail: header chrome — brand-mark idiom (inline-SVG logo vs img
+// vs text), dropdown triggers (chevron/aria links), and the trailing action
+// cluster with fills AND borders (borderless text-CTAs vs outlined buttons).
+// Stripped for hosted-lite.
+export interface SnapshotNavAction {
+  label: string;
+  bg: string;
+  border: string;
+}
+export interface SnapshotNavChrome {
+  brandMark: "svg" | "img" | "text";
+  dropdowns: string[];
+  actions: SnapshotNavAction[];
+}
+
+// CF47 eye-detail: horizontal scroll strips (chip rows, card carousels) —
+// visible vs scroll width proves the overflow idiom + clipped last item so
+// rebuilds use scroll-x, not wrap/grid. Stripped for hosted-lite.
+export interface SnapshotScrollStrip {
+  label: string;
+  visibleW: number;
+  scrollW: number;
+}
+
+// CF47 eye-detail: first body-prose link style (underlined inline links
+// inside copy blocks are a visible idiom agents miss). Stripped for lite.
+export interface SnapshotProseLink {
+  underline: boolean;
+  color: string;
+  context?: string;
 }
 
 export interface SnapshotSectionLayout {
@@ -246,6 +359,9 @@ export interface SnapshotHoverState {
   selector: string;
   trigger: "hover" | "focus" | "focus-visible" | "focus-within" | "active";
   changedProperties: string[];
+  // CF45 taste: observed "prop: value" pairs (e.g. "transform: translateY(-2px)")
+  // so rebuilds replay exact micro-motion, not just property names. Capped.
+  changedValues?: string[];
 }
 
 export interface SnapshotEmbed {
@@ -321,6 +437,41 @@ export function collectHeadingTexts(): SnapshotHeadingText[] {
     }
   } catch {
     return [];
+  }
+  return out;
+}
+
+/** CF47: input placeholder texts for rotation detection (prompt boxes with
+ * rotating placeholder copy). Same {label, text} shape as headings so the
+ * existing diffRotatingText pairs before/after reads. */
+export function collectPlaceholderTexts(): SnapshotHeadingText[] {
+  const out: SnapshotHeadingText[] = [];
+  try {
+    const nodes = document.querySelectorAll("input[placeholder], textarea[placeholder]");
+    for (let index = 0; index < nodes.length && out.length < 6; index += 1) {
+      const node = nodes[index] as unknown as {
+        getAttribute?: (name: string) => string | null;
+        closest?: (selector: string) => unknown;
+      };
+      if (node.getAttribute?.("aria-hidden") === "true" || node.getAttribute?.("hidden") !== null) continue;
+      if (node.closest?.("[aria-hidden='true'], [hidden]")) continue;
+      const text = String(node.getAttribute?.("placeholder") || "").replace(/\s+/g, " ").trim().slice(0, 120);
+      if (text) out.push({ label: "input[" + out.length + "]", text });
+    }
+  } catch {
+    return [];
+  }
+  return out;
+}
+
+/** Labels the snapshot's input/textarea placeholders like collectPlaceholderTexts. */
+export function labelSnapshotPlaceholders(controls: SnapshotControl[]): SnapshotHeadingText[] {
+  const out: SnapshotHeadingText[] = [];
+  for (const control of controls || []) {
+    if (out.length >= 6) break;
+    if (control.kind !== "input" && control.kind !== "textarea") continue;
+    const text = String(control.placeholder || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    if (text) out.push({ label: "input[" + out.length + "]", text });
   }
   return out;
 }
@@ -411,6 +562,16 @@ export interface PageSnapshot {
   sectionRects: SectionRect[];
   sectionLayouts: SnapshotSectionLayout[];
   observedInteractions: ObservedInteraction[];
+  // CF39 promptability (full-only; omitted for hosted-lite in analysis.ts).
+  imageTreatments?: SnapshotImageTreatment[];
+  ctaFills?: SnapshotCtaFill[];
+  iconFlags?: SnapshotIconFlag[];
+  // CF45 taste: kicker/eyebrow labels (full-only; omitted for hosted-lite).
+  eyebrows?: SnapshotEyebrow[];
+  // CF47 eye-detail: header chrome, scroll strips, prose links (full-only).
+  navChrome?: SnapshotNavChrome;
+  scrollStrips?: SnapshotScrollStrip[];
+  proseLink?: SnapshotProseLink;
   limitations: string[];
 }
 
@@ -503,8 +664,123 @@ export function collectPageSnapshot(): PageSnapshot {
       measuredBreaks += 1;
       breaks = measureHeadingBreaks(el);
     }
-    headings.push({ level, text: rawText.slice(0, 1200), truncated: rawText.length > 1200, breaks });
+    let headingFamily = "";
+    let headingWeight = "";
+    try {
+      // CF43: record the RENDERED family, not the heading's own inherited
+      // stack. Sites commonly set a body stack (e.g. DM Sans) on the H1
+      // while an inner SPAN renders the display face (e.g. Space Grotesk);
+      // reading the heading element itself records the wrong family.
+      let target: Element = el;
+      try {
+        const walker = doc.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let node = walker.nextNode();
+        while (node) {
+          if ((node.textContent || "").trim()) {
+            const parent = (node as Text).parentElement;
+            if (parent) { target = parent; break; }
+          }
+          node = walker.nextNode();
+        }
+      } catch {
+        target = el;
+      }
+      const stack = String((getComputedStyle(target as Element) as unknown as Record<string, string>).fontFamily || "");
+      headingFamily = (stack.split(",")[0] || "").replace(/["']/g, "").trim().slice(0, 80);
+      // CF47: same leaf's rendered weight (see interface note).
+      try {
+        headingWeight = String((getComputedStyle(target as Element) as unknown as Record<string, string>).fontWeight || "").trim().slice(0, 30);
+      } catch {
+        headingWeight = "";
+      }
+    } catch {
+      headingFamily = "";
+    }
+    let headingY: number | undefined;
+    let headingH: number | undefined;
+    try {
+      const box = (el as unknown as { getBoundingClientRect?: () => { top: number; height: number } }).getBoundingClientRect?.();
+      if (box && box.height > 0 && box.height < 2000) {
+        headingY = Math.max(Math.round(box.top + (window.scrollY || 0)), 0);
+        headingH = Math.round(box.height);
+      }
+    } catch {
+      headingY = undefined;
+      headingH = undefined;
+    }
+    // CF45 taste: own vertical margins (block rhythm around titles).
+    let headingMt = "";
+    let headingMb = "";
+    try {
+      const hstyle = getComputedStyle(el as Element) as unknown as Record<string, string>;
+      headingMt = String(hstyle.marginTop || "");
+      headingMb = String(hstyle.marginBottom || "");
+    } catch {
+      headingMt = "";
+      headingMb = "";
+    }
+    headings.push({
+      level, text: rawText.slice(0, 1200), truncated: rawText.length > 1200, breaks,
+      ...(headingFamily ? { fontFamily: headingFamily } : {}),
+      ...(headingWeight ? { fontWeight: headingWeight } : {}),
+      ...(headingY !== undefined ? { y: headingY } : {}),
+      ...(headingH !== undefined ? { height: headingH } : {}),
+      ...(headingMt && headingMt !== "0px" ? { marginTop: headingMt.slice(0, 30) } : {}),
+      ...(headingMb && headingMb !== "0px" ? { marginBottom: headingMb.slice(0, 30) } : {}),
+    });
   });
+
+  // CF45 taste: kicker/eyebrow labels — short tracked uppercase labels that
+  // introduce a heading (e.g. "WHAT CLINE DOES" above an H2). Uppercase may
+  // come from text or text-transform. Proximity: a heading among the next 3
+  // siblings. Bounded: first 300 candidates, 4 recorded.
+  const eyebrows: SnapshotEyebrow[] = [];
+  try {
+    const candidates = doc.querySelectorAll("p, span, div");
+    const limit = Math.min(candidates.length, 300);
+    for (let index = 0; index < limit && eyebrows.length < 4; index += 1) {
+      const el = candidates[index] as Element;
+      if (!isObservable(el)) continue;
+      const text = renderedText(el).replace(/\s+/g, " ").trim();
+      if (text.length < 4 || text.length > 48) continue;
+      if ((text.match(/[A-Za-z]/g) || []).length < 2) continue;
+      let nearHeading = false;
+      try {
+        let sib = (el as unknown as { nextElementSibling?: Element | null }).nextElementSibling || null;
+        for (let step = 0; step < 3 && sib && !nearHeading; step += 1) {
+          const tag = String((sib as unknown as { tagName?: string }).tagName || "").toLowerCase();
+          if (tag === "h1" || tag === "h2" || tag === "h3") nearHeading = true;
+          else if (/^(script|style)$/.test(tag)) { /* skip */ }
+          else if (String(sib.textContent || "").trim().length > 200) break;
+          sib = (sib as unknown as { nextElementSibling?: Element | null }).nextElementSibling || null;
+        }
+      } catch {
+        nearHeading = false;
+      }
+      if (!nearHeading) continue;
+      let estyle: Record<string, string>;
+      try {
+        estyle = getComputedStyle(el) as unknown as Record<string, string>;
+      } catch {
+        continue;
+      }
+      const upper = String(estyle.textTransform || "").toLowerCase() === "uppercase" || text === text.toUpperCase();
+      if (!upper) continue;
+      const tracking = parseFloat(String(estyle.letterSpacing || ""));
+      const size = parseFloat(String(estyle.fontSize || ""));
+      if (!(tracking >= 1) || !(size > 0 && size <= 16)) continue;
+      eyebrows.push({
+        text: text.slice(0, 80),
+        fontFamily: String(estyle.fontFamily || "").split(",")[0].replace(/["']/g, "").trim().slice(0, 80),
+        fontSize: String(estyle.fontSize || "").slice(0, 30),
+        fontWeight: String(estyle.fontWeight || "").slice(0, 30),
+        letterSpacing: String(estyle.letterSpacing || "").slice(0, 30),
+        color: String(estyle.color || "").slice(0, 80),
+      });
+    }
+  } catch {
+    // Eyebrow scan failed; pack degrades honestly without it.
+  }
 
   const header = doc.querySelector("header");
   const footer = doc.querySelector("footer");
@@ -779,6 +1055,7 @@ export function collectPageSnapshot(): PageSnapshot {
         if (!css) continue;
         const decls = css.split(";");
         const ruleProps: string[] = [];
+        const ruleVals: string[] = [];
         for (const decl of decls) {
           const idx = decl.indexOf(":");
           if (idx < 0) continue;
@@ -786,6 +1063,11 @@ export function collectPageSnapshot(): PageSnapshot {
           const val = decl.slice(idx + 1).trim();
           if (!val) continue;
           if (prop && !ruleProps.includes(prop) && ruleProps.length < 8) ruleProps.push(prop.slice(0, 60));
+          // CF45 taste: keep the observed value alongside the property so
+          // rebuilds replay exact micro-motion (translateY, colors), capped.
+          if (prop && ruleVals.length < 5 && !ruleVals.some((entry) => entry.startsWith(prop + ":"))) {
+            ruleVals.push(`${prop.slice(0, 40)}: ${val.slice(0, 60)}`);
+          }
           if ((prop === "background" || prop === "background-image") && /gradient\(/i.test(val)) { bump(gradientFreq, val); markCssomValue("gradients", val); }
           // Sticky/fixed rules flag pinned scroll scenes, which misrender in
           // full-height screenshots. Counted here at zero marginal cost.
@@ -819,7 +1101,7 @@ export function collectPageSnapshot(): PageSnapshot {
         if (trigger && !widgetNoise) {
           hoverSourceCount += 1;
           if (hoverStates.length < 12) {
-            hoverStates.push({ selector: selectorText, trigger, changedProperties: ruleProps.slice(0, 5) });
+            hoverStates.push({ selector: selectorText, trigger, changedProperties: ruleProps.slice(0, 5), changedValues: ruleVals.slice(0, 5) });
           }
         } else if (trigger) {
           hoverSourceCount += 1;
@@ -880,16 +1162,20 @@ export function collectPageSnapshot(): PageSnapshot {
       sampledElements += 1;
       const semanticRole = selector === "h1" ? "heading-1"
         : selector === "h2" ? "heading-2"
-          : selector === "p" ? "body-copy"
-            : selector === "button" ? "button"
-              : selector === "a" ? "link"
-              : selector === "nav" ? "navigation"
-                : selector === "main" ? "main"
-                  : selector === "section" ? "section"
-                    : selector === "form" ? "form"
-                      : "";
+          // CF46 taste: card titles / subsection labels are h3-h4; without a
+          // role their exact sizes never reach the pack (agents guess).
+          : selector === "h3" ? "heading-3"
+            : selector === "h4" ? "heading-4"
+              : selector === "p" ? "body-copy"
+                : selector === "button" ? "button"
+                  : selector === "a" ? "link"
+                    : selector === "nav" ? "navigation"
+                      : selector === "main" ? "main"
+                        : selector === "section" ? "section"
+                          : selector === "form" ? "form"
+                            : "";
       const styleRecord = computed as unknown as Record<string, string>;
-      if (semanticRole && semanticStyles.length < 8) {
+      if (semanticRole && semanticStyles.length < 12) {
         semanticStyles.push({
           role: semanticRole,
           fontFamily: (styleRecord.fontFamily || "").slice(0, 160),
@@ -1568,12 +1854,14 @@ export function collectPageSnapshot(): PageSnapshot {
             }
             if (!inside) continue;
             try {
-              const box = (candidate as unknown as { getBoundingClientRect?: () => { width: number; height: number } }).getBoundingClientRect?.();
+              const box = (candidate as unknown as { getBoundingClientRect?: () => { left: number; top: number; width: number; height: number } }).getBoundingClientRect?.();
               if (!box) continue;
               components.push({
                 kind: String((candidate as unknown as { tagName?: string }).tagName || "?").toLowerCase().slice(0, 20),
                 w: Math.round(box.width),
                 h: Math.round(box.height),
+                x: Math.max(Math.round(box.left + (window.scrollX || 0)), 0),
+                y: Math.max(Math.round(box.top + (window.scrollY || 0)), 0),
               });
             } catch {
               // Unmeasurable candidate; skip silently.
@@ -1635,9 +1923,23 @@ export function collectPageSnapshot(): PageSnapshot {
     }
     const ordered = Array.from(doc.querySelectorAll('[role="tablist"],[role="tab"]'));
     let current: { label: string; selected: boolean; panelVisible: boolean | null }[] | null = null;
+    // CF45 taste: divider borders between tabs (majority vote at flush).
+    let sepSpecs: string[] = [];
     const flushTabs = (): void => {
-      if (current && current.length > 0 && tabSets.length < 4) tabSets.push({ tabs: current.slice(0, 8) });
+      if (current && current.length > 0 && tabSets.length < 4) {
+        const counts = new Map<string, number>();
+        for (const spec of sepSpecs) counts.set(spec, (counts.get(spec) || 0) + 1);
+        let best = "";
+        let bestCount = 0;
+        for (const [spec, count] of counts) {
+          if (count > bestCount) { best = spec; bestCount = count; }
+        }
+        const entry: SnapshotTabSet = { tabs: current.slice(0, 8) };
+        if (best && bestCount * 2 >= current.length) entry.separators = best.slice(0, 60);
+        tabSets.push(entry);
+      }
       current = null;
+      sepSpecs = [];
     };
     for (const node of ordered) {
       const el = node as Element;
@@ -1655,6 +1957,30 @@ export function collectPageSnapshot(): PageSnapshot {
           } catch {
             panelVisible = panel.getAttribute?.("hidden") === null;
           }
+        }
+        // CF45 taste: divider border on the tab itself (left preferred).
+        // Guard: a full box border (top also set) is a card edge, not a
+        // divider — only sides without a top border count as separators.
+        try {
+          const tstyle = getComputedStyle(el) as unknown as Record<string, string>;
+          const tw = String(tstyle.borderTopWidth || "");
+          const ts = String(tstyle.borderTopStyle || "");
+          const boxed = tw && tw !== "0px" && ts && ts !== "none";
+          if (!boxed) {
+            const lw = String(tstyle.borderLeftWidth || "");
+            const ls = String(tstyle.borderLeftStyle || "");
+            if (lw && lw !== "0px" && ls && ls !== "none") {
+              sepSpecs.push(`${lw} ${ls} ${String(tstyle.borderLeftColor || "").slice(0, 40)}`.slice(0, 60));
+            } else {
+              const rw = String(tstyle.borderRightWidth || "");
+              const rs = String(tstyle.borderRightStyle || "");
+              if (rw && rw !== "0px" && rs && rs !== "none") {
+                sepSpecs.push(`${rw} ${rs} ${String(tstyle.borderRightColor || "").slice(0, 40)}`.slice(0, 60));
+              }
+            }
+          }
+        } catch {
+          // Border probe failed; separators degrade to absent.
         }
         current.push({
           label: cleanText((el as unknown as { textContent?: string }).textContent ?? "", 80),
@@ -1838,6 +2164,56 @@ export function collectPageSnapshot(): PageSnapshot {
       return null;
     }
   };
+  // CF39 promptability: rendering treatment per image (filter/opacity/tile).
+  // Only non-default treatments are recorded (cap 40), so default images add
+  // zero bytes. Stripped for hosted-lite in analysis.ts.
+  const imageTreatments: SnapshotImageTreatment[] = [];
+  const seenTreatmentUrls = new Set<string>();
+  const recordImageTreatment = (node: unknown, url: string): void => {
+    if (!url || seenTreatmentUrls.has(url) || imageTreatments.length >= 40) return;
+    try {
+      const el = node as unknown as Element;
+      const style = getComputedStyle(el) as unknown as Record<string, string>;
+      const filter = String(style.filter || "none").trim();
+      const opacity = Number(style.opacity);
+      let tileBg = "";
+      let tileRadius = "";
+      let tilePadding = "";
+      let ancestor = (el as unknown as { parentElement?: Element | null }).parentElement || null;
+      for (let depth = 0; depth < 3 && ancestor && !tileBg; depth += 1) {
+        const bg = String((getComputedStyle(ancestor) as unknown as Record<string, string>).backgroundColor || "");
+        if (bg && !/^(transparent|rgba?\(0,\s*0,\s*0(,|\s*,\s*0(\.0*)?)?\s*\))$/i.test(bg.trim())) {
+          tileBg = bg.slice(0, 60);
+          const astyle = getComputedStyle(ancestor) as unknown as Record<string, string>;
+          tileRadius = String(astyle.borderRadius || "").slice(0, 30);
+          // CF45 taste: tile breathing comes from wrapper padding.
+          tilePadding = String(astyle.padding || "").slice(0, 60);
+        }
+        ancestor = (ancestor as unknown as { parentElement?: Element | null }).parentElement || null;
+      }
+      const hasFilter = filter && filter !== "none";
+      const hasOpacity = Number.isFinite(opacity) && opacity < 1;
+      if (!hasFilter && !hasOpacity && !tileBg) return;
+      if (tileBg && (!tileRadius || /^0(px|%)?(\s+0(px|%)?)*$/.test(tileRadius))) {
+        const ownRadius = String(style.borderRadius || "").trim();
+        if (ownRadius && !/^0(px|%)?(\s+0(px|%)?)*$/.test(ownRadius)) tileRadius = ownRadius.slice(0, 30);
+      }
+      const rect = (el as unknown as { getBoundingClientRect?: () => { left: number; top: number } }).getBoundingClientRect?.();
+      seenTreatmentUrls.add(url);
+      imageTreatments.push({
+        url: url.slice(0, 500),
+        filter: (hasFilter ? filter : "none").slice(0, 80),
+        opacity: hasOpacity ? opacity : null,
+        tileBg,
+        tileRadius,
+        tilePadding,
+        rectX: rect ? Math.max(Math.round(rect.left + (window.scrollX || 0)), 0) : null,
+        rectY: rect ? Math.max(Math.round(rect.top + (window.scrollY || 0)), 0) : null,
+      });
+    } catch {
+      // Unmeasurable image; skip silently.
+    }
+  };
   try {
     const images = doc.querySelectorAll("img");
     for (let index = 0; index < images.length && assets.length < 100; index += 1) {
@@ -1857,9 +2233,319 @@ export function collectPageSnapshot(): PageSnapshot {
       // Tracking pixels and blog photos never end in .svg and stay "image".
       const kind = /logo/i.test(raw + " " + alt) || /\.svg($|[?#&])/i.test(raw + " " + firstSrc) ? "logo" : "image";
       pushAsset(url, kind, alt, width, height);
+      recordImageTreatment(node, url);
     }
   } catch {
     limitations.push("Image manifest collection partially failed.");
+  }
+  // CF39 promptability: CTA fills + inline-icon flags (bounded, additive).
+  // Stripped for hosted-lite in analysis.ts.
+  const ctaFills: SnapshotCtaFill[] = [];
+  const iconFlags: SnapshotIconFlag[] = [];
+  try {
+    const clickables = doc.querySelectorAll("a, button");
+    for (let index = 0; index < clickables.length && (ctaFills.length < 12 || iconFlags.length < 12); index += 1) {
+      const el = clickables[index] as unknown as Element;
+      let rect: { left: number; top: number; width: number; height: number } | null = null;
+      try {
+        const box = (el as unknown as { getBoundingClientRect?: () => { left: number; top: number; width: number; height: number } }).getBoundingClientRect?.();
+        if (box) rect = { left: box.left, top: box.top, width: box.width, height: box.height };
+      } catch {
+        rect = null;
+      }
+      if (!rect || rect.width < 40 || rect.height < 20) continue;
+      const style = getComputedStyle(el) as unknown as Record<string, string>;
+      const label = ((el as unknown as { innerText?: string }).innerText || (el as unknown as { textContent?: string }).textContent || "").replace(/\s+/g, " ").trim().slice(0, 60);
+      if (ctaFills.length < 12) {
+        const bg = String(style.backgroundColor || "");
+        const radius = String(style.borderRadius || "").trim();
+        const hasRadius = radius !== "" && !/^0(px|%)?(\s+0(px|%)?)*$/.test(radius);
+        if (bg && hasRadius && !/^(transparent|rgba?\(0,\s*0,\s*0(,|\s*,\s*0(\.0*)?)?\s*\))$/i.test(bg.trim())) {
+          // CF47: border idiom — "none" keeps borderless text-CTAs distinct.
+          let border = "none";
+          try {
+            const bw = String(style.borderWidth || "").split(" ")[0] || "";
+            const bs = String(style.borderStyle || "").split(" ")[0] || "";
+            const bc = String(style.borderColor || "");
+            if (bs && bs !== "none" && bw && bw !== "0px") border = `${bw} ${bs} ${bc}`.slice(0, 60);
+          } catch {
+            border = "none";
+          }
+          ctaFills.push({
+            label,
+            bg: bg.slice(0, 60),
+            radius: radius.slice(0, 30),
+            border,
+            padding: String(style.padding || "").slice(0, 60),
+            fontSize: String(style.fontSize || "").slice(0, 30),
+            fontWeight: String(style.fontWeight || "").slice(0, 30),
+            rectX: Math.max(Math.round(rect.left + (window.scrollX || 0)), 0),
+            rectY: Math.max(Math.round(rect.top + (window.scrollY || 0)), 0),
+            w: Math.round(rect.width),
+            h: Math.round(rect.height),
+          });
+        }
+      }
+      if (iconFlags.length < 12) {
+        try {
+          const svgs = (el as unknown as { querySelectorAll?: (s: string) => ArrayLike<unknown> }).querySelectorAll?.("svg");
+          const hasImg = (el as unknown as { querySelector?: (s: string) => unknown }).querySelector?.("img");
+          if (svgs && svgs.length > 0 && !hasImg) {
+            const first = svgs[0] as unknown as { getBoundingClientRect?: () => { width: number; height: number } };
+            const sbox = first.getBoundingClientRect?.();
+            const sw = sbox ? Math.round(sbox.width) : 0;
+            const sh = sbox ? Math.round(sbox.height) : 0;
+            if (sbox && (sw <= 0 || sh <= 0)) continue;
+            iconFlags.push({
+              label,
+              w: sbox ? sw : Math.round(rect.width),
+              h: sbox ? sh : Math.round(rect.height),
+              color: String(style.color || "").slice(0, 40),
+              svgCount: Math.min(svgs.length, 9),
+            });
+          }
+        } catch {
+          // Icon probe failed; skip silently.
+        }
+      }
+    }
+    for (const el of Array.from(doc.querySelectorAll("[role='tab'], [role='button'], [role='menuitem']"))) {
+      if (iconFlags.length >= 12) break;
+      try {
+        const node = el as unknown as Element & { querySelectorAll?: (s: string) => ArrayLike<unknown>; querySelector?: (s: string) => unknown };
+        const svgs = node.querySelectorAll?.("svg");
+        if (!svgs || svgs.length === 0 || node.querySelector?.("img")) continue;
+        const first = svgs[0] as unknown as { getBoundingClientRect?: () => { width: number; height: number } };
+        const sbox = first.getBoundingClientRect?.();
+        const sw = sbox ? Math.round(sbox.width) : 0;
+        const sh = sbox ? Math.round(sbox.height) : 0;
+        if (sbox && (sw <= 0 || sh <= 0)) continue;
+        const box = (node as unknown as { getBoundingClientRect?: () => { width: number; height: number } }).getBoundingClientRect?.();
+        const label = ((node as unknown as { innerText?: string }).innerText || "").replace(/\s+/g, " ").trim().slice(0, 60);
+        iconFlags.push({
+          label,
+          w: sbox ? sw : box ? Math.round(box.width) : null,
+          h: sbox ? sh : box ? Math.round(box.height) : null,
+          color: String((getComputedStyle(node) as unknown as Record<string, string>).color || "").slice(0, 40),
+          svgCount: Math.min(svgs.length, 9),
+        });
+      } catch {
+        // Icon probe failed; skip silently.
+      }
+    }
+  } catch {
+    limitations.push("CTA/icon collection partially failed.");
+  }
+  // CF47 eye-detail: header chrome, scroll strips, prose links (bounded,
+  // additive; stripped for hosted-lite in analysis.ts).
+  let navChrome: SnapshotNavChrome | undefined;
+  const scrollStrips: SnapshotScrollStrip[] = [];
+  let proseLink: SnapshotProseLink | undefined;
+  try {
+    // CF47b: the first <header> can be a banner — pick the rendered top
+    // chrome: own box tall (hidden menu dumps measure 0), top of page,
+    // most links. Box-visibility of individual links is unreliable at
+    // snapshot time (hydration), so selection uses the container's own box.
+    // Webflow-style navbars are often plain divs (role=banner, .navbar).
+    let navRoot: Element | null = null;
+    try {
+      const seen = new Set<Element>();
+      const candidates: Element[] = [];
+      const pushAll = (list: ArrayLike<Element> | null | undefined): void => {
+        if (!list) return;
+        const n = (list as unknown as { length: number }).length;
+        for (let i = 0; i < n && candidates.length < 240; i += 1) {
+          const c = (list as unknown as Element[])[i]!;
+          if (c && !seen.has(c)) { seen.add(c); candidates.push(c); }
+        }
+      };
+      pushAll(doc.querySelectorAll("header, nav, [role='banner'], [role='navigation']") as unknown as ArrayLike<Element>);
+      try {
+        const divs = doc.querySelectorAll("div") as unknown as ArrayLike<Element>;
+        const dn = (divs as unknown as { length: number }).length;
+        for (let i = 0; i < dn && candidates.length < 240; i += 1) {
+          const d = (divs as unknown as Element[])[i]!;
+          try {
+            const cls = String((d as unknown as { className?: unknown }).className || "");
+            const cs = typeof cls === "string" ? cls : (cls as { baseVal?: string }).baseVal || "";
+            if (/nav|header|menu|banner/i.test(cs)) pushAll([d] as unknown as ArrayLike<Element>);
+          } catch { /* skip unreadable class */ }
+        }
+      } catch { /* skip div sweep */ }
+      let best = -1;
+      for (const cand of candidates) {
+        try {
+          const cbox = (cand as unknown as { getBoundingClientRect?: () => { top: number; height: number } }).getBoundingClientRect?.();
+          if (!cbox || cbox.top > 200 || cbox.height < 40) continue;
+          const n = (cand as unknown as { querySelectorAll?: (s: string) => ArrayLike<unknown> }).querySelectorAll?.("a, button")?.length ?? 0;
+          if (n >= 4 && n > best) { best = n; navRoot = cand; }
+        } catch { /* skip unscorable candidates */ }
+      }
+      if (!navRoot) navRoot = (doc.querySelector("header") as unknown as Element | null) || (doc.querySelector("nav") as unknown as Element | null);
+    } catch {
+      navRoot = null;
+    }
+    if (navRoot) {
+      const qsa = (root: Element, sel: string): Element[] => {
+        try { return Array.from((root as unknown as { querySelectorAll?: (s: string) => ArrayLike<Element> }).querySelectorAll?.(sel) || []) as Element[]; } catch { return []; }
+      };
+      const textOf = (el: Element): string => {
+        try { return String((el as unknown as { innerText?: string }).innerText || (el as unknown as { textContent?: string }).textContent || "").replace(/\s+/g, " ").trim().slice(0, 40); } catch { return ""; }
+      };
+      // Brand mark: first link carrying svg/img wins (skip-links and empty
+      // menu shells are bare). Scan deeper — mega-menu junk leads the DOM.
+      let brandMark: SnapshotNavChrome["brandMark"] = "text";
+      let brandEl: Element | null = null;
+      try {
+        const links = qsa(navRoot, "a");
+        for (const link of links.slice(0, 20)) {
+          if (qsa(link, "svg").length > 0) { brandMark = "svg"; brandEl = link; break; }
+          if ((link as unknown as { querySelector?: (s: string) => unknown }).querySelector?.("img")) { brandMark = "img"; brandEl = link; break; }
+        }
+      } catch {
+        brandMark = "text";
+      }
+      // Dropdown triggers: svg glyph, popup semantics, OR structural signal
+      // (a sibling panel holding links — catches CSS-triangle / Webflow
+      // toggles with no aria). Toggles are often divs (.w-dropdown-toggle),
+      // not links — include toggle/dropdown class hooks; elements that
+      // THEMSELVES hold ≥3 links are panels, not triggers (skipped).
+      // (a sibling panel holding links — catches CSS-triangle / Webflow
+      // toggles with no aria). First link skipped (brand position).
+      const dropdowns: string[] = [];
+      const boxOf = (node: Element): { width: number; height: number } | null => {
+        try {
+          const b = (node as unknown as { getBoundingClientRect?: () => { width: number; height: number } }).getBoundingClientRect?.();
+          return b ? { width: b.width, height: b.height } : null;
+        } catch { return null; }
+      };
+      const panelLinkCount = (node: Element | null): number => {
+        if (!node) return 0;
+        try {
+          return ((node as unknown as { querySelectorAll?: (s: string) => ArrayLike<unknown> }).querySelectorAll?.("a") || []).length;
+        } catch { return 0; }
+      };
+      const navLinks = qsa(navRoot, "a, button, [role='button'], [aria-haspopup], [aria-expanded], [class*='toggle'], [class*='dropdown']");
+      for (let li = 0; li < navLinks.length && dropdowns.length < 6; li += 1) {
+        const el = navLinks[li]!;
+        if (el === brandEl) continue;
+        // Panels hold links; triggers don't.
+        try {
+          const inner = (el as unknown as { querySelectorAll?: (s: string) => ArrayLike<unknown> }).querySelectorAll?.("a, button")?.length ?? 0;
+          if (inner >= 3) continue;
+        } catch { /* treat as trigger candidate */ }
+        try {
+          const labelled = (el as unknown as { getAttribute?: (n: string) => string | null; className?: unknown });
+          const cls = String((labelled.className as { baseVal?: unknown } | string) || (labelled.className && typeof labelled.className === "object" ? (labelled.className as { baseVal?: string }).baseVal || "" : labelled.className) || "");
+          const popup = labelled.getAttribute?.("aria-haspopup") || labelled.getAttribute?.("aria-expanded");
+          let glyph = false;
+          for (const svg of qsa(el, "svg")) {
+            const b = boxOf(svg);
+            if (b && b.width > 0 && b.height > 0 && b.width <= 40 && b.height <= 40) { glyph = true; break; }
+          }
+          let structural = false;
+          try {
+            const sib = (el as unknown as { nextElementSibling?: Element | null; parentElement?: Element | null }).nextElementSibling;
+            const uncle = (el as unknown as { parentElement?: Element | null }).parentElement?.nextElementSibling || null;
+            structural = panelLinkCount(sib || null) >= 2 || panelLinkCount(uncle) >= 2;
+          } catch { structural = false; }
+          const menuish = /drop|toggle|menu|accordion/i.test(cls);
+          if ((popup !== null && popup !== "" && popup !== undefined) || glyph || structural || (menuish && (glyph || structural))) {
+            const label = textOf(el);
+            if (label && !dropdowns.includes(label)) dropdowns.push(label);
+          }
+        } catch { /* skip unreadable triggers */ }
+      }
+      // Trailing action cluster: last 4 VISIBLE header links (CTA row —
+      // hidden menu shells excluded by box size). Fills + borders recorded
+      // regardless of transparency (borderless text-CTAs are the signal).
+      const actions: SnapshotNavAction[] = [];
+      try {
+        const all = qsa(navRoot, "a, button").slice(0, 60);
+        const visible: Element[] = [];
+        for (const el of all) {
+          const b = boxOf(el);
+          if (b && b.width >= 20 && b.height >= 10) visible.push(el);
+        }
+        // Box-visibility can lag hydration — fall back to labelled links.
+        const pool = visible.length > 0 ? visible : all.filter((el) => textOf(el));
+        for (const el of pool.slice(-4)) {
+          try {
+            const st = getComputedStyle(el) as unknown as Record<string, string>;
+            const bw = String(st.borderWidth || "").split(" ")[0] || "";
+            const bs = String(st.borderStyle || "").split(" ")[0] || "";
+            actions.push({
+              label: textOf(el),
+              bg: String(st.backgroundColor || "").slice(0, 60),
+              border: bs && bs !== "none" && bw && bw !== "0px" ? `${bw} ${bs} ${String(st.borderColor || "")}`.slice(0, 60) : "none",
+            });
+          } catch { /* skip unreadable actions */ }
+        }
+      } catch { /* skip action cluster */ }
+      navChrome = { brandMark, dropdowns, actions };
+    }
+    // Scroll strips: overflow-x idiom (chip rows, card carousels). Full
+    // sweep (records capped at 6) — early caps miss late-DOM strips.
+    try {
+      const scrollers = (doc.querySelectorAll("div, ul, section") || []) as unknown as ArrayLike<Element>;
+      const total = (scrollers as unknown as { length: number }).length;
+      for (let i = 0; i < total; i += 1) {
+        if (scrollStrips.length >= 6) break;
+        const el = (scrollers as unknown as Element[])[i]!;
+        try {
+          const box = el as unknown as { scrollWidth: number; clientWidth: number; getAttribute?: (n: string) => string | null };
+          if (typeof box.scrollWidth !== "number" || typeof box.clientWidth !== "number") continue;
+          if (box.clientWidth < 200 || box.scrollWidth <= box.clientWidth + 8) continue;
+          let label = "";
+          try { label = String(box.getAttribute?.("aria-label") || "").replace(/\s+/g, " ").trim().slice(0, 60); } catch { label = ""; }
+          if (!label) {
+            try {
+              const head = (el as unknown as { previousElementSibling?: Element }).previousElementSibling;
+              if (head && /^(H[1-6]|P)$/i.test(String((head as unknown as { tagName?: string }).tagName || ""))) {
+                label = String((head as unknown as { innerText?: string }).innerText || "").replace(/\s+/g, " ").trim().slice(0, 60);
+              }
+            } catch { label = ""; }
+          }
+          if (!label) {
+            // Fall back to the strip's first inner heading (chip/carousel title).
+            try {
+              const inner = (el as unknown as { querySelector?: (s: string) => Element | null }).querySelector?.("h1, h2, h3, h4, p");
+              if (inner) label = String((inner as unknown as { innerText?: string }).innerText || "").replace(/\s+/g, " ").trim().slice(0, 60);
+            } catch { label = ""; }
+          }
+          scrollStrips.push({ label, visibleW: Math.round(box.clientWidth), scrollW: Math.round(box.scrollWidth) });
+        } catch { /* skip unreadable scrollers */ }
+      }
+    } catch { /* skip strip sweep */ }
+    // Prose links: majority vote over substantial paragraphs (skip header /
+    // footer chrome) + the winning paragraph's context. Agents need the idiom
+    // where it lives (body copy), not UA-default chrome links.
+    try {
+      const paras = (doc.querySelectorAll("main p, article p, section p, p") || []) as unknown as ArrayLike<Element>;
+      const total = (paras as unknown as { length: number }).length;
+      let underlined = 0, plain = 0, voteColor = "", voteContext = "";
+      for (let i = 0; i < total && underlined + plain < 10; i += 1) {
+        const p = (paras as unknown as Element[])[i]!;
+        try {
+          const pel = p as unknown as { closest?: (s: string) => unknown };
+          if (pel.closest?.("header, footer, nav")) continue;
+          const ptext = String((p as unknown as { innerText?: string }).innerText || "").replace(/\s+/g, " ").trim();
+          if (ptext.length < 40) continue;
+          const link = (p as unknown as { querySelector?: (s: string) => Element | null }).querySelector?.("a");
+          if (!link) continue;
+          const lst = getComputedStyle(link) as unknown as Record<string, string>;
+          const deco = String(lst.textDecorationLine || lst.textDecoration || "");
+          if (deco.includes("underline")) { underlined += 1; if (!voteColor) { voteColor = String(lst.color || "").slice(0, 40); voteContext = ptext.slice(0, 60); } }
+          else { plain += 1; if (!voteColor) { voteColor = String(lst.color || "").slice(0, 40); voteContext = ptext.slice(0, 60); } }
+        } catch { continue; }
+      }
+      if (underlined + plain > 0) {
+        proseLink = { underline: underlined >= plain, color: voteColor };
+        if (voteContext) (proseLink as unknown as { context?: string }).context = voteContext;
+      }
+    } catch { /* skip prose sweep */ }
+  } catch {
+    limitations.push("CF47 detail collection partially failed.");
   }
   const videoRecords: SnapshotVideo[] = [];
   try {
@@ -2118,6 +2804,13 @@ export function collectPageSnapshot(): PageSnapshot {
     embeds,
     videos: videoRecords,
     sectionLayouts,
+    imageTreatments,
+    ctaFills,
+    iconFlags,
+    eyebrows,
+    ...(navChrome ? { navChrome } : {}),
+    ...(scrollStrips.length > 0 ? { scrollStrips } : {}),
+    ...(proseLink ? { proseLink } : {}),
     social,
     hoverStates,
     formActions,
@@ -2278,6 +2971,9 @@ export function collectPageSnapshot(): PageSnapshot {
     assets: prunedAssets,
     sectionRects,
     observedInteractions: prunedObservedInteractions,
+    imageTreatments,
+    ctaFills,
+    iconFlags,
     limitations: limitations.slice(0, 30).map((entry) => String(entry).slice(0, 300)),
   };
   let payloadBytes = 0;
