@@ -5,15 +5,32 @@ const landing = await readFile(new URL("../../web/index.html", import.meta.url),
 const alpha = await readFile(new URL("../../web/alpha/index.html", import.meta.url), "utf8");
 const analyzer = await readFile(new URL("../../web/app/index.html", import.meta.url), "utf8");
 const analyzerScript = await readFile(new URL("../../web/app.js", import.meta.url), "utf8");
+const landingStyles = await readFile(new URL("../../web/landing.css", import.meta.url), "utf8");
 
 describe("Site Stripper alpha pages", () => {
   it("keeps product and local-app routes available", () => {
     expect(landing).toContain("<!-- LOCAL_LAUNCH_BUTTON -->");
-    expect(landing).toContain('href="/app/"');
-    expect(landing).toContain('href="/alpha/"');
-    expect(alpha).toContain('href="/app/"');
+    expect(landing).toContain('href="./app/index.html"');
+    expect(landing).toContain('href="./alpha/index.html"');
+    expect(alpha).toContain('href="../app/index.html"');
+    expect(alpha).toContain('href="../index.html"');
     expect(analyzer).toContain('id="analyze-form"');
     expect(landing).not.toMatch(/>\s*\d{2}\s+files\s*</i);
+  });
+
+  it("uses a purple-led neutral palette with restrained yellow accents", () => {
+    expect(landingStyles).toContain("--purple:");
+    expect(landingStyles).toContain("--lavender:");
+    expect(landingStyles).toContain("--yellow:");
+    expect(landingStyles).not.toMatch(/--(?:orange|blue|mint):/);
+  });
+
+  it("uses the requested footer credit without a separate CHEEE.WORK link", () => {
+    const credit = "© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK";
+    for (const page of [landing, alpha]) {
+      expect(page).toContain(credit);
+      expect(page).not.toContain("https://cheee.work/");
+    }
   });
 
   it("states that alpha access does not create an account or require payment", () => {
