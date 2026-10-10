@@ -1,0 +1,90 @@
+/* Observed @font-face files (CF36-2, downloaded at capture time on local-full runs only).
+ * 12 of 13 observed file(s) shipped under assets/fonts/; the rest are URL references (see comments below).
+ * Pair with theme.css --font-family-base when rebuilding type. */
+@font-face {
+  font-family: "Dazzed";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/dazzed-400.woff2") format("woff2");
+} /* observed on https://base44.com/; original: https://base44.com/fonts/geist/geist-latin-wght-normal.woff2 */
+@font-face {
+  font-family: "Dazzed";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/dazzed-400-2.woff2") format("woff2");
+} /* observed on https://base44.com/; original: https://media.base44.com/files/public/marketing-site-assets/fonts/dazzed/dazzed-regular.woff2 */
+@font-face {
+  font-family: "Dazzed";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/dazzed-500.woff2") format("woff2");
+} /* observed on https://base44.com/; original: https://media.base44.com/files/public/marketing-site-assets/fonts/dazzed/dazzed-medium.woff2 */
+@font-face {
+  font-family: "Dazzed";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/dazzed-600.woff2") format("woff2");
+} /* observed on https://base44.com/; original: https://media.base44.com/files/public/marketing-site-assets/fonts/dazzed/dazzed-semibold.woff2 */
+@font-face {
+  font-family: "Dazzed";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/dazzed-400.woff") format("woff");
+} /* observed on https://base44.com/; original: https://media.base44.com/files/public/marketing-site-assets/fonts/dazzed/dazzed-regular.woff */
+@font-face {
+  font-family: "Dazzed";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/dazzed-500.woff") format("woff");
+} /* observed on https://base44.com/; original: https://media.base44.com/files/public/marketing-site-assets/fonts/dazzed/dazzed-medium.woff */
+@font-face {
+  font-family: "Dazzed";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/dazzed-600.woff") format("woff");
+} /* observed on https://base44.com/; original: https://media.base44.com/files/public/marketing-site-assets/fonts/dazzed/dazzed-semibold.woff */
+@font-face {
+  font-family: "WixMisoRegular";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/wixmisoregular-400.woff2") format("woff2");
+} /* observed on https://base44.com/; original: https://base44.com/fonts/wixmiso/wixmiso-regular.woff2 */
+@font-face {
+  font-family: "WixMisoLight";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/wixmisolight-400.woff2") format("woff2");
+} /* observed on https://base44.com/; original: https://base44.com/fonts/wixmiso/wixmiso-light.woff2 */
+@font-face {
+  font-family: "WixMisoRegular";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/wixmisoregular-400-2.woff2") format("woff2");
+} /* observed on https://base44.com/; original: https://base44.com/fonts/wixmiso/wixmiso-regular-subset.woff2 */
+@font-face {
+  font-family: "WixMisoLight";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/wixmisolight-400-2.woff2") format("woff2");
+} /* observed on https://base44.com/; original: https://base44.com/fonts/wixmiso/wixmiso-light-subset.woff2 */
+@font-face {
+  font-family: "WixMadeforText";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/wixmadefortext-100-900.woff2") format("woff2");
+} /* observed on https://base44.com/; original: https://static.parastorage.com/fonts/v2/f73e760d-c6b3-4659-9a8c-9ce1d76c1173/v1/madefor-text.woff2 */
+/* Reference-only (not downloaded — URL reference; verify against the live page before shipping):
+ * - WixMadeforText 100 900 — https://static.parastorage.com/fonts/v2/f73e760d-c6b3-4659-9a8c-9ce1d76c1173/madefor-text.var.original.woff2 (non-font-content-type)
+ */

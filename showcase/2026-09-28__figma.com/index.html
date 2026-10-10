@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Figma: The collaborative canvas for design, code, and AI</title>
+<meta name="description" content="Figma is the canvas where design, code, and AI come together. From first idea to shipped product — go from concept to production with your whole team, in one place.">
+<meta property="og:title" content="Figma: The collaborative canvas for design, code, and AI">
+<meta property="og:description" content="Figma is the canvas where design, code, and AI come together. From first idea to shipped product — go from concept to production with your whole team, in one place.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" href="assets/favicon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="site-nav">
+  <div class="nav-inner">
+    <a class="brand" href="https://www.figma.com/" aria-label="Figma home"><img src="assets/favicon.svg" alt="" width="30" height="30"><span>Figma</span></a>
+    <nav class="nav-links" aria-label="Primary">
+      <span class="nav-dd">
+        <button class="nav-btn" id="productsBtn" aria-expanded="false" aria-controls="productsMenu">Products</button>
+        <span class="mega" id="productsMenu" hidden>
+          <span class="mega-group"><span class="mega-head">What you can do in figma</span>
+            <span class="mega-cols">
+              <span><b>Design and explore</b><span>Design and explore</span></span>
+              <span><b>Build and ship products</b><span>Build and ship products</span></span>
+            </span>
+          </span>
+          <span class="mega-group"><span class="mega-head">Explore all products</span>
+            <a href="https://www.figma.com/design/">Figma Design<span>Design and prototype in one place</span></a>
+            <a href="https://www.figma.com/make/">Figma Make<span>Prompt to code anything you can imagine</span></a>
+            <a href="https://weave.figma.com/">Figma Weave<span>AI workflows for imagery, video, audio, and more</span></a>
+            <a href="https://www.figma.com/dev-mode/">Dev Mode<span>Translate designs into code</span></a>
+            <a href="https://www.figma.com/motion/">Figma Motion<span class="pill-new">New</span><span>Animate your designs</span></a>
+            <a href="https://www.figma.com/figjam/">FigJam<span>Collaborate with a digital whiteboard</span></a>
+            <a href="https://www.figma.com/slides/">Figma Slides<span>Co-create presentations</span></a>
+            <a href="https://www.figma.com/draw/">Figma Draw<span>Illustrate with advanced vector tools</span></a>
+            <a href="https://www.figma.com/sites/">Figma Sites<span class="pill-beta">Beta</span><span>Publish fully responsive websites</span></a>
+            <a href="https://www.figma.com/buzz/">Figma Buzz<span class="pill-beta">Beta</span><span>Produce on-brand assets at scale</span></a>
+          </span>
+          <span class="mega-group"><span class="mega-head">Additional product resources</span>
+            <a href="https://www.figma.com/ai/">AI workflows</a>
+            <a href="https://www.figma.com/release-notes/">Release notes</a>
+            <a href="https://www.figma.com/downloads/">Downloads</a>
+          </span>
+        </span>
+      </span>
+      <span class="nav-dd">
+        <button class="nav-btn" id="solutionsBtn" aria-expanded="false" aria-controls="solutionsMenu">Solutions</button>
+        <span class="menu" id="solutionsMenu" hidden>
+          <a href="https://www.figma.com/solutions/ai-website-generator/">AI website generator</a>
+          <a href="https://www.figma.com/solutions/ai-app-builder/">AI app builder</a>
+          <a href="https://www.figma.com/solutions/ai-ui-generator/">AI UI generator</a>
+          <a href="https://www.figma.com/solutions/ai-design-generator/">AI design generator</a>
+          <a href="https://www.figma.com/solutions/ai-design-agent/">AI design agent</a>
+        </span>
+      </span>
+      <span class="nav-dd">
+        <button class="nav-btn" id="communityBtn" aria-expanded="false" aria-controls="communityMenu">Community</button>
+        <span class="menu" id="communityMenu" hidden>
+          <a href="https://www.figma.com/templates/">Templates</a>
+          <a href="https://www.figma.com/developers">Developers</a>
+          <a href="https://www.figma.com/product-integrations/">Integrations</a>
+          <a href="https://www.figma.com/affiliate-program/">Affiliate program</a>
+          <a href="https://www.figma.com/resource-library/">Resource library</a>
+        </span>
+      </span>
+      <span class="nav-dd">
+        <button class="nav-btn" id="resourcesBtn" aria-expanded="false" aria-controls="resourcesMenu">Resources</button>
+        <span class="menu" id="resourcesMenu" hidden>
+          <a href="https://www.figma.com/blog/">Blog</a>
+          <a href="https://www.figma.com/best-practices/">Best practices</a>
+          <a href="https://www.figma.com/gradients/">Gradient Library</a>
+          <a href="https://www.figma.com/reports/">Reports and insights</a>
+          <a href="https://help.figma.com/hc/en-us">Support</a>
+          <a href="https://status.figma.com/">Status</a>
+        </span>
+      </span>
+      <a href="https://www.figma.com/pricing/">Pricing</a>
+    </nav>
+    <div class="nav-cta">
+      <a href="https://www.figma.com/login">Log in</a>
+      <a class="btn-outline" href="https://www.figma.com/contact/">Contact sales</a>
+      <a class="btn-dark" href="https://www.figma.com/signup">Get started for free</a>
+      <button class="hamburger" id="hamburger" aria-label="Open navigation menu" aria-expanded="false">&#9776;</button>
+    </div>
+  </div>
+  <nav class="mobile-panel" id="mobilePanel" aria-label="Mobile">
+    <a href="https://www.figma.com/pricing/">Pricing</a>
+    <a href="https://www.figma.com/login">Log in</a>
+    <a href="https://www.figma.com/contact/">Contact sales</a>
+    <a href="https://www.figma.com/signup">Get started for free</a>
+    <a href="https://www.figma.com/design/">Figma Design</a>
+    <a href="https://www.figma.com/make/">Figma Make</a>
+    <a href="https://www.figma.com/figjam/">FigJam</a>
+    <a href="https://www.figma.com/slides/">Figma Slides</a>
+  </nav>
+</header>
+
+<main id="main">
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid">
+    <h1>The full-stack creative canvas</h1>
+    <div class="hero-visual card-stack" aria-label="Featured work cards (approximation)">
+      <div class="hcard hc-res active">
+        <p class="hc-date">August 2-4, 2026<br>Fernwood Park</p>
+        <p class="hc-kicker">A FESTIVAL OF</p>
+        <p class="hc-title">Resonance</p>
+        <p class="hc-sub">CONTEMPORARY ART &amp; LIVE MUSIC</p>
+        <p class="hc-meta">40 artists<br>20 live performers</p>
+      </div>
+      <div class="hcard hc-bird"><img src="assets/hero-poster.jpg" alt="Audio player interface"></div>
+      <div class="hcard hc-daisy"><img src="assets/tile-6.jpg" alt="Daisy photo being edited"></div>
+      <div class="hcard hc-dark"></div>
+    </div>
+    <a class="btn-dark btn-hero" href="https://www.figma.com/signup">Get started</a>
+  </div>
+</section>
+
+<!-- WORKSPACE -->
+<section class="workspace">
+  <div class="sec-center">
+    <h2>One workspace for your entire product development process.</h2>
+    <p class="lede-gray">Made so your whole team can go from WIP to ship, together.</p>
+  </div>
+  <div class="phones-panel">
+    <div class="pp-col">
+      <p class="duo-kicker">Mobile / Exhibition</p>
+      <div class="phone ph-white">
+        <p class="pw-status">9:41</p>
+        <div class="pw-icons"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <p class="pw-title">MODULAR<br>LIVING</p>
+        <p class="pw-sub">CAMILLE VOSK</p>
+        <div class="pw-hut"><span></span></div>
+        <span class="pw-btn"></span>
+      </div>
+    </div>
+    <div class="pp-col">
+      <p class="duo-kicker">Mobile / Explore</p>
+      <div class="phone ph-dark">
+        <p class="pw-status">9:41</p>
+        <p class="pw-explore">[ EXPLORE ]</p>
+        <div class="pw-search">Search</div>
+        <div class="pw-chips"><span class="on">All</span><span>Technology</span><span>Fashion</span><span>Bio Art</span></div>
+        <div class="pw-grid"><img src="assets/tile-4.jpg" alt=""><img src="assets/tile-6.jpg" alt=""><img src="assets/tpl-brand.png" alt="" loading="lazy"><img src="assets/tpl-sale.png" alt="" loading="lazy"></div>
+        <div class="pw-nav"><i></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="duo-text">
+    <div>
+      <span class="dotmark dot-round"></span>
+      <h3>Design anything you can imagine</h3>
+      <p>Turn your ideas into apps, websites, and products.</p>
+      <a class="arrow-link" href="https://www.figma.com/design-explore/">Explore design tools &rarr;</a>
+    </div>
+    <div>
+      <span class="dotmark dot-sq"></span>
+      <h3>Build with intention</h3>
+      <p>Dev tools that take you all the way to production.</p>
+      <a class="arrow-link" href="https://www.figma.com/build-ship/">Explore build tools &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<!-- AI CANVAS -->
+<section class="ai">
+  <h2>Move fast in the right direction on an AI-native canvas.</h2>
+  <p class="lede-gray">Teammates and AI agents work in the same space with shared context.</p>
+  <p class="lede-gray">Generate new design directions, refine, and align—together.</p>
+  <div class="ai-panel">
+  <div class="ai-strip" aria-label="Banking app interfaces (approximation)">
+    <div class="mini m-lav"><p>Hi, Mia</p><span class="pill-line"></span><span class="pill-line short"></span></div>
+    <div class="mini m-green"><b>$120.00</b><div class="pad-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="pill-line"></span></div>
+    <div class="mini m-maroon"><b>$222.28</b><div class="donut"></div></div>
+    <div class="mini m-mint"><span class="bub"></span><span class="bub"></span><span class="bub short"></span></div>
+    <div class="mini m-blue"><b>Savings 101</b><div class="mini-bars"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:90%"></i></div></div>
+  </div>
+  </div>
+  <div class="ai-app"><img src="assets/band-ai.jpg" alt="Figma AI banking app interface" loading="lazy"><button class="play" data-vimeo="1202195324" aria-label="Play video"><span aria-hidden="true">&#9655;</span></button></div>
+  <button class="play" data-vimeo="1202195324" aria-label="Play video"><span aria-hidden="true">&#9655;</span></button>
+</section>
+
+<!-- EXPRESSIVE -->
+<section class="expressive">
+  <div class="sec-head">
+    <div>
+      <h2>Powerfully expressive. Incredibly precise.</h2>
+      <p class="lede-gray">Every technical tool you need to dial in the details.</p>
+    </div>
+    <a class="arrow-link" href="https://www.figma.com/design/">Explore Figma Design &rarr;</a>
+  </div>
+  <div class="collage">
+    <figure class="tile"><img src="assets/tile-4.jpg" alt="Bloom design tool interface" loading="lazy"><button class="play sm" data-vimeo="1202189219" aria-label="Play video"><span aria-hidden="true">&#9655;</span></button></figure>
+    <figure class="tile"><img src="assets/tile-2.jpg" alt="RE-FINISHED artist tour interface" loading="lazy"><button class="play sm" data-vimeo="1202189217" aria-label="Play video"><span aria-hidden="true">&#9655;</span></button></figure>
+    <figure class="tile a2"><img src="assets/tile-1.jpg" alt="Art gallery paintings interface" loading="lazy"><button class="play sm" data-vimeo="1202189216" aria-label="Play video"><span aria-hidden="true">&#9655;</span></button></figure>
+    <figure class="tile a3"><img src="assets/tile-3.jpg" alt="Weight slider interface" loading="lazy"><button class="play sm" data-vimeo="1202189218" aria-label="Play video"><span aria-hidden="true">&#9655;</span></button></figure>
+    <figure class="tile"><img src="assets/art-typepath.png" alt="Type on a path shown in purple and teal against a pink background" loading="lazy"></figure>
+    <figure class="tile a2"><img src="assets/tile-6.jpg" alt="Daisy photo with image displace panel" loading="lazy"><button class="play sm" data-vimeo="1203604825" aria-label="Play video"><span aria-hidden="true">&#9655;</span></button></figure>
+    <figure class="tile a3"><img src="assets/tile-5.jpg" alt="Vector toolbar over sky interface" loading="lazy"><button class="play sm" data-vimeo="1202194414" aria-label="Play video"><span aria-hidden="true">&#9655;</span></button></figure>
+    <figure class="tile"><img src="assets/art-butterfly.png" alt="UI over a butterfly bitmap mosaic" loading="lazy"></figure>
+    <figure class="tile v-gray"><img src="assets/tile-2.jpg" alt="Artist tour interface detail" loading="lazy"></figure>
+    <figure class="tile v-hue"><img src="assets/tile-4.jpg" alt="Design tool interface detail" loading="lazy"></figure>
+    <figure class="tile v-dark"><img src="assets/tile-6.jpg" alt="Floral interface detail" loading="lazy"></figure>
+    <figure class="tile v-sepia"><img src="assets/tile-1.jpg" alt="Gallery interface detail" loading="lazy"></figure>
+  </div>
+</section>
+
+<!-- CONSISTENCY -->
+<section class="consistency">
+  <h2>Start with design context. Build with consistency.</h2>
+  <p class="lede-gray">Your context, codebase, and agents stay connected so what you design is what gets shipped.</p>
+  <div class="sky-panel" aria-label="Study reports interface (approximation)">
+    <div class="sky-card sc-left"><b>Study Reports</b><div class="avatars"><i></i><i></i><i></i></div><div class="bar-lines"><i></i><i></i><i></i><i></i></div></div>
+    <div class="sky-card sc-right"><img src="assets/pika.jpg" alt="American pika on rocks"><b>Migration</b><b>Climate Branch</b><p>Seed content ready for review by the team.</p><div class="avatars"><i></i><i></i></div></div>
+  </div>
+  <a class="arrow-link" href="https://www.figma.com/make/">Explore Figma Make &rarr;</a>
+  <button class="play" data-vimeo="1204234347" aria-label="Play video"><span aria-hidden="true">&#9655;</span></button>
+</section>
+
+<!-- TESTIMONIAL -->
+<section class="testimonial">
+  <h2>The products you love are designed in Figma</h2>
+  <div class="testi-grid">
+    <div class="testi-quote">
+      <blockquote>
+        <p>&ldquo;Everyone is able to influence, inspire, and give input without ever leaving the design file. That creates a really transparent, open, and honest process throughout the whole project.&rdquo;</p>
+      </blockquote>
+      <div class="quote-by">
+        <span class="avatar-ring"><img src="assets/head-francisco.jpg" alt="headshot of Francisco" width="48" height="48" loading="lazy"></span>
+        <div><p class="qname">Francisco Seiz</p><p>Senior Design Director, Code and Theory</p></div>
+      </div>
+    </div>
+    <div class="testi-stat">
+      <p class="n95">95%</p>
+      <p><b>95%</b> of the Fortune 500 uses Figma</p>
+      <p class="fine">Based on data from March 2025.</p>
+    </div>
+  </div>
+  <div class="ticker" aria-label="Customer logos">
+    <div class="ticker-track" id="tickerTrack">
+      <div class="ticker-set">
+        <img src="assets/logo-airbnb.svg" alt="airbnb logo" loading="lazy">
+        <img src="assets/logo-atlassian.svg" alt="atlassian logo" loading="lazy">
+        <img src="assets/logo-dropbox.svg" alt="dropbox logo" loading="lazy">
+        <img src="assets/logo-duolingo.svg" alt="duolingo logo" loading="lazy">
+        <img src="assets/logo-github.svg" alt="github logo" loading="lazy">
+        <img src="assets/logo-mercadolibre.svg" alt="mercado libre logo" loading="lazy">
+        <img src="assets/logo-microsoft.svg" alt="microsoft logo" loading="lazy">
+        <img src="assets/logo-netflix.svg" alt="netflix logo" loading="lazy">
+        <img src="assets/logo-pentagram.svg" alt="pentagram logo" loading="lazy">
+        <img src="assets/logo-slack.svg" alt="slack logo" loading="lazy">
+        <img src="assets/logo-stripe.svg" alt="stripe logo" loading="lazy">
+        <img src="assets/logo-nyt.svg" alt="the new york times logo" loading="lazy">
+        <img src="assets/logo-zoom.svg" alt="zoom logo" loading="lazy">
+      </div>
+      <div class="ticker-set" aria-hidden="true">
+        <img src="assets/logo-airbnb.svg" alt="" loading="lazy">
+        <img src="assets/logo-atlassian.svg" alt="" loading="lazy">
+        <img src="assets/logo-dropbox.svg" alt="" loading="lazy">
+        <img src="assets/logo-duolingo.svg" alt="" loading="lazy">
+        <img src="assets/logo-github.svg" alt="" loading="lazy">
+        <img src="assets/logo-mercadolibre.svg" alt="" loading="lazy">
+        <img src="assets/logo-microsoft.svg" alt="" loading="lazy">
+        <img src="assets/logo-netflix.svg" alt="" loading="lazy">
+        <img src="assets/logo-pentagram.svg" alt="" loading="lazy">
+        <img src="assets/logo-slack.svg" alt="" loading="lazy">
+        <img src="assets/logo-stripe.svg" alt="" loading="lazy">
+        <img src="assets/logo-nyt.svg" alt="" loading="lazy">
+        <img src="assets/logo-zoom.svg" alt="" loading="lazy">
+      </div>
+    </div>
+    <button class="ticker-pause" id="tickerPause" aria-label="Pause logo carousel">&#10074;&#10074;</button>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <h2>Ideas no longer have to wait their turn</h2>
+  <a class="btn-dark btn-block" href="https://www.figma.com/signup?locale=en-us">Get started</a>
+</section>
+
+<!-- TEMPLATES -->
+<section class="templates">
+  <h2>Explore what you can do in Figma.</h2>
+  <p class="lede-gray">Browse resources made by the community.</p>
+  <a class="arrow-link" href="https://www.figma.com/community">Browse all templates</a>
+  <div class="carousel">
+    <div class="car-head">
+      <span id="slideCount">Slide 1 of 10</span>
+      <span><button id="prevSlide" aria-label="Previous slide">&larr;</button><button id="nextSlide" aria-label="Next slide">&rarr;</button></span>
+    </div>
+    <div class="car-view"><div class="car-track" id="carTrack">
+      <a class="car-card" href="https://www.figma.com/community"><img src="assets/tpl-icons.png" alt="sixteen icon variations in purple and pink"><span>Icons</span></a>
+      <a class="car-card" href="https://www.figma.com/community/ui-kits/"><img src="assets/tpl-uikits.png" alt="Components for chips, cards, tiles, and checkboxes" loading="lazy"><span>UI kits</span></a>
+      <a class="car-card" href="https://www.figma.com/community"><img src="assets/tpl-websites.png" alt="Laptop displaying a camping website" loading="lazy"><span>Websites</span></a>
+      <a class="car-card" href="https://www.figma.com/community"><img src="assets/tpl-social.png" alt="Social media graphic promoting brunch at a coffee shop" loading="lazy"><span>Social media</span></a>
+      <a class="car-card" href="https://www.figma.com/community"><img src="assets/tpl-mobile.png" alt="Running mobile app displaying a map" loading="lazy"><span>Mobile apps</span></a>
+      <a class="car-card" href="https://www.figma.com/community"><img src="assets/tpl-brand.png" alt="Brand Vision presentation template" loading="lazy"><span>Brand Vision</span></a>
+      <a class="car-card" href="https://www.figma.com/community"><img src="assets/tpl-wireframe.png" alt="Wireframe of a website" loading="lazy"><span>Wireframes</span></a>
+      <a class="car-card" href="https://www.figma.com/community"><img src="assets/tpl-butterfly.png" alt="Butterfly illustration" loading="lazy"><span>Illustration</span></a>
+      <a class="car-card" href="https://www.figma.com/community"><img src="assets/tpl-portfolio.png" alt="Personal portfolio website pulled up on an ipad"><span>Portfolio</span></a>
+      <a class="car-card" href="https://www.figma.com/community"><img src="assets/tpl-sale.png" alt="Ad for a sale"><span>Sale ads</span></a>
+    </div></div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="foot-top">
+    <div class="foot-brand">
+      <p class="wordmark">Figma</p>
+      <p class="socials-head">Figma Socials</p>
+      <div class="socials">
+        <a href="https://x.com/figma">X</a>
+        <a href="https://www.youtube.com/figmadesign">YouTube</a>
+        <a href="https://www.instagram.com/figma">Instagram</a>
+        <a href="https://www.facebook.com/figmadesign">Facebook</a>
+      </div>
+    </div>
+    <div class="foot-col"><h4>PRODUCT</h4><ul>
+      <li><a href="https://www.figma.com/design/">Figma Design</a></li>
+      <li><a href="https://www.figma.com/make/">Figma Make</a></li>
+      <li><a href="https://weave.figma.com/">Figma Weave</a></li>
+      <li><a href="https://www.figma.com/dev-mode/">Dev Mode</a></li>
+      <li><a href="https://www.figma.com/motion/">Figma Motion</a></li>
+      <li><a href="https://www.figma.com/figjam/">FigJam</a></li>
+      <li><a href="https://www.figma.com/slides/">Figma Slides</a></li>
+      <li><a href="https://www.figma.com/draw/">Figma Draw</a></li>
+      <li><a href="https://www.figma.com/sites/">Figma Sites</a></li>
+      <li><a href="https://www.figma.com/buzz/">Figma Buzz</a></li>
+      <li><a href="https://www.figma.com/design-explore/">Design and explore</a></li>
+      <li><a href="https://www.figma.com/build-ship/">Build and ship products</a></li>
+      <li><a href="https://www.figma.com/ai/">AI workflows</a></li>
+      <li><a href="https://www.figma.com/release-notes/">Release notes</a></li>
+      <li><a href="https://www.figma.com/downloads/">Downloads</a></li>
+    </ul>
+      <h4 class="sub-head">Plans</h4><ul>
+      <li><a href="https://www.figma.com/pricing/">Pricing</a></li>
+      <li><a href="https://www.figma.com/enterprise/">Enterprise</a></li>
+      <li><a href="https://www.figma.com/organization/">Organization</a></li>
+      <li><a href="https://www.figma.com/professional/">Professional</a></li>
+    </ul></div>
+    <div class="foot-col"><h4>USE CASES</h4><ul>
+      <li><a href="https://www.figma.com/ui-design-tool/">UI design</a></li>
+      <li><a href="https://www.figma.com/ux-design-tool/">UX design</a></li>
+      <li><a href="https://www.figma.com/wireframe-tool/">Wireframing</a></li>
+      <li><a href="https://www.figma.com/figjam/diagramming-tool/">Diagramming</a></li>
+      <li><a href="https://www.figma.com/prototyping/">Prototyping</a></li>
+      <li><a href="https://www.figma.com/figjam/brainstorming-tool/">Brainstorming</a></li>
+      <li><a href="https://www.figma.com/presentation-maker/">Presentation Maker</a></li>
+      <li><a href="https://www.figma.com/figjam/online-whiteboard/">Online whiteboard</a></li>
+      <li><a href="https://www.figma.com/figjam/strategic-planning/">Strategic planning</a></li>
+      <li><a href="https://www.figma.com/figjam/mind-map/">Mind mapping</a></li>
+      <li><a href="https://www.figma.com/solutions/ai-website-generator/">AI website generator</a></li>
+      <li><a href="https://www.figma.com/solutions/ai-design-generator/">AI design generator</a></li>
+      <li><a href="https://www.figma.com/solutions/ai-app-builder/">AI app builder</a></li>
+      <li><a href="https://www.figma.com/solutions/ai-ui-generator/">AI UI generator</a></li>
+      <li><a href="https://www.figma.com/solutions/figma-ai-tool-weave/">Weave AI tool</a></li>
+      <li><a href="https://www.figma.com/solutions/ai-design-agent/">AI design agent</a></li>
+    </ul></div>
+    <div class="foot-col"><h4>RESOURCES</h4><ul>
+      <li><a href="https://www.figma.com/blog/">Blog</a></li>
+      <li><a href="https://www.figma.com/best-practices/">Best practices</a></li>
+      <li><a href="https://www.figma.com/gradients/">Gradient Library</a></li>
+      <li><a href="https://www.figma.com/gradient-generator/">Gradient Generator</a></li>
+      <li><a href="https://www.figma.com/gif-maker/">GIF maker</a></li>
+      <li><a href="https://www.figma.com/color-wheel/">Color wheel</a></li>
+      <li><a href="https://www.figma.com/colors/">Colors</a></li>
+      <li><a href="https://www.figma.com/color-picker/">Color picker</a></li>
+      <li><a href="https://www.figma.com/fonts/">Font Library</a></li>
+      <li><a href="https://www.figma.com/templates/">Templates</a></li>
+      <li><a href="https://www.figma.com/developers">Developers</a></li>
+      <li><a href="https://www.figma.com/product-integrations/">Integrations</a></li>
+      <li><a href="https://www.figma.com/affiliate-program/">Affiliate program</a></li>
+      <li><a href="https://www.figma.com/resource-library/">Resource library</a></li>
+      <li><a href="https://www.figma.com/reports/">Reports and insights</a></li>
+      <li><a href="https://help.figma.com/hc/en-us">Support</a></li>
+      <li><a href="https://status.figma.com/">Status</a></li>
+      <li><a href="https://www.figma.com/legal/">Legal and privacy</a></li>
+    </ul></div>
+    <div class="foot-col"><h4>COMPANY</h4><ul>
+      <li><a href="https://www.figma.com/blog/">Events</a></li>
+      <li><a href="https://www.figma.com/blog/">Customers</a></li>
+      <li><a href="https://www.figma.com/careers">Careers</a></li>
+      <li><a href="https://www.figma.com/blog/">Newsroom</a></li>
+      <li><a href="https://www.figma.com/brand-assets/">Brand assets</a></li>
+    </ul></div>
+  </div>
+  <div class="foot-bottom">
+    <button class="linklike" id="cookieSettings">Cookie settings</button>
+    <span>English</span>
+  </div>
+</footer>
+
+<div class="cookie" id="cookie" role="dialog" aria-label="Cookie consent">
+  <button class="cookie-x" id="cookieX" aria-label="Dismiss">&times;</button>
+  <p>This website uses cookies, pixel tags, and local storage for performance, personalization, and marketing purposes. We use our own cookies and some from third parties. Only essential cookies are turned on by default. <a href="https://www.figma.com/legal/">Cookies settings</a></p>
+  <div class="cookie-actions">
+    <button data-cookie="allow">Allow all cookies</button>
+    <button data-cookie="deny">Do not allow cookies</button>
+  </div>
+</div>
+
+<div class="event-banner" id="eventBanner" role="dialog" aria-label="Release Notes event">
+  <span class="event-logo"><svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><path d="M5 3c-2 4-2 8 0 10-2 2-2 6 0 10" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M13 3c-2 4-2 8 0 10-2 2-2 6 0 10" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M21 3c-2 4-2 8 0 10-2 2-2 6 0 10" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg><span>Release<br>Notes</span></span>
+  <p>Be the first to learn about new feature drops for Figma Motion and more. Join us live Sept 30.</p>
+  <a class="btn-event" href="https://www.figma.com/release-notes/">Save your spot</a>
+  <button class="event-x" id="eventX" aria-label="Dismiss">&times;</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

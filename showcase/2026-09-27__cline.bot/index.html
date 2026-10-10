@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cline - AI Coding, Open Source and Open Choice</title>
+<meta name="description" content="Open-source AI coding agent with Plan/Act modes, MCP integration, and terminal-first workflows. Trusted by 11M+ developers worldwide.">
+<link rel="icon" href="https://cline.bot/assets/branding/favicons/favicon-32x32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="announce" id="announce">
+  <div class="announce-inner">
+    <span class="badge-news">NEWS</span>
+    <p><a href="https://cline.bot/desktop"><strong>Introducing Cline for Desktop - Open source desktop app for open weights models</strong></a></p>
+    <a class="btn-learn" href="https://cline.bot/desktop">Learn More &rarr;</a>
+    <button class="announce-x" id="announceX" aria-label="Dismiss banner">&times;</button>
+  </div>
+</div>
+
+<header class="site-nav">
+  <div class="nav-inner">
+    <a class="brand" href="https://cline.bot/" aria-label="Cline home">
+      <span class="brand-mark" aria-hidden="true">&#9673;</span> CLINE
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="https://cline.bot/desktop">Desktop</a>
+      <a href="https://cline.bot/ide">IDE</a>
+      <a href="https://cline.bot/cli">CLI</a>
+      <a href="https://cline.bot/sdk">SDK</a>
+      <a href="https://cline.bot/cline-pass">ClinePass</a>
+      <a href="https://docs.cline.bot/">Docs</a>
+      <span style="position:relative">
+        <button class="more-btn" id="moreBtn" aria-haspopup="true">More <span aria-hidden="true">&#8964;</span></button>
+        <span class="more-menu" id="moreMenu">
+          <a href="https://cline.bot/spec-driven">SpecDriven</a>
+          <a href="https://cline.bot/pricing">Plan</a>
+          <a href="https://cline.bot/enterprise">Enterprise</a>
+          <a href="https://cline.bot/blog">Blog</a>
+          <a href="https://cline.bot/learn">Learn</a>
+          <a href="https://cline.bot/mcp-marketplace">MCP Marketplace</a>
+          <a href="https://cline.bot/models">Models</a>
+          <a href="https://cline.bot/faq">FAQ</a>
+          <a href="https://cline.bot/careers">Careers</a>
+          <a href="https://cline.bot/contact">Support</a>
+          <a href="https://cline.bot/contact-sales">Contact Sales</a>
+        </span>
+      </span>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn-sign" href="https://app.cline.bot/">Sign In</a>
+      <a class="btn-gh" href="https://github.com/cline/cline" target="_blank" rel="noopener"><span aria-hidden="true">&#9673;</span> 69k</a>
+      <button class="hamburger" id="hamburger" aria-label="Toggle menu">&#9776;</button>
+    </div>
+  </div>
+  <nav class="mobile-panel" id="mobilePanel" aria-label="Mobile">
+    <a href="https://cline.bot/desktop">Desktop</a>
+    <a href="https://cline.bot/ide">IDE</a>
+    <a href="https://cline.bot/cli">CLI</a>
+    <a href="https://cline.bot/sdk">SDK</a>
+    <a href="https://cline.bot/cline-pass">ClinePass</a>
+    <a href="https://docs.cline.bot/">Docs</a>
+    <a href="https://cline.bot/pricing">Plan</a>
+    <a href="https://cline.bot/enterprise">Enterprise</a>
+    <a href="https://cline.bot/blog">Blog</a>
+    <a href="https://cline.bot/faq">FAQ</a>
+    <a href="https://app.cline.bot/">Sign In</a>
+    <a href="https://github.com/cline/cline" target="_blank" rel="noopener">Cline on GitHub</a>
+  </nav>
+</header>
+
+<main>
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid">
+    <div>
+      <h1>The Open Coding Agent</h1>
+      <p class="hero-sub">Ship securely w/ <b>Gemini</b><br>in <b>JetBrains</b></p>
+      <p class="lede">One open source agent runtime. Use it in your editor, your terminal, or embed it in your own products. Trusted by <strong>11M+ developers</strong>.</p>
+
+      <div class="ptabs">
+        <div class="ptabs-bar" role="tablist" aria-label="Product">
+          <button class="ptab active" role="tab" data-ptab="desktop"><span class="ico">&#128421;</span><span><b>Desktop</b><span class="newpill">NEW</span></span></button>
+          <button class="ptab" role="tab" data-ptab="cli"><span class="ico">&#8250;_</span><span><b>CLI</b><span>TERMINAL</span></span></button>
+          <button class="ptab" role="tab" data-ptab="ide"><span class="ico">&#9635;</span><span><b>IDE</b><span>EXTENSION</span></span></button>
+          <button class="ptab" role="tab" data-ptab="sdk"><span class="ico">&lt;/&gt;</span><span><b>SDK</b><span>EMBED</span></span></button>
+        </div>
+        <div class="ptab-panel" id="ptab-desktop">
+          <p>Cline for Desktop: the coding agent as a native desktop app. No editor required.</p>
+          <div class="dl-row">
+            <a class="btn-dl" href="https://github.com/cline/cline/releases/download/desktop-v0.0.37/Cline_0.0.37_universal.dmg">Download for Mac</a>
+            <a class="btn-dl" href="https://github.com/cline/cline/releases/download/desktop-v0.0.37/Cline_0.0.37_x64-setup.exe">Download for Windows</a>
+          </div>
+          <a class="panel-link" href="https://cline.bot/desktop">Explore Cline for Desktop &rarr;</a>
+          <div class="panel-foot"><span>v0.0.37</span><span>macOS (Universal) &middot; Windows (x64)</span><span><a href="https://github.com/cline/cline/releases">All releases</a></span></div>
+        </div>
+        <div class="ptab-panel" id="ptab-cli" hidden>
+          <p>Cline CLI in scripts, cron jobs, and CI pipelines. Run recurring checks and custom workflows.</p>
+          <div class="dl-row">
+            <a class="btn-dl" href="https://cline.bot/cli">Install the CLI</a>
+            <a class="btn-dl" href="https://docs.cline.bot/">CLI docs</a>
+          </div>
+          <a class="panel-link" href="https://cline.bot/cli">Explore Cline CLI &rarr;</a>
+          <div class="panel-foot"><span>npm / brew</span><span>headless &middot; CI-ready</span></div>
+        </div>
+        <div class="ptab-panel" id="ptab-ide" hidden>
+          <p>Cline in your IDE: VS Code, JetBrains (Early Access), Cursor, Windsurf and Insiders.</p>
+          <div class="dl-row">
+            <a class="btn-dl" href="https://cline.bot/ide">Get the extension</a>
+            <a class="btn-dl" href="https://docs.cline.bot/">IDE docs</a>
+          </div>
+          <a class="panel-link" href="https://cline.bot/ide">Explore Cline for IDE &rarr;</a>
+          <div class="panel-foot"><span>marketplace + open vsx registry</span><span>11M+ installs</span></div>
+        </div>
+        <div class="ptab-panel" id="ptab-sdk" hidden>
+          <p>Embed the agent runtime in your own products with tools, hooks, and MCP servers.</p>
+          <div class="dl-row">
+            <a class="btn-dl" href="https://cline.bot/sdk">Explore the SDK</a>
+            <a class="btn-dl" href="https://docs.cline.bot/">SDK docs</a>
+          </div>
+          <a class="panel-link" href="https://cline.bot/sdk">Build with the SDK &rarr;</a>
+          <div class="panel-foot"><span>TypeScript</span><span>MCP-compatible</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="globe-wrap" aria-label="ASCII-art globe visual (approximation)">
+      <span class="globe-tag gt-a">Automate</span>
+      <span class="globe-tag gt-b">Understand</span>
+      <span class="globe-tag gt-c">Refactor</span>
+      <pre class="globe" aria-hidden="true">                         ,,,,,,,,,,,,
+                    ,,,,,,,,,,,,,,,,,,,,,
+                  ,,,,,,,,,,,,,,,,,,,,,,,,,
+              .,,,#,,,,,,,,,,,,,,,,,,,,,,,,,,#,,
+           ,,,#################################,,,
+          ,,#######################################,,
+         ,,#########################################,,        ;;
+        ,,####,,,,#############,,,,,############,,,,###,,  ;;;;;;;;
+        ,###,,,,,,,#########,,,,,,,,,#########,,,,,,,####,  ;;;;;;
+       ,,##,,,,,,,,,#######,,,,,,,,,,,#######,,,,,,,,,##,,  ;;;;
+       ,##,,,,,,,,,,,#####,,,,,,,,,,,,,#####,,,,,,,,,,,##,   ;;
+       ,#,,,,,,,,,,,,,###,,,,,ooooo,,,,,###,,,,,,,,,,,,,#,   ;;
+;:     ##,,,,,,,,,,,,,##,,,,,ooooooo,,,,,##,,,,,,,,,,,,,##     ,:
+;:    ,#,,,,,,,,,,,,,,#,,,,,ooooooooo,,,,,#,,,,,,,,,,,,,,#,    ,:
+      ,#,,,,,,,,,,,,,,#,,,,ooooooooooo,,,,#,,,,,,,,,,,,,,#,
+;;    #,,,,,,,,,,,,,,,#,,,ooooooooooooo,,,#,,,,,,,,,,,,,,#     ;;
+;;   ##,,,,,,,,,,,,,,,####ooooooooooooo####,,,,,,,,,,,,,,##    ;;
+;;   ##,,,,,,,,,,,,,,,####ooooooooooooo####,,,,,,,,,,,,,,##  ,,,,
+     ##,,,,,,,,,,,,,,,####ooooooooooooo####,,,,,,,,,,,,,,##
+     #,,,,,,,,,,,,,,,,,####ooooooooooo####,,,,,,,,,,,,,,,#,
+     #,,,,,,,,,,,,,,,,,,####ooooooooo####,,,,,,,,,,,,,,,,#,
+     #,,,,,,,,,,,,,,,,,,#####ooooooo#####,,,,,,,,,,,,,,,,#,
+     ##,,,,,,,,,,,,,,,,,,###############,,,,,,,,,,,,,,,,##
+      #,,,,,,,,,,,,,,,,,,,,###########,,,,,,,,,,,,,,,,,,#,
+      ##,,,,,,,,,,,,,,,,,,,,,,#####,,,,,,,,,,,,,,,,,,,##
+       #,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#,
+       ,#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#,
+        ##,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,##,
+         ##,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,##,
+          ,##,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,##,
+            ,###,,,,,,,,,,,,,,,,,,,,,,,,,,###,
+              ,,####,,,,,,,,,,,,,,,,,,####,,
+                 ,,,,,,,,,,,,,,,,,,,,,,,            ,:
+                    ,,,,,,,,,,,,,,,           ;;;;;;;;;;;;</pre>
+    </div>
+  </div>
+  <div class="stats"><div class="stats-inner">
+    <span class="pill"><b>11M+</b> installs across all platforms</span>
+    <span>marketplace + open vsx registry</span>
+    <a class="pill" href="https://github.com/cline/cline"><b>&#9673; 69.4k stars</b></a>
+  </div></div>
+</section>
+
+<!-- TRUSTED -->
+<section class="trusted">
+  <h2>Trusted by developers and leaders at</h2>
+  <div class="logo-grid">
+    <div class="logo-cell"><span class="wordmark">SAMSUNG</span></div>
+    <div class="logo-cell"><span class="wordmark sf">salesforce</span></div>
+    <div class="logo-cell"><span class="wordmark">ORACLE</span></div>
+    <div class="logo-cell"><span class="wordmark" style="text-transform:lowercase">amazon</span></div>
+    <div class="logo-cell"><span class="wordmark">ⓁG</span></div>
+    <div class="logo-cell"><span class="wordmark">Globant<small> &#9654;</small></span></div>
+    <div class="logo-cell"><span class="wordmark" style="font-weight:500">⊞ Microsoft</span></div>
+    <div class="logo-cell"><span class="wordmark ebay">ebay</span></div>
+    <div class="logo-cell"><span class="wordmark visa">VISA</span></div>
+    <div class="logo-cell"><span class="wordmark ibm">IBM</span></div>
+  </div>
+</section>
+
+<!-- WORK -->
+<section class="work">
+  <div class="wrap">
+    <h2>See Cline at work</h2>
+    <p class="sub">One agent across your IDE, terminal, and SDK. Pick a task and watch it run.</p>
+    <div class="wtabs" role="tablist" aria-label="Tasks">
+      <button class="wtab active" data-wtab="understand" role="tab">Understand</button>
+      <button class="wtab" data-wtab="refactor" role="tab">Refactor</button>
+      <button class="wtab" data-wtab="automate" role="tab">Automate</button>
+    </div>
+    <div class="work-grid">
+      <div class="ide-shot" aria-label="IDE screenshot approximation">
+        <div class="ide-bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span style="margin-left:12px;font-size:11px;color:#666;background:#fff;border:1px solid #ddd;border-radius:6px;padding:2px 60px">⌕ cline</span></div>
+        <div class="ide-body">
+          <div class="ide-side">
+            <div style="font-size:10px;letter-spacing:.1em">CLINE</div>
+            <div class="bot">🤖</div>
+            <div style="text-align:center;color:#fff;font-weight:700">What can I do for you?</div>
+            <div style="margin-top:14px;font-size:10px">⌕ RECENT TASKS</div>
+            <div style="margin-top:120px;border:1px solid #333;border-radius:8px;padding:10px;font-size:11px">how do models and prov|</div>
+            <div style="margin-top:10px;font-size:10px">cline:openai/gpt-5.1 &nbsp; <b style="background:#f5c518;color:#000;border-radius:4px;padding:1px 6px">Plan</b> Act</div>
+          </div>
+          <div class="ide-code"><span class="tok-c">src › shared › api › TS anthropic.ts › CLAUDE_SONNET_1M_TIERS › contextWindow</span><br><span class="tok-k">import type</span> { ModelInfo } <span class="tok-k">from</span> <span class="tok-s">"./modelTypes"</span><br><br><span class="tok-k">export const</span> CLAUDE_SONNET_1M_SUFFIX = <span class="tok-s">":1m"</span><br><span class="tok-k">export const</span> CLAUDE_SONNET_1M_TIERS = [<br>&nbsp;&nbsp;{<br>&nbsp;&nbsp;&nbsp;&nbsp;contextWindow: 200000,<br>&nbsp;&nbsp;&nbsp;&nbsp;inputPrice: 3.0,<br>&nbsp;&nbsp;&nbsp;&nbsp;outputPrice: 15,<br>&nbsp;&nbsp;&nbsp;&nbsp;cacheWritesPrice: 3.75,<br>&nbsp;&nbsp;&nbsp;&nbsp;cacheReadsPrice: 0.3,<br>&nbsp;&nbsp;},<br>&nbsp;&nbsp;{<br>&nbsp;&nbsp;&nbsp;&nbsp;contextWindow: Number.MAX_SAFE_INTEGER, <span class="tok-c">// storing infinity vs storage is not possible</span><br>&nbsp;&nbsp;&nbsp;&nbsp;inputPrice: 6,<br>&nbsp;&nbsp;&nbsp;&nbsp;outputPrice: 22.5,<br>&nbsp;&nbsp;&nbsp;&nbsp;cacheWritesPrice: 7.5,<br>&nbsp;&nbsp;&nbsp;&nbsp;cacheReadsPrice: 0.6,<br>&nbsp;&nbsp;},<br>]<br><span class="tok-c">// Anthropic</span><br><span class="tok-c">// https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02</span><br><span class="tok-k">export type</span> AnthropicModelId = <span class="tok-k">keyof typeof</span> anthropicModels<br><span class="tok-k">export const</span> ANTHROPIC_DEFAULT_MODEL_ID = <span class="tok-s">"claude-sonnet-4-5-20250929"</span><br><span class="tok-k">export const</span> ANTHROPIC_MIN_THINKING_BUDGET = 1024<br><span class="tok-k">export const</span> ANTHROPIC_MAX_THINKING_BUDGET = 8000</div>
+        </div>
+      </div>
+      <div class="wpanels">
+        <div class="wpanel show" id="w-understand"><h3>Understand your codebase</h3><p>See how a codebase is structured and ask Cline questions about files, dependencies, and behavior.</p></div>
+        <div class="wpanel" id="w-refactor"><h3>Refactor large codebases</h3><p>Make coordinated changes across large codebases while Cline keeps imports, types, and behavior consistent.</p></div>
+        <div class="wpanel" id="w-automate"><h3>Automate with Cline CLI</h3><p>Use Cline CLI in scripts, cron jobs, and CI pipelines to run recurring checks, updates, and custom workflows.</p></div>
+      </div>
+    </div>
+    <div class="work-foot"><span>Built with the model labs</span><span>·</span><span>250+ contributors</span><span>·</span><span>Apache 2.0 open source</span></div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features">
+  <p class="eyebrow">What Cline does</p>
+  <h2>Everything an agent should do, in your editor and your terminal.</h2>
+  <p class="sub">Open source. Plan-and-Act. Every model. No vendor lock-in.</p>
+  <div class="feat-grid">
+    <div class="feat"><span class="sq"></span><div><h3>Edits across your project</h3><p>Coordinated multi-file changes with linter-aware fixes, diffs, checkpoints, and one-click undo on every step.</p></div></div>
+    <div class="feat"><span class="sq"></span><div><h3>Runs bash commands</h3><p>Executes in your terminal and reacts to output as it appears. Long-running dev servers, tests, deploys, all handled live.</p></div></div>
+    <div class="feat"><span class="sq"></span><div><h3>Plan, then Act</h3><p>Toggle Plan mode to align on a strategy, then Act to execute. Approve every step, or flip auto-approve for autopilot.</p></div></div>
+    <div class="feat"><span class="sq"></span><div><h3>Rules and Skills</h3><p>Ship .clinerules with your repo to teach the agent your coding standards, architecture, and deployment conventions.</p></div></div>
+    <div class="feat"><span class="sq"></span><div><h3>Every model, your choice</h3><p>Claude, GPT, Gemini, local Ollama / LM Studio, or any OpenAI-compatible endpoint. Bring your own key or your own weights.</p></div></div>
+    <div class="feat"><span class="sq"></span><div><h3>Extend with MCP and plugins</h3><p>Register custom tools and lifecycle hooks via the SDK. Plug in MCP servers for databases, APIs, and infrastructure.</p></div></div>
+    <div class="feat"><span class="sq"></span><div><h3>Multi-agent teams and schedules</h3><p>Coordinator agents delegate to specialists with their own tools and context. Run them on cron for recurring automations.</p></div></div>
+    <div class="feat"><span class="sq"></span><div><h3>Connect to Slack, Linear, and CI</h3><p>Chat with the agent from Slack, Discord, Telegram, or Linear. Run it headlessly inside GitHub Actions, GitLab, or any pipeline.</p></div></div>
+  </div>
+  <a class="docs-link" href="https://docs.cline.bot/">Read the full docs &nbsp;&rarr;</a>
+</section>
+
+<!-- MODELS -->
+<section class="models">
+  <h2>Any model, your infrastructure</h2>
+  <p class="sub">Cline works with every major provider. Bring your own key, your own endpoint, or your own weights and keep your workflow exactly the same.</p>
+  <p class="prov-label">SUPPORTED PROVIDERS</p>
+  <div class="prov-grid">
+    <div class="prov"><span class="prov-name">Anthropic</span></div>
+    <div class="prov"><span class="prov-name">OpenAI</span></div>
+    <div class="prov"><span class="prov-name">Google</span></div>
+    <div class="prov"><span class="prov-name">AWS Bedrock</span></div>
+    <div class="prov"><span class="prov-name">Azure</span></div>
+    <div class="prov"><span class="prov-name">GCP Vertex</span></div>
+    <div class="prov"><span class="prov-name">Ollama</span></div>
+    <div class="prov"><span class="prov-name">DeepSeek</span></div>
+    <div class="prov"><span class="prov-name">xAI</span></div>
+    <div class="prov"><span class="prov-name">Mistral</span></div>
+    <div class="prov"><span class="prov-name">Cerebras</span></div>
+    <div class="prov"><span class="glyph" aria-label="OpenRouter compatible">✳</span></div>
+  </div>
+  <p class="prov-foot">+ any OpenAI-compatible API</p>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <h2>Ready to experience AI coding without limits?</h2>
+  <a class="btn-dark" href="https://cline.bot/install">Get Started</a>
+</section>
+</main>
+
+<footer>
+  <div class="foot-top">
+    <img src="https://cline.bot/_next/image?url=%2Fassets%2Fbranding%2Flogos%2Fcline-wordmark-white.svg&w=1080&q=75" alt="Cline Logo">
+    <p class="foot-tag">Transform your engineering team with a fully collaborative AI partner. Open source, fully extensible, and built to amplify developer impact.</p>
+  </div>
+  <div class="foot-grid">
+    <div><h4>Product</h4><ul>
+      <li><a href="https://cline.bot/ide">IDE</a></li><li><a href="https://cline.bot/cli">CLI</a></li>
+      <li><a href="https://cline.bot/sdk">SDK</a></li><li><a href="https://cline.bot/models">Models</a></li>
+      <li><a href="https://cline.bot/enterprise">Enterprise</a></li><li><a href="https://cline.bot/mcp-marketplace">MCP Marketplace</a></li>
+      <li><a href="https://github.com/cline/cline/releases">Changelog</a></li>
+    </ul></div>
+    <div><h4>Community</h4><ul>
+      <li><a href="https://cline.bot/blog">Blog</a></li><li><a href="https://discord.gg/cline">Discord</a></li>
+      <li><a href="https://reddit.com/r/cline">Reddit</a></li><li><a href="https://github.com/cline/cline/discussions">GitHub Discussions</a></li>
+      <li><a href="https://github.com/cline/cline/discussions">Feature Requests</a></li>
+    </ul></div>
+    <div><h4>Support</h4><ul>
+      <li><a href="https://docs.cline.bot/">Docs</a></li><li><a href="https://github.com/cline/cline/issues">GitHub Issues</a></li>
+      <li><a href="https://cline.bot/faq">FAQ</a></li><li><a href="https://cline.bot/contact">Contact</a></li>
+    </ul></div>
+    <div><h4>Company</h4><ul>
+      <li><a href="https://cline.bot/careers">Careers</a></li><li><a href="https://cline.bot/brand">Brand</a></li>
+      <li><a href="https://cline.bot/tos">Terms</a></li><li><a href="https://cline.bot/privacy">Privacy</a></li>
+    </ul></div>
+    <div><div class="news-box">
+      <p>Stay updated on Cline's evolution</p>
+      <form class="news-form" id="newsForm"><input type="email" required placeholder="Email address" aria-label="Email address"><button type="submit">Subscribe</button></form>
+    </div></div>
+  </div>
+  <div class="foot-bottom"><div class="foot-bottom-inner">
+    <div class="socials">
+      <a href="https://discord.gg/cline" aria-label="Discord"><img alt="Discord" src="https://cline.bot/_next/image?url=%2Fassets%2Flogos%2Fsocial%2Fdiscord.svg&w=48&q=75"></a>
+      <a href="https://x.com/cline" aria-label="X">𝕏</a>
+      <a href="https://linkedin.com/company/clinebot" aria-label="LinkedIn"><img alt="LinkedIn" src="https://cline.bot/_next/image?url=%2Fassets%2Flogos%2Fsocial%2Flinkedin.svg&w=48&q=75"></a>
+      <a href="https://reddit.com/r/cline" aria-label="Reddit"><img alt="Reddit" src="https://cline.bot/_next/image?url=%2Fassets%2Flogos%2Fsocial%2Freddit.svg&w=48&q=75"></a>
+      <a href="https://github.com/cline/cline" aria-label="GitHub"><img alt="GitHub" src="https://cline.bot/_next/image?url=%2Fassets%2Flogos%2Fgithub.svg&w=48&q=75"></a>
+    </div>
+    <span class="copy">© <span id="year">2026</span> Cline Bot Inc. All rights reserved.</span>
+  </div></div>
+</footer>
+
+<div class="cookie" id="cookie">
+  <div class="cookie-inner">
+    <p>We use cookies to enhance your experience, analyze traffic, and personalize content. By clicking 'Accept', you consent to our use of cookies. Learn more in our <a href="https://cline.bot/privacy">Privacy Notice</a>.</p>
+    <div class="cookie-actions">
+      <button class="btn-c" data-cookie="decline">Decline Non-Essential</button>
+      <button class="btn-c ghost-w" data-cookie="prefs">Manage Preferences</button>
+      <button class="btn-c solid" data-cookie="accept">Accept All</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

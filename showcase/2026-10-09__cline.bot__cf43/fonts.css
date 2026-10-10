@@ -1,0 +1,87 @@
+/* Observed @font-face files (CF36-2, downloaded at capture time on local-full runs only).
+ * 11 of 16 observed file(s) shipped under assets/fonts/; the rest are URL references (see comments below).
+ * Pair with theme.css --font-family-base when rebuilding type. */
+@font-face {
+  font-family: "Inter";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-100-900.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/ba9851c3c22cd980-s.woff2 */
+@font-face {
+  font-family: "Inter";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-100-900-2.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/21350d82a1f187e9-s.woff2 */
+@font-face {
+  font-family: "Inter";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-100-900-3.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/c5fe6dc8356a8c31-s.woff2 */
+@font-face {
+  font-family: "Inter";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-100-900-4.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/19cfc7226ec3afaa-s.woff2 */
+@font-face {
+  font-family: "Inter";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-100-900-5.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/df0a9ae256c0569c-s.woff2 */
+@font-face {
+  font-family: "Inter";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-100-900-6.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/8e9860b6e62d6359-s.woff2 */
+@font-face {
+  font-family: "Inter";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/inter-100-900-7.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/e4af272ccee01ff0-s.p.woff2 */
+@font-face {
+  font-family: "Space Grotesk";
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-300-700.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/e1aab0933260df4d-s.woff2 */
+@font-face {
+  font-family: "Space Grotesk";
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-300-700-2.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/b7387a63dd068245-s.woff2 */
+@font-face {
+  font-family: "Space Grotesk";
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-300-700-3.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/36966cca54120369-s.p.woff2 */
+@font-face {
+  font-family: "Poly";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("assets/fonts/poly-400.woff2") format("woff2");
+} /* observed on https://cline.bot/; original: https://cline.bot/_next/static/media/7a075f56e05c6bce-s.woff2 */
+/* Reference-only (not downloaded — URL reference; verify against the live page before shipping):
+ * - Northem 400 — https://cline.bot/assets/fonts/trtnorthem-regular-webfont.woff2 (fetch-failed)
+ * - Northem 500 — https://cline.bot/assets/fonts/trtnorthem-medium-webfont.woff2 (fetch-failed)
+ * - Northem 600 — https://cline.bot/assets/fonts/trtnorthem-semibold-webfont.woff2 (fetch-failed)
+ * - Northem 700 — https://cline.bot/assets/fonts/trtnorthem-bold-webfont.woff2 (fetch-failed)
+ * - Northem 800 — https://cline.bot/assets/fonts/trtnorthem-extrabold-webfont.woff2 (fetch-failed)
+ */

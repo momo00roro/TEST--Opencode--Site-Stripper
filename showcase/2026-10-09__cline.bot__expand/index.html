@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cline — The Open Coding Agent</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- News banner (static) -->
+<div class="news" role="note">
+  <span class="news-pill">NEWS</span>
+  <span class="news-text">Introducing Cline for Desktop - Open source desktop app for open weights models</span>
+  <a class="news-btn" href="#">Learn More <span aria-hidden="true">→</span></a>
+  <a class="news-x" href="#" aria-label="Dismiss">×</a>
+</div>
+
+<!-- Header -->
+<header class="nav">
+  <a class="brand" href="#"><img src="assets/17-cline-logo.svg" alt="Cline" width="120" height="28"></a>
+  <nav class="nav-links" aria-label="Primary">
+    <a href="#">Desktop</a><a href="#">Cloud</a><a href="#">IDE</a><a href="#">CLI</a><a href="#">SDK</a><a href="#">ClinePass</a><a href="#">Docs</a><a href="#">More <span aria-hidden="true">▾</span></a>
+  </nav>
+  <div class="nav-actions">
+    <a class="btn-sign" href="#">Sign In</a>
+    <a class="btn-stars" href="#"><img src="assets/48-github.svg" alt="" width="16" height="16"> 70k</a>
+  </div>
+</header>
+
+<main>
+<!-- §1 Hero -->
+<section class="hero" aria-labelledby="h1">
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <h1 id="h1">The Open Coding Agent</h1>
+      <p class="rot">Ship securely w/ <strong>Grok</strong><br>in <strong>JetBrains</strong></p>
+      <p class="lede">One open source agent runtime. Use it in your editor, your terminal, or embed it in your own products. Trusted by <a href="#">11M+ developers</a>.</p>
+
+      <div class="tabs">
+        <input type="radio" name="surface" id="tab-desktop" checked>
+        <input type="radio" name="surface" id="tab-cli">
+        <input type="radio" name="surface" id="tab-ide">
+        <input type="radio" name="surface" id="tab-sdk">
+        <div class="tab-row" role="tablist">
+          <label for="tab-desktop" role="tab"><span class="tab-ic"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="9" rx="1.5" fill="none" stroke="currentColor"/><path d="M6 13.5h4" stroke="currentColor"/></svg></span><span class="tab-tx">Desktop <span class="badge">NEW</span></span></label>
+          <label for="tab-cli" role="tab"><span class="tab-ic"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor"/><path d="M4.5 6l2 2-2 2M7.5 10H11" fill="none" stroke="currentColor"/></svg></span><span class="tab-tx">CLI <span class="tab-sub">TERMINAL</span></span></label>
+          <label for="tab-ide" role="tab"><span class="tab-ic"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M6.5 2.5a1.5 1.5 0 013 0v1h1a1.5 1.5 0 010 3h-1v1a1.5 1.5 0 01-3 0v-1h-1a1.5 1.5 0 010-3h1v-1z M4 9.5h8v4H4z" fill="none" stroke="currentColor"/></svg></span><span class="tab-tx">IDE <span class="tab-sub">EXTENSION</span></span></label>
+          <label for="tab-sdk" role="tab"><span class="tab-ic"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M5.5 5L3 8l2.5 3M10.5 5L13 8l-2.5 3" fill="none" stroke="currentColor"/></svg></span><span class="tab-tx">SDK <span class="tab-sub">EMBED</span></span></label>
+        </div>
+        <div class="panels">
+          <div class="panel p-desktop">
+            <p>Cline for Desktop: the coding agent as a native desktop app. No editor required.</p>
+            <div class="dl-row">
+              <a class="dl" href="#"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M7 1v8M3.5 6.5L7 10l3.5-3.5M2 12.5h10" fill="none" stroke="currentColor"/></svg> Download for Mac</a>
+              <a class="dl" href="#"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M7 1v8M3.5 6.5L7 10l3.5-3.5M2 12.5h10" fill="none" stroke="currentColor"/></svg> Download for Windows</a>
+              <a class="dl" href="#"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M7 1v8M3.5 6.5L7 10l3.5-3.5M2 12.5h10" fill="none" stroke="currentColor"/></svg> Download for Linux <span aria-hidden="true">▾</span></a>
+            </div>
+            <p class="ver">v0.0.45 · macOS, Windows &amp; Linux</p>
+            <a class="explore" href="#">Explore Cline for Desktop <span aria-hidden="true">→</span></a>
+          </div>
+          <div class="panel p-cli">
+            <p>From prompt to production, right inside your terminal.</p>
+            <p class="codehead">Install once, run anywhere</p>
+            <p class="code">$ npm i -g cline <a class="copy" href="#">Copy</a></p>
+            <p>Works on macOS, Windows, Linux.</p>
+            <a class="explore" href="#">Explore Cline CLI <span aria-hidden="true">→</span></a>
+          </div>
+          <div class="panel p-ide">
+            <p>Install the Cline extension in your editor of choice.</p>
+            <p class="ide-row"><span>VS Code</span><span>JetBrains</span><span>Cursor</span><span>Windsurf</span></p>
+            <p>Free, open source, no account required.</p>
+            <a class="explore" href="#">Explore Cline for IDEs <span aria-hidden="true">→</span></a>
+          </div>
+          <div class="panel p-sdk">
+            <p>Embed the agent runtime that powers Cline in your own apps.</p>
+            <p class="codehead">TypeScript &amp; JavaScript</p>
+            <p class="code">$ npm install @cline/sdk <a class="copy" href="#">Copy</a></p>
+            <p>TypeScript SDK with plugin system.</p>
+            <a class="explore" href="#">Explore Cline SDK <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <img class="canvas" src="assets/canvas-1.png" alt="" width="383" height="361">
+      <span class="chip c1">Automate</span>
+      <span class="chip c2">Understand</span>
+      <span class="chip c3">Refactor</span>
+    </div>
+  </div>
+</section>
+
+<!-- §2 Stats strip -->
+<section class="stats" aria-label="Adoption">
+  <span class="stat-pill"><img src="assets/18-vs-code-insiders.svg" alt="" width="20" height="20"><img src="assets/48-github.svg" alt="" width="20" height="20"> <strong>11M+ installs</strong> across all platforms marketplace + open vsx registry</span>
+  <span class="stat-pill"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 1.5l1.8 3.9 4.2.4-3.2 2.8.9 4.1L8 10.4l-3.7 2.3.9-4.1-3.2-2.8 4.2-.4z" fill="none" stroke="currentColor"/></svg> <strong>70.1k stars</strong></span>
+</section>
+
+<!-- §3 Logos -->
+<section class="logos" aria-labelledby="h-logos">
+  <h2 id="h-logos">Trusted by developers and leaders at</h2>
+  <div class="logo-grid">
+    <span class="tile"><img src="assets/22-samsung-logo.svg" alt="Samsung" ></span>
+    <span class="tile"><img src="assets/23-salesforce-logo.svg" alt="Salesforce" ></span>
+    <span class="tile"><img src="assets/24-oracle-logo.svg" alt="Oracle" ></span>
+    <span class="tile"><img src="assets/25-amazon-logo.svg" alt="Amazon" ></span>
+    <span class="tile"><img src="assets/26-lg-logo.svg" alt="LG" ></span>
+    <span class="tile"><img src="assets/27-globant-logo.svg" alt="Globant" ></span>
+    <span class="tile"><img src="assets/28-microsoft-logo.svg" alt="Microsoft" ></span>
+    <span class="tile"><img src="assets/29-ebay-logo.svg" alt="eBay" ></span>
+    <span class="tile"><img src="assets/30-visa-logo.svg" alt="Visa" ></span>
+    <span class="tile"><img src="assets/31-ibm-logo.svg" alt="IBM" ></span>
+  </div>
+</section>
+
+<!-- §4 Demo -->
+<section class="demo" aria-labelledby="h-demo">
+  <h2 id="h-demo">See Cline at work</h2>
+  <p class="sub">One agent across your IDE, terminal, and SDK. Pick a task and watch it run.</p>
+  <div class="vtabs">
+    <a href="#side-understand" class="on">Understand</a><a href="#side-refactor">Refactor</a><a href="#side-automate">Automate</a>
+  </div>
+  <div class="demo-grid">
+    <figure class="frame">
+      <div class="frame-nav" aria-hidden="true"><span>‹</span><span>›</span></div>
+      <img src="assets/57-video-poster.jpg" alt="Cline editing code in the IDE" width="975" height="535">
+      <figcaption>Built with the model labs <span>·</span> 250+ contributors <span>·</span> Apache 2.0 open source</figcaption>
+    </figure>
+    <div class="side">
+      <div class="side-block" id="side-understand"><h3>Understand your codebase</h3><p>See how a codebase is structured and ask Cline questions about files, dependencies, and behavior.</p></div>
+      <div class="side-block" id="side-refactor"><h3>Refactor large codebases</h3><p>Make coordinated changes across large codebases while Cline keeps imports, types, and behavior consistent.</p></div>
+      <div class="side-block" id="side-automate"><h3>Automate with Cline CLI</h3><p>Use Cline CLI in scripts, cron jobs, and CI pipelines to run recurring checks, updates, and custom workflows.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- §5 Features -->
+<section class="features" aria-labelledby="h-feat">
+  <p class="eyebrow">WHAT CLINE DOES</p>
+  <h2 id="h-feat">Everything an agent should do, in your editor and your terminal.</h2>
+  <p class="sub">Open source. Plan-and-Act. Every model. No vendor lock-in.</p>
+  <div class="feat-grid">
+    <div class="feat"><h3>Edits across your project</h3><p>Coordinated multi-file changes with linter-aware fixes, diffs, checkpoints, and one-click undo on every step.</p></div>
+    <div class="feat"><h3>Runs bash commands</h3><p>Executes in your terminal and reacts to output as it appears. Long-running dev servers, tests, deploys, all handled live.</p></div>
+    <div class="feat"><h3>Plan, then Act</h3><p>Toggle Plan mode to align on a strategy, then Act to execute. Approve every step, or flip auto-approve for autopilot.</p></div>
+    <div class="feat"><h3>Rules and Skills</h3><p>Ship .clinerules with your repo to teach the agent your coding standards, architecture, and deployment conventions.</p></div>
+    <div class="feat"><h3>Every model, your choice</h3><p>Claude, GPT, Gemini, local Ollama / LM Studio, or any OpenAI-compatible endpoint. Bring your own key or your own weights.</p></div>
+    <div class="feat"><h3>Extend with MCP and plugins</h3><p>Register custom tools and lifecycle hooks via the SDK. Plug in MCP servers for databases, APIs, and infrastructure.</p></div>
+    <div class="feat"><h3>Multi-agent teams and schedules</h3><p>Coordinator agents delegate to specialists with their own tools and context. Run them on cron for recurring automations.</p></div>
+    <div class="feat"><h3>Connect to Slack, Linear, and CI</h3><p>Chat with the agent from Slack, Discord, Telegram, or Linear. Run it headlessly inside GitHub Actions, GitLab, or any pipeline.</p></div>
+  </div>
+  <a class="docs-link" href="#">Read the full docs <span aria-hidden="true">→</span></a>
+</section>
+
+<!-- §6 Providers -->
+<section class="providers" aria-labelledby="h-prov">
+  <h2 id="h-prov">Any model, your infrastructure</h2>
+  <p class="sub">Cline works with every major provider. Bring your own key, your own endpoint, or your own weights and keep your workflow exactly the same.</p>
+  <p class="eyebrow dark">SUPPORTED PROVIDERS</p>
+  <div class="prov-grid">
+    <span><img src="assets/32-anthropic.svg" alt="Anthropic" ></span>
+    <span><img src="assets/33-openai.svg" alt="OpenAI" ></span>
+    <span><img src="assets/34-google.svg" alt="Google" ></span>
+    <span><img src="assets/35-aws-bedrock.svg" alt="AWS Bedrock" ></span>
+    <span><img src="assets/36-azure.svg" alt="Azure" ></span>
+    <span><img src="assets/37-gcp-vertex.svg" alt="GCP Vertex" ></span>
+    <span><img src="assets/38-ollama.svg" alt="Ollama" ></span>
+    <span><img src="assets/39-deepseek.svg" alt="DeepSeek" ></span>
+    <span><img src="assets/40-xai.svg" alt="xAI" ></span>
+    <span><img src="assets/41-mistral.svg" alt="Mistral" ></span>
+    <span><img src="assets/42-cerebras.svg" alt="Cerebras" ></span>
+    <span><img src="assets/33-openai.svg" alt="OpenAI" ></span>
+  </div>
+  <p class="any">+ any OpenAI-compatible API</p>
+</section>
+
+<!-- §6b Pricing (new section — design-system recipes only) -->
+<section class="pricing" id="pricing" aria-labelledby="h-price">
+  <p class="eyebrow">PRICING</p>
+  <h2 id="h-price">Simple plans that scale with you.</h2>
+  <p class="sub">Start free. Upgrade when your team does.</p>
+  <div class="price-grid">
+    <div class="price-card">
+      <h3>Open Source</h3>
+      <p class="price">Free</p>
+      <p class="per">free forever</p>
+      <ul>
+        <li>Every model, your key</li>
+        <li>IDE, CLI and Desktop</li>
+        <li>Apache 2.0 open source</li>
+      </ul>
+      <a class="dl" href="#">Download Cline</a>
+    </div>
+    <div class="price-card hot">
+      <h3>Team</h3>
+      <p class="price">$20</p>
+      <p class="per">per developer / month</p>
+      <ul>
+        <li>Shared billing + usage</li>
+        <li>Rules and Skills sync</li>
+        <li>Priority support</li>
+      </ul>
+      <a class="btn-dark" href="#">Start a trial</a>
+    </div>
+    <div class="price-card">
+      <h3>Enterprise</h3>
+      <p class="price">Custom</p>
+      <p class="per">annual billing</p>
+      <ul>
+        <li>SSO and audit log</li>
+        <li>Your infrastructure</li>
+        <li>Dedicated support</li>
+      </ul>
+      <a class="dl" href="#">Contact Sales</a>
+    </div>
+  </div>
+  <p class="any">Prices in USD. Cancel anytime.</p>
+</section>
+
+<!-- §6c Compare plans (new — table recipe, observed tokens only) -->
+<section class="compare" aria-labelledby="h-compare">
+  <h2 id="h-compare">Compare plans in detail.</h2>
+  <div class="table-scroll">
+  <table class="plan-table">
+    <thead>
+      <tr><th scope="col"><span class="vh">Feature</span></th><th scope="col">Open Source</th><th scope="col" class="hot">Team</th><th scope="col">Enterprise</th></tr>
+    </thead>
+    <tbody>
+      <tr><th scope="row">Price</th><td>Free</td><td class="hot">$20 / dev / mo</td><td>Custom</td></tr>
+      <tr><th scope="row">Models</th><td>Every model, your key</td><td class="hot">Every model, one bill</td><td>Every model, your endpoint</td></tr>
+      <tr><th scope="row">IDE, CLI and Desktop</th><td>✓</td><td class="hot">✓</td><td>✓</td></tr>
+      <tr><th scope="row">Rules and Skills sync</th><td>—</td><td class="hot">✓</td><td>✓</td></tr>
+      <tr><th scope="row">SSO and audit log</th><td>—</td><td class="hot">—</td><td>✓</td></tr>
+      <tr><th scope="row">Support</th><td>Community</td><td class="hot">Priority</td><td>Dedicated</td></tr>
+      <tr class="cta-row"><th scope="row"><span class="vh">Get started</span></th><td><a class="dl" href="#">Download</a></td><td class="hot"><a class="btn-dark" href="#">Start a trial</a></td><td><a class="dl" href="#">Contact Sales</a></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- §6d FAQ (new — details/summary accordion, zero-JS) -->
+<section class="faq" aria-labelledby="h-faq">
+  <p class="eyebrow">FAQ</p>
+  <h2 id="h-faq">Questions, answered.</h2>
+  <div class="faq-list">
+    <details open><summary>Which models does Cline work with?</summary><p>Claude, GPT, Gemini, local Ollama / LM Studio, or any OpenAI-compatible endpoint. Bring your own key or your own weights.</p></details>
+    <details><summary>Do I need an account?</summary><p>No. The open source agent is free, with no account required.</p></details>
+    <details><summary>Can I use my own endpoint and infrastructure?</summary><p>Yes. Bring your own key, your own endpoint, or your own weights and keep your workflow exactly the same.</p></details>
+    <details><summary>How is Cline licensed?</summary><p>Apache 2.0 open source, with 250+ contributors across the model labs.</p></details>
+  </div>
+</section>
+
+<!-- §7 CTA -->
+<section class="cta" aria-labelledby="h-cta">
+  <h2 id="h-cta">Ready to experience AI coding without limits?</h2>
+  <a class="btn-dark" href="#">Get Started</a>
+</section>
+</main>
+
+<!-- Footer -->
+<footer class="foot">
+  <div class="foot-top">
+    <div class="foot-brand">
+      <img src="assets/43-cline-logo.svg" alt="Cline" width="110" height="26">
+      <p>Transform your engineering team with a fully collaborative AI partner. Open source, fully extensible, and built to amplify strategic impact.</p>
+    </div>
+    <nav class="foot-cols" aria-label="Footer">
+      <div><h4>Product</h4><a href="#">Docs</a><a href="#">Models</a><a href="#">Cloud</a><a href="#">Enterprise</a><a href="#">MCP Marketplace</a><a href="#">IDE</a><a href="#">CLI</a><a href="#">SDK</a><a href="#">ClinePass</a></div>
+      <div><h4>Community</h4><a href="#">Discord</a><a href="#">Reddit</a><a href="#">GitHub Discussions</a><a href="#">Blog</a><a href="#">Learn</a></div>
+      <div><h4>Support</h4><a href="#">GitHub Issues</a><a href="#">Contact Sales</a><a href="#">Support</a><a href="#">FAQ</a></div>
+      <div><h4>Company</h4><a href="#">Careers</a><a href="#">Brand</a><a href="#">Terms</a><a href="#">Privacy</a><a href="#">Changelog</a></div>
+    </nav>
+    <form class="news-form" action="#">
+      <h4>Stay updated on Cline's evolution</h4>
+      <p><input type="email" placeholder="Email address" aria-label="Email address"> <button type="submit">Subscribe</button></p>
+    </form>
+  </div>
+  <div class="foot-base">
+    <span class="socials"><img src="assets/44-discord.svg" alt="Discord" width="18" height="18"><img src="assets/45-x-twitter.svg" alt="X" width="18" height="18"><img src="assets/46-linkedin.svg" alt="LinkedIn" width="18" height="18"><img src="assets/47-reddit.svg" alt="Reddit" width="18" height="18"><img src="assets/48-github.svg" alt="GitHub" width="18" height="18"></span>
+    <span>© 2026 Cline Bot Inc. All rights reserved.</span>
+  </div>
+</footer>
+
+<!-- Cookie bar (checkbox-dismiss, zero-JS) -->
+<input type="checkbox" id="cookie-x" class="vh">
+<div class="cookie" role="dialog" aria-label="Cookie consent">
+  <p>We use cookies to enhance your experience, analyze traffic, and personalize content. By clicking 'Accept', you consent to our use of cookies. Learn more in our <a href="#">Privacy Notice</a>.</p>
+  <div class="cookie-btns">
+    <label for="cookie-x">Decline Non-Essential</label>
+    <details class="prefs"><summary>Manage Preferences</summary><span class="prefs-note">Essential cookies stay on; analytics and personalization stay off until you accept.</span></details>
+    <label for="cookie-x" class="acc">Accept All</label>
+  </div>
+</div>
+
+</body>
+</html>
