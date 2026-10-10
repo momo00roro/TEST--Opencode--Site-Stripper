@@ -18,13 +18,12 @@ Cloudflare Pages + Workers on the **Free tier only**. No VPS, Docker, external b
 ## How it works
 
 ```text
-Static UI (web/: product page at /, analyzer at /app/) ──POST /api/analyze──▶ Worker API ──▶ Browser Rendering (Chromium)
-        │                                       │  one session, sequential tabs,
-        │                                       ▼  close each tab immediately
-        │                          Bounded versioned observations (no docs, no ZIP)
-        ▼
-Browser renders Markdown/JSON/theme files, validates the package,
-assembles a STORE ZIP client-side, triggers download
+Cloudflare Pages (dist/site): static marketing routes only
+Existing Cloudflare Worker API ──▶ Browser Rendering (Chromium)
+Local Node server: marketing routes + analyzer at /app/ + local /api/analyze
+        │                         one session, sequential tabs
+        ▼                         Bounded observations; local UI renders files
+Local analyzer assembles the STORE ZIP in the browser
 ```
 
 Heavy work runs inside Chromium (`page.evaluate`) or the client — never in Worker JavaScript (10 ms CPU budget). The Worker validates, sequences, and passes observations through.
@@ -35,7 +34,7 @@ Requires Node ≥ 20 and an installed Chrome/Edge.
 
 ```sh
 npm install
-npm run dev -w worker        # homepage http://localhost:8787/; analyzer http://localhost:8787/app/
+npm run dev:local -w worker  # marketing pages http://localhost:8787/; analyzer http://localhost:8787/app/
 ```
 
 Or on the standing local port with auto-restart:
@@ -44,13 +43,14 @@ Or on the standing local port with auto-restart:
 ./start-server.bat           # homepage http://localhost:8917/; analyzer http://localhost:8917/app/
 ```
 
-Use the homepage to read about alpha access, then open `/app/` to analyze a site (up to 10 pages), inspect captures and raw JSON, and download the ZIP. Alpha access does not create an account or require payment.
+The local server includes the marketing pages and analyzer at `/app/`. The analyzer is intentionally excluded from the hosted Pages bundle. Sign-up and sign-in screens validate fields in the browser and navigate to completion screens without creating accounts or saving submitted information.
 
 ## Commands
 
 ```sh
 npm run typecheck -w worker  # tsc --noEmit, must be clean
-npm test -w worker           # vitest, 386 tests across 27 files (run one file at a time; full suite OOMs)
+npm test -w worker           # vitest (run focused test files individually; full suite may exceed memory)
+npm run build:site            # create allowlisted marketing-only bundle at dist/site/
 npm run dev:remote -w worker # local code vs remote Cloudflare resources (hosted verification)
 npm run deploy -w worker     # deploy the Worker API (manual fallback)
 npm run deploy:ui            # deploy the Pages UI (manual fallback)
@@ -62,20 +62,19 @@ Three Cloudflare targets, two local modes. Same wrangler, different commands:
 
 | URL | What | Project / name | How it deploys |
 |---|---|---|---|
-| `https://site-stripper-ui.pages.dev` | **Product homepage** (the analyzer is at `/app/`) | Pages `site-stripper-ui` | CI on push to `master` (gated) |
+| `https://site-stripper-ui.pages.dev` | **Site Stripper marketing site** (marketing, sample-pack, and account screens) | Pages `site-stripper-ui` | CI builds and uploads `dist/site` on push to `master` |
 | `https://site-stripper-api.momo00roro.workers.dev` | **Production API** (`POST /api/analyze`, `/health`) | Worker `site-stripper-api` | CI on push to `master` (gated) |
 | `https://site-stripper-tests.pages.dev` | **Rebuild gallery** (15 one-prompt clones + scores, nothing else) | Pages `site-stripper-tests` | Manual direct upload (never CI) |
 | `https://<hash>.site-stripper-ui.pages.dev` | **Preview snapshots** (one deploy frozen in time — not production) | Pages `site-stripper-ui` | Every CI deploy also leaves one |
 | `http://localhost:8917` | **Local full capture** (unlimited, heaviest fidelity track) | `start-server.bat` → `tsx worker/local/server.ts` | Local process, restart after worker edits |
-| `http://localhost:8787` | **Local wrangler dev** (hosted-parity check) | `npm run dev -w worker` | `wrangler dev` / `dev:remote` |
+| `http://localhost:8787` | **Local Node server** (marketing site and analyzer at `/app/`) | `npm run dev:local -w worker` | Local development |
 
 ### Target 1 — Production UI (`site-stripper-ui.pages.dev`)
 
-The product page lives at `/`; the existing analyzer and client-side ZIP assembly live at `/app/`.
-Static files are deployed from `web/`. The analyzer's `<meta name="api-base">` in `web/app/index.html` points at the Worker
-URL (same-origin does not apply once UI and API live on different domains).
+The marketing site lives at `/`; sign-up, sign-in, and the sample-pack explorer have their own static routes. The analyzer and client-side ZIP assembly remain local at `/app/` and are not included in the hosted upload.
+Static files are copied from an explicit allowlist in `web/` to `dist/site/`. The analyzer's source and app-only assets remain in `web/` for local development and are excluded from that upload.
 
-- CI: `npx wrangler pages deploy web --project-name site-stripper-ui --branch ${{ github.ref_name }}`
+- CI: `npm run build:site`, then `npx wrangler pages deploy dist/site --project-name site-stripper-ui --branch ${{ github.ref_name }}`
   — `--branch master` is what promotes the upload to **production** instead of
   a preview. Without it, CI's detached HEAD produces preview-only deploys and
   production keeps serving stale HTML.
@@ -122,7 +121,7 @@ Both paths ship the same files. The difference is who runs the checks and how
 many deployers exist:
 
 - **GitHub Actions (what we use):** every push runs `typecheck` + the full
-  386-test suite first; a red suite blocks the deploy. One deployer (repo-pinned
+  test suite first; a red suite blocks the deploy. One deployer (repo-pinned
   Wrangler v4 on Node 22 via `npx`, in CI) pushes both the Worker and the Pages
   UI, including the `--branch master` flag so the upload promotes the
   production environment instead of a preview. Secrets live only as GitHub
@@ -144,12 +143,12 @@ is the one printer that only prints after homework passes.
 ### ELI10: the whole deployment, in 5 lines
 
 1. You `git push` your homework to GitHub.
-2. A robot (Actions) checks it: spelling (typecheck), then all 386 quiz answers (tests).
+2. A robot (Actions) checks it: spelling (typecheck), then the test suite.
 3. Fail = stop, nothing ships. Pass = keep going.
-4. Robot mails the brain (Worker API) then the face (Pages UI) to Cloudflare's computers.
-5. Your site updates at `site-stripper-ui.pages.dev`, talking to the brain at
-   `site-stripper-api.momo00roro.workers.dev`. (The gallery updates only when
-   a human runs the showcase upload.)
+4. Robot deploys the Worker API and the allowlisted marketing site to Cloudflare.
+5. Your site updates at `site-stripper-ui.pages.dev`. The analyzer is available
+   through local development at `/app/`; the showcase gallery updates only when
+   a human runs its separate upload.
 
 ### One-time setup (already done — recorded here, never edit secrets in code)
 
@@ -220,10 +219,11 @@ Never performed: form submits, control clicks, CAPTCHA solving, behavior replay.
 
 ## Product and analyzer UI
 
-The root page presents Site Stripper as a CHEEE product with an illustrated
-mascot, orange and blue accents, an alpha access path, and no account or
-payment flow. The existing analyzer remains at `/app/` and retains its
-light-first, Cline-influenced interface:
+The root page presents Site Stripper with an illustrated mascot, purple and
+lavender surfaces, yellow accents, marketing pages, a sample-pack explorer,
+and browser-only account screens. Those screens do not create accounts or
+retain submitted information. The analyzer remains at `/app/` in the local
+Node server and retains its light-first, Cline-influenced interface:
 
 - Light-first theme: `#F8FAFB` canvas, `#151516` ink, `#9F58FA` accent,
   DM Sans display + Inter body, hairline borders, eyebrow section labels.
@@ -235,12 +235,12 @@ light-first, Cline-influenced interface:
   capture notice that explains screenshots are included when captured. Raw
   JSON remains in a width-clamped accordion.
 - Identity: the existing monster mark in `web/favicon.svg` and the analyzer
-  lockup. The localhost homepage injects a visible **Launch app** link; the
-  hosted static page does not contain that development shortcut.
+  lockup. The hosted `dist/site/` bundle excludes the analyzer UI and app-only
+  assets; local developers open `/app/` directly.
 
 ## Status
 
-All CF01–CF31 implemented; `npm run typecheck` clean; 386/386 tests. Verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). Hosted production verified 2026-09-26 (GMT+8): canonical UI `https://site-stripper-ui.pages.dev` serves wired `api-base`, Worker `/health` reports `schemaVersion` 0.2.0, and `https://example.com` (max pages 1) produced a downloadable ZIP (extracted to gitignored `.examples/2026-09-26__example.com/`). UI reskin + theme toggle + tab/grid fixes verified on localhost 2026-09-27 (GMT+8) via headless-Chromium end-to-end (`https://example.com` → Selected tab lavender at load, screenshot saved to repo-root `screenshot-localhost-2026-09-27.png`, untracked).
+CF01–CF31 are implemented. The analysis pipeline was verified against 15+ live archetypes (portfolios, Shopify/WooCommerce, docs sites, CJK, RTL, single-pagers, award sites, bot walls). The prior hosted analyzer release was verified 2026-09-26 (GMT+8); the current Pages source is a marketing-only site, and its analyzer remains local at `/app/`.
 
 CF14–CF20 fidelity pack (2026-09-29): video posters, computed behaviors, `data/layout.json`, `REBUILD.md`, heading breaks, split rehydration budget, rotation re-sample. CF21–CF25 video capture (2026-09-30/10-01): facades render playing frames via autoplay → isolated render → click fallback, composited into section stills; uncaptured posterless facades get fetched Vimeo thumbnails (zero browser-minutes) instead of blank bands. figma.com Vimeo grid fully covered 2026-10-01 (4 motion-verified + 6 stills, 10/10 facades; see `docs/plans/2026-09-30-video-capture.md`).
 

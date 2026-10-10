@@ -22,10 +22,11 @@ The product analyzes websites. It does not attempt to clone arbitrary JavaScript
 
 ### 1. Hosted Cloudflare environment
 
-- Cloudflare Pages hosts the static CHEEE product page at `/` and analyzer at `/app/`.
+- Cloudflare Pages hosts the static Site Stripper marketing site at `/`; its allowlisted upload excludes the analyzer UI and app-only assets.
 - A Cloudflare Worker exposes the API.
 - Browser Rendering supplies headless Chromium through the `BROWSER` binding.
-- The alpha opens the analyzer without accounts, sign-in, checkout, or payment processing.
+- Marketing pages include browser-only sign-up and sign-in screens. They validate fields and navigate to generic completion screens, but do not create accounts, send submitted values, or persist them.
+- The public marketing bundle does not expose the analyzer. No hosted account, checkout, or payment flow is implemented.
 - Production has no history, queue, or permanent result storage.
 
 Relevant hosted configuration:
@@ -49,8 +50,8 @@ The local path exists for development, debugging, and verification without requi
 
 Local behavior:
 
-- `worker/local/server.ts` serves the product page at `/`, analyzer at `/app/`, and API routes from one local Node server.
-- The local homepage injects a visible `Launch app` link; the hosted static page does not include that development shortcut.
+- `worker/local/server.ts` serves the marketing pages at `/`, analyzer at `/app/`, and API routes from one local Node server.
+- The local marketing homepage has no analyzer shortcut; developers can open `/app/` directly.
 - `worker/local/launcher.ts` exposes a local Chromium backend.
 - `worker/local/chrome.ts` discovers an installed Chrome/Edge executable.
 - `CHROME_PATH`, `PUPPETEER_EXECUTABLE_PATH`, or `CHROME_BIN` can explicitly select the browser.
@@ -128,25 +129,27 @@ These are the limits that actually shape the hosted design. Verify them before e
 ## Architecture
 
 ```text
-Cloudflare Pages static UI
-  index.html (product page) / app/index.html (analyzer) / app.js / package-docs.mjs / styles.css / vendor/zip-store.js
-        │ POST /api/analyze, JSON
-        ▼
-Cloudflare Worker API
+Cloudflare Pages (dist/site/, marketing routes only)
+  index.html / features/ / how-it-works/ / sample-pack/ / faq/ / sign-up/ / sign-in/
+
+Existing Cloudflare Worker API ──▶ Browser Rendering
   - validates the request
   - resolves and validates the target
-  - opens one Browser Rendering session
-  - opens, captures, extracts, and closes one tab at a time
+  - opens one Browser Rendering session and processes one tab at a time
   - returns bounded versioned observations and metadata without duplicate generated documents
+
+Local Node server
+  marketing routes + analyzer at /app/ + local /api/analyze
+        │ uses local Chromium backend
         ▼
-Pages UI assembles the ZIP client-side and triggers download
+Local analyzer renders documentation and assembles the ZIP client-side
 ```
 
 Local development uses the same conceptual pipeline:
 
 ```text
 Local Node server
-  - serves the product page at / and analyzer at /app/
+  - serves the marketing pages at / and analyzer at /app/
   - handles /health and /api/*
   - injects the local Chromium launcher
   - permits local-only conveniences such as Node base64 encoding
@@ -156,14 +159,12 @@ The client-side ZIP step happens in the user's browser. That is not a hosted ser
 
 ## User flow
 
-1. Open the analyzer at `/app/` and enter a public HTTP(S) URL. Alpha access does not require an account or payment.
-2. The backend validates the request and resolves the target safely.
-3. It opens one browser session.
-4. It fetches `robots.txt` and `sitemap.xml` with plain `fetch`, not browser time, to improve discovery.
-5. It reads visible primary-navigation links and ranks likely key pages.
-6. It analyzes the homepage plus up to nine additional same-origin pages, one closed tab at a time.
-7. It captures bounded screenshots and runs structured in-page extraction.
-8. The Worker streams the bundle; the UI builds and downloads the ZIP.
+1. Visitors browse the marketing pages and can interact with the browser-only sign-up/sign-in screens.
+2. Those forms validate fields and navigate to generic completion screens; no account is created and submitted information is not stored or sent.
+3. The analyzer is opened at `/app/` through the local development server, where a developer enters a public HTTP(S) URL.
+4. The backend validates the request and resolves the target safely, then discovers and analyzes same-site pages in one browser session.
+5. It captures bounded screenshots and runs structured in-page extraction.
+6. The analysis API streams observations; the local UI builds and downloads the ZIP.
 
 The first version is synchronous. It has no accounts, job history, queue, or permanent result storage.
 
@@ -482,9 +483,8 @@ The local server must preserve the same validation, routing, pipeline, extractio
 
 Required local behavior:
 
-- Serve `web/` statically.
-- Serve the product page at `/` and the analyzer at `/app/`.
-- Insert the visible `Launch app` link only in the locally served homepage.
+- Serve the marketing pages from the public bundle at `/`.
+- Serve the marketing pages at `/` and the analyzer at `/app/`.
 - Expose `/health`.
 - Expose `/api/analyze`.
 - Use the shared request router and pipeline.
