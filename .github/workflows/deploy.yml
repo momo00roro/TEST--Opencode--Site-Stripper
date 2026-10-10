@@ -46,8 +46,11 @@ jobs:
       # --branch pins the deployment to the pushing branch so master lands on
       # production. Without it, CI's detached HEAD produces preview-only
       # deployments and production keeps serving stale HTML.
+      - name: Build public Pages bundle
+        run: npm run build:site
+
       - name: Deploy Pages UI
-        run: npx wrangler pages deploy web --project-name site-stripper-ui --branch ${{ github.ref_name }}
+        run: npx wrangler pages deploy dist/site --project-name site-stripper-ui --branch ${{ github.ref_name }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

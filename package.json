@@ -11,7 +11,8 @@
     "typecheck": "npm run typecheck -w worker",
     "dev": "npm run dev -w worker",
     "deploy:api": "npm run deploy -w worker",
-    "deploy:ui": "wrangler pages deploy web --project-name site-stripper-ui"
+    "build:site": "node scripts/build-public-site.mjs",
+    "deploy:ui": "npm run build:site && wrangler pages deploy dist/site --project-name site-stripper-ui"
   },
   "engines": {
     "node": ">=20"

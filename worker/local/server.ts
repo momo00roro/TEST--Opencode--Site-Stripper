@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { handleRequest } from "../src/app.js";
 import type { Env } from "../src/types.js";
 import { createLocalLauncher, describeLocalBackend } from "./launcher.js";
-import { injectLocalLaunchButton, resolveLocalStaticPath } from "./static.js";
+import { resolveLocalStaticPath } from "./static.js";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const webRoot = resolve(here, "..", "..", "web");
@@ -59,10 +59,7 @@ async function serveStatic(pathname: string, res: ServerResponse): Promise<void>
       res.writeHead(404).end("Not found");
       return;
     }
-    const source = await readFile(target);
-    const body = pathname === "/"
-      ? Buffer.from(injectLocalLaunchButton(source.toString("utf8")), "utf8")
-      : source;
+    const body = await readFile(target);
     res.writeHead(200, {
       "content-type": MIME[extname(target).toLowerCase()] ?? "application/octet-stream",
       "cache-control": "no-store",

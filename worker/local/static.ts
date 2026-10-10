@@ -1,8 +1,16 @@
 import { join, resolve, sep } from "node:path";
 
-const LOCAL_LAUNCH_MARKER = "<!-- LOCAL_LAUNCH_BUTTON -->";
-const LOCAL_LAUNCH_LINK = '<a class="local-launch" href="/app/">Launch app</a>';
-const INDEX_ROUTES = new Set(["app", "alpha"]);
+const INDEX_ROUTES = new Set([
+  "app",
+  "features",
+  "how-it-works",
+  "sample-pack",
+  "faq",
+  "sign-up",
+  "sign-in",
+  "sign-up/complete",
+  "sign-in/complete",
+]);
 
 export function resolveLocalStaticPath(pathname: string, webRoot: string): string | null {
   const root = resolve(webRoot);
@@ -15,8 +23,4 @@ export function resolveLocalStaticPath(pathname: string, webRoot: string): strin
   const target = resolve(join(root, relative));
 
   return target === root || target.startsWith(`${root}${sep}`) ? target : null;
-}
-
-export function injectLocalLaunchButton(html: string): string {
-  return html.replace(LOCAL_LAUNCH_MARKER, LOCAL_LAUNCH_LINK);
 }
