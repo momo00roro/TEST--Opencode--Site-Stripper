@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="See how Site Stripper turns a public website into a structured rebuild reference pack." />
+    <meta name="theme-color" content="#f8f7fa" />
+    <title>How it works — Site Stripper</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="stylesheet" href="../landing.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="brand" href="../index.html" aria-label="Site Stripper home"><img class="brand__mark" src="../favicon.svg" alt="" width="38" height="38" /><span class="brand__name">Site Stripper</span></a>
+        <nav class="nav-links" aria-label="Main navigation"><a href="../features/index.html">Features</a><a aria-current="page" href="../how-it-works/index.html">How it works</a><a href="../sample-pack/index.html">Sample pack</a><a href="../faq/index.html">FAQ</a></nav>
+        <div class="header-actions"><a class="sign-in" href="../sign-in/index.html">Sign in</a><a class="button button--primary" href="../sign-up/index.html">Sign up <span aria-hidden="true">↗</span></a></div>
+        <details class="mobile-nav"><summary aria-label="Open navigation"><span></span><span></span></summary><nav aria-label="Mobile navigation"><a href="../features/index.html">Features</a><a href="../how-it-works/index.html">How it works</a><a href="../sample-pack/index.html">Sample pack</a><a href="../faq/index.html">FAQ</a><a href="../sign-in/index.html">Sign in</a><a href="../sign-up/index.html">Sign up</a></nav></details>
+      </div>
+    </header>
+    <main id="main">
+      <section class="page-hero"><div class="container page-hero__inner"><p class="eyebrow"><span class="eyebrow__dot" aria-hidden="true"></span> How it works</p><h1>From a public URL to an organized reference.</h1><p>Site Stripper follows a bounded analysis path: discover useful pages, observe their visible structure, and package the resulting evidence.</p></div></section>
+      <section class="section section--compact"><div class="container steps">
+        <article class="step-card"><span class="step-card__number">01 · DISCOVER</span><h3>Choose a public site</h3><p>Enter an HTTP or HTTPS URL. The analyzer validates the target and looks for useful same-site pages.</p></article>
+        <article class="step-card"><span class="step-card__number">02 · OBSERVE</span><h3>Map pages and design details</h3><p>Selected pages are inspected for navigation, headings, content, layout, tokens, controls, and available captures.</p></article>
+        <article class="step-card"><span class="step-card__number">03 · ORGANIZE</span><h3>Review the reference pack</h3><p>Bounded observations are rendered into documentation and machine-readable files with coverage and limitations.</p></article>
+        <article class="step-card"><span class="step-card__number">04 · DOWNLOAD</span><h3>Build the ZIP in your browser</h3><p>The browser validates the package and assembles the final ZIP, including capture binaries when they are available.</p></article>
+      </div></section>
+      <section class="section section--muted"><div class="container page-body__grid"><aside class="page-side" aria-label="On this page"><a href="#limits">Hosted limits</a><a href="#boundaries">Analysis boundaries</a><a href="../sample-pack/index.html">Sample pack</a></aside><div class="prose"><section id="limits"><h2>Hosted run limits</h2><p>One hosted run can analyze up to 10 selected pages in up to 150 seconds. Screenshot capacity is bounded; slow, protected, or media-heavy pages may return partial results.</p></section><section id="boundaries"><h2>What the observations mean</h2><p>The pack describes what the analyzer could observe at capture time. It is evidence for a separate rebuild workflow, not an offline copy of the source website.</p><ul><li>Source-site forms are not submitted.</li><li>CAPTCHA and bot-verification challenges are not bypassed.</li><li>Arbitrary JavaScript interactions are not replayed.</li><li>Screenshot files appear only when captures succeed and fit the run limits.</li></ul></section></div></div></section>
+      <section class="section"><div class="container callout"><div><p class="eyebrow">See the result</p><h2>Explore the files a run can produce.</h2></div><a class="button button--primary callout__action" href="../sample-pack/index.html">Open sample pack <span aria-hidden="true">↗</span></a></div></section>
+    </main>
+    <footer class="site-footer"><p>© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK</p></footer>
+  </body>
+</html>

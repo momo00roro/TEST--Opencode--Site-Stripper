@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Create a Site Stripper account." />
+    <meta name="theme-color" content="#f8f7fa" />
+    <title>Create your account — Site Stripper</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="stylesheet" href="../landing.css" />
+  </head>
+  <body class="auth-page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="brand" href="../index.html" aria-label="Site Stripper home"><img class="brand__mark" src="../favicon.svg" alt="" width="38" height="38" /><span class="brand__name">Site Stripper</span></a>
+        <div class="header-actions"><a class="sign-in" href="../sign-in/index.html">Sign in</a><a class="button button--quiet" href="../index.html">Back to site</a></div>
+      </div>
+    </header>
+    <main id="main" class="auth-main">
+      <div class="auth-intro">
+        <a class="auth-back" href="../index.html"><span aria-hidden="true">←</span> Back to Site Stripper</a>
+        <p class="eyebrow">Get started</p>
+        <h1>Create your account</h1>
+        <p>Set up your Site Stripper account and get ready to build with clearer references.</p>
+      </div>
+      <form id="signup-form" class="auth-card" aria-label="Create a Site Stripper account" autocomplete="off" novalidate>
+        <div class="auth-card__fields">
+          <div class="field field--full"><label for="full-name">Full name</label><input id="full-name" type="text" autocomplete="off" placeholder="Jane Smith" required /></div>
+          <div class="field field--full"><label for="signup-email">Email address</label><input id="signup-email" type="email" autocomplete="off" placeholder="jane@example.com" required /></div>
+          <div class="field field--full"><label for="company">Company <span>(optional)</span></label><input id="company" type="text" autocomplete="off" placeholder="Company name" /></div>
+          <div class="field"><label for="signup-password">Password</label><input id="signup-password" type="password" autocomplete="off" minlength="8" placeholder="At least 8 characters" required /></div>
+          <div class="field"><label for="confirm-password">Confirm password</label><input id="confirm-password" type="password" autocomplete="off" minlength="8" placeholder="Re-enter your password" required /></div>
+        </div>
+        <p id="signup-error" class="auth-error" role="status" aria-live="polite"></p>
+        <button id="signup-submit" class="button button--primary auth-card__submit" type="submit">Create account</button>
+        <p class="auth-switch">Already have an account? <a href="../sign-in/index.html">Sign in</a></p>
+      </form>
+    </main>
+    <footer class="site-footer"><p>© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK</p></footer>
+  </body>
+</html>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Sign in to Site Stripper." />
+    <meta name="theme-color" content="#f8f7fa" />
+    <title>Sign in — Site Stripper</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="stylesheet" href="../landing.css" />
+  </head>
+  <body class="auth-page">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="brand" href="../index.html" aria-label="Site Stripper home"><img class="brand__mark" src="../favicon.svg" alt="" width="38" height="38" /><span class="brand__name">Site Stripper</span></a>
+        <div class="header-actions"><a class="sign-in" href="../sign-up/index.html">Create account</a><a class="button button--quiet" href="../index.html">Back to site</a></div>
+      </div>
+    </header>
+    <main id="main" class="auth-main">
+      <div class="auth-intro">
+        <a class="auth-back" href="../index.html"><span aria-hidden="true">←</span> Back to Site Stripper</a>
+        <p class="eyebrow">Your workspace</p>
+        <h1>Welcome back</h1>
+        <p>Sign in to continue with Site Stripper.</p>
+      </div>
+      <form id="signin-form" class="auth-card" aria-label="Sign in to Site Stripper" autocomplete="off" novalidate>
+        <div class="auth-card__fields">
+          <div class="field field--full"><label for="signin-email">Email address</label><input id="signin-email" type="email" autocomplete="off" placeholder="jane@example.com" required /></div>
+          <div class="field field--full"><label for="signin-password">Password</label><input id="signin-password" type="password" autocomplete="off" placeholder="Enter your password" required /></div>
+        </div>
+        <p id="signin-error" class="auth-error" role="status" aria-live="polite"></p>
+        <button id="signin-submit" class="button button--primary auth-card__submit" type="submit">Sign in</button>
+        <p class="auth-switch">New to Site Stripper? <a href="../sign-up/index.html">Create an account</a></p>
+      </form>
+    </main>
+    <footer class="site-footer"><p>© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK</p></footer>
+  </body>
+</html>
