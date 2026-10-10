@@ -1,0 +1,74 @@
+{
+  "source": "https://example.com/",
+  "files": [
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "content": [
+        "# Website analysis — example.com",
+        "",
+        "Source: https://example.com/",
+        "Pages: 1/1 selected; 1 discovered",
+        "Screenshot captures: 1; binaries included: 1/1",
+        "Browser time: 12.56s",
+        "Observation status: valid",
+        "",
+        "## Analyzed pages",
+        "",
+        "- [Example Domain](pages/home.md) — `/` — priority 1",
+        "",
+        "## Important interpretation",
+        "",
+        "JSON records are canonical bounded observations. Samples are evidence, not exhaustive CSS or interaction replay. See `data/report.json` for caps, omissions, warnings, and confidence."
+      ]
+    },
+    {
+      "path": "data/pages.json",
+      "language": "json",
+      "content": [
+        "[",
+        "  {",
+        "    \"url\": \"https://example.com/\",",
+        "    \"path\": \"/\",",
+        "    \"title\": \"Example Domain\",",
+        "    \"pageType\": \"homepage\",",
+        "    \"isHomepage\": true,",
+        "    \"selected\": true,",
+        "    \"priority\": 1,",
+        "    \"viewport\": { \"width\": 1440, \"height\": 900 }",
+        "  }",
+        "]"
+      ]
+    },
+    {
+      "path": "theme.css",
+      "language": "css",
+      "content": [
+        ":root {",
+        "  --color-1: rgb(158, 158, 255); /* computed-style-sampling/inferred; 1 observation */",
+        "  --color-2: rgb(255, 255, 255); /* computed-style-sampling/inferred; 1 observation */",
+        "  --font-size-1: 16px; /* computed-style-sampling/inferred; 2 observations */",
+        "  --spacing-3: 16px; /* computed-style-sampling/inferred; 1 observation */",
+        "  --font-family-base: system-ui, sans-serif;",
+        "}"
+      ]
+    },
+    {
+      "path": "pages/home.md",
+      "language": "markdown",
+      "content": [
+        "# Example Domain",
+        "",
+        "Path: /",
+        "Type: homepage",
+        "URL: https://example.com/",
+        "Language: en",
+        "Direction: ltr",
+        "",
+        "## Content in source order",
+        "",
+        "This domain is for use in documentation examples without needing permission. This is not a service; avoid relying on it for testing and monitoring purposes."
+      ]
+    }
+  ]
+}

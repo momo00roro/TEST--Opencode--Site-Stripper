@@ -254,10 +254,14 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .sample-shell__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
 .sample-shell__title { margin-left: 8px; color: var(--ink-soft); font-size: 11px; font-weight: 650; }
 .sample-shell__body { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 400px; }
-.sample-tree { padding: 18px 0; border-right: 1px solid var(--line); }
+.sample-tree { max-height: 720px; overflow: auto; padding: 18px 0; border-right: 1px solid var(--line); }
 .sample-tree__group { padding: 0 15px; }
 .sample-tree__group + .sample-tree__group { margin-top: 13px; }
 .sample-tree__heading { margin-bottom: 5px; color: var(--ink-faint); font-size: 9px; font-weight: 820; letter-spacing: 0.12em; text-transform: uppercase; }
+.sample-tree__group > summary { cursor: pointer; list-style: none; }
+.sample-tree__group > summary::-webkit-details-marker { display: none; }
+.sample-tree__group > summary::before { content: "▸"; margin-right: 6px; color: var(--purple); font-size: 10px; }
+.sample-tree__group[open] > summary::before { content: "▾"; }
 .sample-tree__item { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 5px 7px; border-radius: 6px; color: var(--ink-soft); font: 600 10px/1.35 ui-monospace, "SFMono-Regular", Consolas, monospace; }
 .sample-tree__item[aria-current="true"] { background: var(--lavender); color: var(--purple-dark); }
 .sample-tree__item span:first-child { color: var(--purple); }
@@ -269,6 +273,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .sample-code { margin: 19px 0 0; padding: 16px; overflow: auto; border: 1px solid var(--line); border-radius: 9px; background: #faf9fc; color: var(--ink-soft); font: 10px/1.65 ui-monospace, "SFMono-Regular", Consolas, monospace; }
 .sample-shot { width: 100%; max-height: 260px; display: block; margin-top: 18px; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-muted); }
 .sample-note { margin: 16px 0 0; padding: 12px 14px; border-left: 3px solid var(--yellow); background: var(--surface-muted); color: var(--ink-soft); font-size: 11px; }
+.sample-preview { margin-top: 14px; }
+.sample-preview summary { cursor: pointer; color: var(--purple-dark); font-size: 11px; font-weight: 700; }
+.sample-preview .sample-code { margin-top: 9px; }
 
 .faq-list { border-top: 1px solid var(--line-strong); }
 .faq-item { border-bottom: 1px solid var(--line-strong); }

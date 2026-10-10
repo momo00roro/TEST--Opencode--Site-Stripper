@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
 import { buildDocumentationFiles, validateDocumentationPackage } from "../../web/package-docs.mjs";
 import { createStoreZip } from "../src/package/zip-store";
 
@@ -95,6 +96,25 @@ function fixture() {
 }
 
 describe("client documentation generation", () => {
+  it("keeps the public sample tree aligned with generated package paths", async () => {
+    const sample = JSON.parse(await readFile(new URL("../../web/sample-pack/files.json", import.meta.url), "utf8"));
+    const preview = JSON.parse(await readFile(new URL("../../web/sample-pack/preview.json", import.meta.url), "utf8"));
+    const screenshotFiles = {
+      "screenshots/desktop/home.webp": new Uint8Array([1]),
+      "screenshots/mobile/home.webp": new Uint8Array([2]),
+      "screenshots/sections/home-1.webp": new Uint8Array([3]),
+    };
+    const generated = { ...buildDocumentationFiles(fixture(), screenshotFiles).files, ...screenshotFiles };
+    const withoutScreenshots = buildDocumentationFiles(fixture(), {}).files;
+
+    for (const entry of sample.files) expect(generated[entry.path], entry.path).toBeDefined();
+    for (const entry of preview.files) expect(sample.files.some((file) => file.path === entry.path), entry.path).toBe(true);
+    for (const entry of sample.conditional) {
+      expect(entry.whenCaptured).toBe(true);
+      expect(withoutScreenshots[entry.path], entry.path).toBeUndefined();
+    }
+  });
+
   it("renders every documentation output from bounded observations", () => {
     const screenshotFiles = {
       "screenshots/desktop/home.webp": new Uint8Array([1]),

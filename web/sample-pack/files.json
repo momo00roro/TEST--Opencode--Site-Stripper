@@ -1,0 +1,41 @@
+{
+  "source": "example.com",
+  "archiveName": "website-analysis.zip",
+  "files": [
+    { "path": "README.md", "kind": "Markdown guide" },
+    { "path": "REBUILD.md", "kind": "Markdown guide" },
+    { "path": "website-overview.md", "kind": "Markdown guide" },
+    { "path": "information-architecture.md", "kind": "Markdown guide" },
+    { "path": "design-tokens.md", "kind": "Markdown guide" },
+    { "path": "typography.md", "kind": "Markdown guide" },
+    { "path": "content-style.md", "kind": "Markdown guide" },
+    { "path": "imagery-and-video.md", "kind": "Markdown guide" },
+    { "path": "motion-and-interactions.md", "kind": "Markdown guide" },
+    { "path": "responsive-behavior.md", "kind": "Markdown guide" },
+    { "path": "implementation-plan.md", "kind": "Markdown guide" },
+    { "path": "components.md", "kind": "Markdown guide" },
+    { "path": "design-system.md", "kind": "Markdown guide" },
+    { "path": "data/pages.json", "kind": "Page observations" },
+    { "path": "data/tokens.json", "kind": "Design tokens" },
+    { "path": "data/components.json", "kind": "Component observations" },
+    { "path": "data/navigation.json", "kind": "Navigation observations" },
+    { "path": "data/selection.json", "kind": "Page selection" },
+    { "path": "data/interactions.json", "kind": "Interaction observations" },
+    { "path": "data/motion.json", "kind": "Motion observations" },
+    { "path": "data/assets.json", "kind": "Asset manifest" },
+    { "path": "data/report.json", "kind": "Run report" },
+    { "path": "data/layout.json", "kind": "Layout observations" },
+    { "path": "data/responsive-pairs.json", "kind": "Responsive comparisons" },
+    { "path": "pages/home.md", "kind": "Page notes" },
+    { "path": "screenshots/manifest.json", "kind": "Capture manifest" },
+    { "path": "screenshots/desktop/home.webp", "kind": "Desktop capture" },
+    { "path": "theme.css", "kind": "Theme stylesheet" },
+    { "path": "theme.v2.css", "kind": "Theme stylesheet" },
+    { "path": "tailwind.config.js", "kind": "Tailwind configuration" },
+    { "path": "tailwind.theme.mjs", "kind": "Tailwind theme" },
+    { "path": "fonts.css", "kind": "Font stylesheet" }
+  ],
+  "conditional": [
+    { "path": "screenshots/desktop/home.webp", "whenCaptured": true }
+  ]
+}

@@ -47,6 +47,19 @@ describe("Site Stripper public pages", () => {
     expect(copy).not.toMatch(/AI-powered|guaranteed screenshots|CAPTCHA bypass/i);
   });
 
+  it("renders the sample tree and content from its verified package manifest", async () => {
+    const sampleHtml = await page("sample-pack/index.html");
+    const manifest = JSON.parse(await page("sample-pack/files.json"));
+    const preview = JSON.parse(await page("sample-pack/preview.json"));
+    for (const file of manifest.files) expect(sampleHtml).toContain(file.path);
+    for (const file of preview.files) {
+      expect(sampleHtml).toContain(file.path);
+      expect(sampleHtml).toContain(file.content[0]);
+    }
+    expect(sampleHtml).toContain("./assets/example-home.webp");
+    expect(sampleHtml.toLowerCase()).toContain("when captured");
+  });
+
   it("uses the approved purple, lavender, gray, and yellow palette", () => {
     expect(landingStyles).toContain("--purple:");
     expect(landingStyles).toContain("--lavender:");
