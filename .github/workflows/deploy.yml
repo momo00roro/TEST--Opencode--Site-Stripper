@@ -32,6 +32,9 @@ jobs:
       - name: Test
         run: npm test -w worker
 
+      - name: Build public Pages bundle
+        run: npm run build:site
+
       # NOTE: cloudflare/wrangler-action is intentionally NOT used: it installs
       # its own Wrangler (v3) and ignores workingDirectory, so `wrangler deploy`
       # runs without wrangler.jsonc ("Missing entry-point"). npx uses the
@@ -46,9 +49,6 @@ jobs:
       # --branch pins the deployment to the pushing branch so master lands on
       # production. Without it, CI's detached HEAD produces preview-only
       # deployments and production keeps serving stale HTML.
-      - name: Build public Pages bundle
-        run: npm run build:site
-
       - name: Deploy Pages UI
         run: npx wrangler pages deploy dist/site --project-name site-stripper-ui --branch ${{ github.ref_name }}
         env:

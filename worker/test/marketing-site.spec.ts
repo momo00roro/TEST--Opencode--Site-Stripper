@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 const page = async (relativePath: string) =>
   readFile(new URL(`../../web/${relativePath}`, import.meta.url), "utf8");
@@ -31,6 +32,29 @@ describe("Site Stripper public pages", () => {
     expect(home).toContain('href="./faq/index.html"');
     expect(home).toContain('href="./sign-up/index.html"');
     expect(home).toContain('href="./sign-in/index.html"');
+  });
+
+  it("resolves every local page, stylesheet, script, and image link", async () => {
+    const routes = [
+      "index.html",
+      "features/index.html",
+      "how-it-works/index.html",
+      "sample-pack/index.html",
+      "faq/index.html",
+      "sign-up/index.html",
+      "sign-up/complete/index.html",
+      "sign-in/index.html",
+      "sign-in/complete/index.html",
+    ];
+    for (const route of routes) {
+      const sourceUrl = new URL(`../../web/${route}`, import.meta.url);
+      const html = await readFile(sourceUrl, "utf8");
+      for (const match of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
+        const target = new URL(match[1], sourceUrl);
+        if (target.protocol !== "file:") continue;
+        await expect(access(fileURLToPath(target)), `${route} → ${match[1]}`).resolves.toBeUndefined();
+      }
+    }
   });
 
   it("keeps product claims tied to the hosted analyzer behavior", async () => {
