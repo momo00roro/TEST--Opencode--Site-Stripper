@@ -10,6 +10,8 @@ describe("local static routes", () => {
     expect(resolveLocalStaticPath("/", webRoot)).toBe(resolve(webRoot, "index.html"));
     expect(resolveLocalStaticPath("/app", webRoot)).toBe(resolve(webRoot, "app/index.html"));
     expect(resolveLocalStaticPath("/app/", webRoot)).toBe(resolve(webRoot, "app/index.html"));
+    expect(resolveLocalStaticPath("/alpha", webRoot)).toBe(resolve(webRoot, "alpha/index.html"));
+    expect(resolveLocalStaticPath("/alpha/", webRoot)).toBe(resolve(webRoot, "alpha/index.html"));
     expect(resolveLocalStaticPath("/app.js", webRoot)).toBe(resolve(webRoot, "app.js"));
   });
 
