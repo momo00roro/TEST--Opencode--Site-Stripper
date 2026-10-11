@@ -10,7 +10,7 @@ Accept a public website URL, identify the most important pages from its primary 
 
 The product analyzes websites. It does not attempt to clone arbitrary JavaScript or produce a working offline replica.
 
-The public marketing site describes the reference pack as a way to capture a public website's visual DNA and give a coding agent a structured starting point for a new site in the same visual style. Copy includes Claude, Codex, OpenCode, Cursor, and any other AI agent that can read project files. A recorded one-prompt evaluation on a clean content site scored 93.2/100; this is a result for that site and setup, not a universal fidelity guarantee.
+The agent-native workflow presents an AI-powered rebuild path driven by the coding agent the user selects. A local MCP connection lets Claude Code, Codex, OpenCode, Cursor, and any other MCP-compatible AI agent request Site Stripper analysis and focused evidence directly. Site Stripper does not make a model API call. The comprehensive ZIP and copyable prompt remain available for agents that use a manual file handoff. A recorded one-prompt evaluation on a clean content site scored 93.2/100; this is a result for that site and setup, not a universal fidelity guarantee.
 
 ## Non-negotiable constraints
 
@@ -69,6 +69,23 @@ npm run dev:local -w worker
 ```
 
 The local server defaults to port `8787`, or the value of `PORT`.
+
+### Agent-native local MCP workflow (v1.1 concept)
+
+The local server exposes a Streamable HTTP MCP endpoint at `/mcp`, bound to `127.0.0.1`. It validates Host and Origin headers before tool requests reach the MCP handler. `GET /api/agent/activity` exposes the same process-local run and activity state to the `/app/` UI and sets `Cache-Control: no-store`.
+
+The agent tools are read-only and reuse the existing local analysis and package-generation paths:
+
+- `analyze_public_site(url, maxPages?, includeMobile?)` analyzes a public URL, capped at 10 pages, and returns a run ID, coverage, warnings, limitations, and page paths.
+- `get_visual_dna(runId)` returns observed palette, typography, layout, imagery, responsive coverage, and limitations.
+- `get_page_evidence(runId, pagePath)` returns structured observations for one page. Screenshot and downloaded-asset binaries are omitted from this tool response.
+- `get_rebuild_brief(runId)` returns the existing generated `REBUILD.md` content.
+
+The bridge retains at most three runs and expires a completed or failed run after 30 minutes without use. It retains at most 50 short activity events. Run results and events stay in process memory only; the bridge does not write them to a database or disk. Restarting the local server clears that state. The local `/app/` UI can still assemble the full ZIP in the browser, with capture binaries when available.
+
+Site Stripper does not call a model API. The coding agent uses its own configured model and provider. That provider may process the website evidence returned by MCP under its own terms and settings. Captured source text and URLs are untrusted evidence, not instructions. The analyzer continues to reject private-network targets, submit no source forms, and bypass no CAPTCHA or bot protection.
+
+The MCP server and activity endpoint are local-only. They are not part of the Cloudflare Worker route map or the public Pages bundle. The approved visual reference and plan for this isolated branch are [`the v1.1 design`](./superpowers/specs/2026-10-11-site-stripper-agent-native-concept-design.md) and [`the v1.1 implementation plan`](./superpowers/plans/2026-10-11-site-stripper-agent-native-v1.1.md). The `v1.00` Git tag remains the stable rollback point.
 
 ## Backend abstraction
 

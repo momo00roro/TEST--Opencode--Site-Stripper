@@ -1,157 +1,271 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="api-base" content="https://site-stripper-api.momo00roro.workers.dev" />
-    <title>Site Stripper - Website Analysis Pack</title>
+    <meta name="theme-color" content="#111118" />
+    <title>Site Stripper | Visual DNA Workspace</title>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
     <link rel="stylesheet" href="../styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="../vendor/zip-store.js" defer></script>
+    <script src="../package.js" defer></script>
   </head>
-  <body>
-    <main class="shell">
-      <header class="hero">
-        <div class="hero__topbar">
-          <svg
-            class="hero__mark"
-            viewBox="0 0 340 72"
-            role="img"
-            aria-label="Site Stripper | Website Analysis Pack"
-          >
-            <title>Site Stripper</title>
-            <g transform="translate(4,4)">
-              <path d="M12 22 L18 6 L28 20 Z" fill="#6D28D9"/>
-              <path d="M36 20 L46 6 L52 22 Z" fill="#6D28D9"/>
-              <rect x="2" y="12" width="60" height="50" rx="15" fill="#9F58FA"/>
-              <circle cx="22" cy="34" r="9" fill="#FFFFFF"/>
-              <circle cx="42" cy="34" r="9" fill="#FFFFFF"/>
-              <circle cx="23.5" cy="35.5" r="4" fill="#151516"/>
-              <circle cx="43.5" cy="35.5" r="4" fill="#151516"/>
-              <path d="M20 48 Q32 56 44 48" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none"/>
-            </g>
-            <text x="80" y="33" font-family="'DM Sans', Inter, system-ui, sans-serif" font-size="24" font-weight="500" letter-spacing="0.5" fill="currentColor">Site Stripper</text>
-            <text x="81" y="54" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="600" letter-spacing="2.5" fill="#9F58FA">WEBSITE ANALYSIS PACK</text>
+  <body class="studio-body">
+    <div class="studio-shell">
+      <aside class="studio-sidebar" aria-label="Workspace navigation">
+        <a class="studio-brand" href="../" aria-label="Site Stripper home">
+          <svg class="studio-brand__mark" viewBox="0 0 56 56" role="img" aria-hidden="true">
+            <path d="M10 18 16 5l8 11M32 16l8-11 6 13" fill="#9F58FA" />
+            <rect x="5" y="13" width="46" height="38" rx="13" fill="#8D45E8" />
+            <circle cx="20" cy="29" r="7" fill="#fff" />
+            <circle cx="36" cy="29" r="7" fill="#fff" />
+            <circle cx="21" cy="30" r="3" fill="#16151B" />
+            <circle cx="37" cy="30" r="3" fill="#16151B" />
+            <path d="M19 41q9 7 18 0" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="3" />
           </svg>
-          <button id="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to dark mode">☾</button>
+          <span class="studio-brand__copy"><strong>Site Stripper</strong><small>VISUAL DNA STUDIO</small></span>
+        </a>
+
+        <button class="sidebar-new" id="nav-new-analysis" type="button">
+          <span class="sidebar-new__plus" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg></span>
+          <span>New analysis</span>
+          <span class="sidebar-new__shortcut">N</span>
+        </button>
+
+        <nav class="studio-nav" aria-label="Main navigation">
+          <a class="studio-nav__link is-current" href="#analysis" aria-current="page">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7v6H4zM13 5h7v6h-7zM4 13h7v6H4zM13 13h7v6h-7z" /></svg>
+            <span>Workspace</span>
+          </a>
+          <button class="studio-nav__link" id="nav-agent-connections" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 15.5 6 18a4 4 0 0 1-5.5-5.8l4-4a4 4 0 0 1 5.7 0M15.5 8.5 18 6a4 4 0 0 1 5.5 5.8l-4 4a4 4 0 0 1-5.7 0M8 16l8-8" /></svg>
+            <span>Agent connections</span>
+            <span class="nav-status-dot" aria-hidden="true"></span>
+          </button>
+          <a class="studio-nav__link" href="#output-strip">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 16l9 5 9-5" /></svg>
+            <span>Reference packs</span>
+          </a>
+          <a class="studio-nav__link" href="#workspace-help">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4" /><circle cx="12" cy="12" r="5" /></svg>
+            <span>Workspace guide</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="sidebar-local-note">
+            <span class="sidebar-local-note__icon" aria-hidden="true"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="1.5" /><path d="M7 17h6M10 14v3" /></svg></span>
+            <span><strong>Local workspace</strong><small>Analysis stays in this session</small></span>
+          </div>
+          <p class="sidebar-version">SITE STRIPPER <span>·</span> LOCAL</p>
         </div>
-        <p class="eyebrow">Website analysis pack</p>
-        <h1>Understand a site<br />before you <span class="hero__emph">rebuild</span>.</h1>
-        <p class="lede">
-          Enter a public website to gather page structure, design tokens, content observations and
-          screenshots when captured. Download a structured reference pack for design, frontend and
-          AI-assisted rebuild workflows.
-        </p>
-        <p id="env-pill" class="env-pill" aria-live="polite" hidden></p>
+      </aside>
 
-        <form id="analyze-form" class="command-bar" autocomplete="off">
-          <label class="field command-bar__url">
-            <span class="field__label">Website URL</span>
-            <input
-              id="url"
-              name="url"
-              type="url"
-              inputmode="url"
-              placeholder="https://example.com"
-              required
-              spellcheck="false"
-            />
-          </label>
+      <main class="studio-main">
+        <header class="workspace-topbar">
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <span>Workspace</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" /></svg><strong>New analysis</strong>
+          </nav>
+          <div class="topbar-actions">
+            <span class="endpoint-pill" id="endpoint-pill" data-state="checking">
+              <span class="endpoint-pill__dot" aria-hidden="true"></span>
+              <span id="endpoint-label">Checking local MCP</span>
+            </span>
+            <button id="theme-toggle" class="icon-button" type="button" aria-pressed="true" aria-label="Switch to light mode" title="Toggle color theme">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4" /><circle cx="12" cy="12" r="4" /></svg>
+            </button>
+          </div>
+        </header>
 
-          <div class="row command-bar__options">
-            <label class="field field--small">
-              <span class="field__label">Max pages</span>
-              <input id="max-pages" name="maxPages" type="number" min="1" max="10" value="10" />
+        <div class="workspace-content" id="analysis">
+          <section class="analysis-intro" aria-labelledby="workspace-title">
+            <div class="analysis-intro__copy">
+              <p class="surface-label">WEBSITE RESEARCH · AI AGENT WORKFLOW</p>
+              <h1 id="workspace-title">Visual DNA workspace</h1>
+              <p>Capture the design evidence. Give your coding agent a precise starting point for the next build.</p>
+            </div>
+            <p id="env-pill" class="env-pill" aria-live="polite" hidden></p>
+          </section>
+
+          <form id="analyze-form" class="analyze-form" autocomplete="off">
+            <label class="url-field" for="url">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13.5 14 9.5M8.5 15.5l-2 2a4 4 0 0 1-3-6.8l4-4a4 4 0 0 1 5.7 0M15.5 8.5l2-2a4 4 0 0 1 5.7 5.7l-4 4a4 4 0 0 1-5.7 0" /></svg>
+              <span class="visually-hidden">Public website URL</span>
+              <input id="url" name="url" type="url" inputmode="url" placeholder="Paste a public website URL to analyze" required spellcheck="false" />
             </label>
-            <label class="checkbox">
-              <input id="include-mobile" name="includeMobile" type="checkbox" checked />
-              <span>Include mobile screenshots</span>
-            </label>
+            <button id="submit" class="button-primary analyze-form__submit" type="submit">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
+              <span>Analyze website</span>
+            </button>
+            <details class="analysis-options">
+              <summary>Analysis options</summary>
+              <div class="analysis-options__body">
+                <label class="option-field" for="max-pages"><span>Maximum pages</span><input id="max-pages" name="maxPages" type="number" min="1" max="10" value="10" /></label>
+                <label class="option-check" for="include-mobile"><input id="include-mobile" name="includeMobile" type="checkbox" checked /><span>Include mobile comparison</span></label>
+              </div>
+            </details>
+          </form>
+
+          <section id="status" class="analysis-status" hidden aria-live="polite">
+            <div class="analysis-status__head"><p class="section-label">ANALYSIS PROGRESS</p><div id="status-text"></div></div>
+            <ol class="phase-timeline" aria-label="Analysis phases">
+              <li id="phase-validate" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Validate</span></li>
+              <li id="phase-capture" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Capture</span></li>
+              <li id="phase-discover" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Discover</span></li>
+              <li id="phase-document" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Document</span></li>
+              <li id="phase-package" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Package</span></li>
+            </ol>
+            <div id="progress-wrap" class="progress-wrap" hidden>
+              <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+              <div id="progress-meta" class="progress-meta"></div>
+            </div>
+          </section>
+
+          <section id="budget" class="budget-panel" hidden aria-labelledby="budget-title">
+            <div class="budget-panel__copy"><p class="section-label">ANALYSIS TIME</p><h2 id="budget-title">Run timing</h2><div id="budget-text"></div></div>
+          </section>
+
+          <div class="workspace-grid">
+            <section class="workspace-panel source-panel" aria-labelledby="source-panel-title">
+              <header class="panel-heading">
+                <div><p class="section-label">SOURCE EVIDENCE</p><h2 id="source-panel-title">Source site</h2></div>
+                <span class="panel-heading__count" id="source-page-count">Awaiting URL</span>
+              </header>
+              <div id="source-empty-state" class="panel-empty">
+                <h3>Your reference starts here</h3>
+                <p>Analyze a public website to see its selected pages, captures, and observed structure.</p>
+                <button class="text-action" type="button" data-focus-url>Enter a website URL <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 12 12 4M5 4h7v7" /></svg></button>
+              </div>
+
+              <section id="pages-panel" class="evidence-section" hidden>
+                <div class="subsection-heading"><h3>Analyzed pages</h3></div>
+                <div id="pages-list" class="pages-list"></div>
+              </section>
+
+              <section id="selection-summary" class="evidence-section" hidden aria-labelledby="selection-title">
+                <div class="subsection-heading"><h3 id="selection-title">Page selection</h3><div id="selection-stats" class="selection-stats"></div></div>
+                <div class="sub-tabs" role="tablist" aria-label="Filter pages by selection">
+                  <button type="button" id="selection-tab-selected" class="sub-tab" role="tab" aria-selected="true" aria-controls="candidate-list">Selected</button>
+                  <button type="button" id="selection-tab-excluded" class="sub-tab" role="tab" aria-selected="false" aria-controls="candidate-list-excluded" tabindex="-1">Not selected</button>
+                </div>
+                <div id="candidate-list" class="candidate-list" role="tabpanel" aria-labelledby="selection-tab-selected" tabindex="0"></div>
+                <div id="candidate-list-excluded" class="candidate-list candidate-list--scroll" role="tabpanel" aria-labelledby="selection-tab-excluded" tabindex="0" hidden></div>
+              </section>
+
+              <section id="screenshot-preview" class="evidence-section screenshot-preview" hidden aria-labelledby="screenshot-title">
+                <div class="subsection-heading"><h3 id="screenshot-title">Captured views</h3></div>
+                <div class="sub-tabs" role="tablist" aria-label="Filter screenshots by device">
+                  <button type="button" id="shots-tab-desktop" class="sub-tab" role="tab" aria-selected="true" aria-controls="screenshot-container">Desktop</button>
+                  <button type="button" id="shots-tab-mobile" class="sub-tab" role="tab" aria-selected="false" aria-controls="screenshot-container" tabindex="-1">Mobile</button>
+                </div>
+                <div id="screenshot-container"></div>
+              </section>
+
+              <section id="workspace-help" class="source-footnote" aria-label="Analysis limits">
+                <span class="source-footnote__mark" aria-hidden="true">i</span>
+                <p>Public pages only. Protected pages and incomplete captures are reported as coverage limits.</p>
+              </section>
+            </section>
+
+            <section class="workspace-panel visual-panel" id="visual-dna-panel" aria-labelledby="visual-panel-title">
+              <header class="panel-heading">
+                <div><p class="section-label">OBSERVED DESIGN SYSTEM</p><h2 id="visual-panel-title">Visual DNA</h2></div>
+                <span class="evidence-badge" id="visual-dna-state">Waiting for analysis</span>
+              </header>
+              <div id="visual-dna-placeholder" class="panel-empty visual-empty">
+                <h3>Evidence, organized for a build</h3>
+                <p>Color, type, composition, imagery, and responsive observations appear here after an analysis finishes.</p>
+              </div>
+              <div id="visual-dna-content" class="visual-dna-content" hidden></div>
+            </section>
+
+            <aside class="workspace-panel agent-panel" id="agent-panel" aria-labelledby="agent-panel-title">
+              <header class="panel-heading">
+                <div><p class="section-label">MCP BRIDGE</p><h2 id="agent-panel-title">Agent activity</h2></div>
+                <button class="icon-button panel-heading__action" id="open-agent-connections" type="button" aria-label="Open agent connection setup" title="Connection setup">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v8m-4-4h8" /><circle cx="12" cy="12" r="9" /></svg>
+                </button>
+              </header>
+              <div class="agent-status-row" id="agent-status-row" data-state="offline">
+                <span class="agent-status-row__indicator" aria-hidden="true"></span>
+                <p id="agent-connection-state" role="status" aria-live="polite">Local MCP status unavailable</p>
+              </div>
+              <p class="agent-description" id="agent-description">Connect an MCP-compatible coding agent to request analysis and focused evidence directly.</p>
+              <div class="agent-activity-block">
+                <div class="subsection-heading"><h3>Recent activity</h3><span class="activity-live-label" id="activity-live-label">LIVE</span></div>
+                <ol id="agent-activity" class="agent-activity" aria-label="Agent activity">
+                  <li class="agent-activity__empty">No MCP tool calls in this session yet.</li>
+                </ol>
+              </div>
+              <div class="agent-receives">
+                <h3>The agent can request</h3>
+                <ul>
+                  <li><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3h8l4 4v10H4zM12 3v4h4M7 11h6M7 14h6" /></svg>Page observations and coverage</li>
+                  <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 3a7 7 0 0 0 0 14V3Zm0 7h7" /></svg>Visual tokens and layout details</li>
+                  <li><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M3 8h14M7 4v12" /></svg>Build brief and captures when available</li>
+                </ul>
+              </div>
+              <button id="copy-agent-prompt" class="button-primary agent-prompt-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></svg>
+                <span>Copy agent prompt</span>
+              </button>
+              <textarea id="agent-prompt-fallback" class="copy-fallback" rows="5" readonly hidden aria-label="Agent prompt copy fallback"></textarea>
+            </aside>
           </div>
 
-          <button id="submit" type="submit">Analyze website</button>
-        </form>
-      </header>
+          <section id="output-strip" class="output-strip" aria-label="Generated reference pack">
+            <div class="output-strip__title"><span class="output-strip__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h9l5 5v13H5zM14 3v5h5M8 13h8M8 17h8" /></svg></span><div><h2>Generated output</h2><p id="output-summary">Files appear here when analysis is complete.</p></div></div>
+            <div class="output-files" id="output-files" aria-label="Reference pack files">
+              <span class="output-file output-file--muted">REBUILD.md</span><span class="output-file output-file--muted">data/tokens.json</span><span class="output-file output-file--muted">data/pages.json</span><span class="output-file output-file--muted">screenshots/</span>
+            </div>
+            <section id="download-panel" class="download-panel" hidden aria-labelledby="download-title">
+              <h3 id="download-title" class="visually-hidden">Download reference pack</h3>
+              <div class="deliverable__stats" id="deliverable-stats" aria-live="polite"></div>
+              <p id="package-info" class="package-info"></p>
+              <button id="download" class="button-secondary" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 19v2h16v-2" /></svg><span>Download ZIP</span>
+              </button>
+            </section>
+          </section>
 
-      <section id="status" class="card status" hidden aria-live="polite">
-        <p class="eyebrow">Progress</p>
-        <ol class="phase-timeline" aria-label="Analysis phases">
-          <li id="phase-validate" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Validate</span></li>
-          <li id="phase-capture" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Capture</span></li>
-          <li id="phase-discover" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Discover</span></li>
-          <li id="phase-document" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Document</span></li>
-          <li id="phase-package" class="phase"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">Package</span></li>
-        </ol>
-        <div id="progress-wrap" class="progress-wrap" hidden>
-          <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
-          <div id="progress-meta" class="progress-meta"></div>
+          <section id="result" class="raw-result" hidden aria-labelledby="raw-result-title">
+            <div><p class="section-label">SOURCE DATA</p><h2 id="raw-result-title">Raw analysis response</h2></div>
+            <details class="raw-details"><summary>View JSON</summary><pre id="result-body"></pre></details>
+          </section>
         </div>
-        <div id="status-text"></div>
-      </section>
+      </main>
+    </div>
 
-      <section id="budget" class="budget" hidden>
-        <p class="eyebrow eyebrow--center">Budget</p>
-        <h2>Browser Budget</h2>
-        <div class="budget-bar"><div id="budget-fill" class="budget-fill"></div></div>
-        <div id="budget-text" class="budget-text"></div>
-      </section>
-
-      <section id="selection-summary" hidden>
-        <p class="eyebrow eyebrow--center">Discovery</p>
-        <h2>Discovered Pages &amp; Selection</h2>
-        <div id="selection-stats" class="selection-stats"></div>
-        <div class="sub-tabs" role="tablist" aria-label="Filter pages by selection">
-          <button type="button" id="selection-tab-selected" class="sub-tab" role="tab" aria-selected="true" aria-controls="candidate-list">Selected</button>
-          <button type="button" id="selection-tab-excluded" class="sub-tab" role="tab" aria-selected="false" aria-controls="candidate-list-excluded" tabindex="-1">Not selected</button>
+    <dialog id="agent-connections-dialog" class="connections-dialog" aria-labelledby="connections-title">
+      <form method="dialog" class="connections-dialog__frame">
+        <header class="connections-dialog__heading">
+          <div><p class="section-label">LOCAL MCP SETUP</p><h2 id="connections-title">Connect your coding agent</h2><p>Copy the matching endpoint config into your agent. Setup happens in that agent's own settings.</p></div>
+          <button class="icon-button" id="close-agent-connections" type="submit" value="cancel" aria-label="Close connection setup">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+          </button>
+        </header>
+        <label class="client-picker" for="agent-client"><span>Choose an agent</span>
+          <select id="agent-client" name="agent-client">
+            <option value="claude">Claude Code</option><option value="codex">Codex</option><option value="cursor">Cursor</option><option value="opencode">OpenCode</option><option value="generic">Other MCP client</option>
+          </select>
+        </label>
+        <div class="config-block">
+          <div class="config-block__heading"><span id="agent-config-label">Claude Code command</span><button class="text-action" id="copy-agent-config" type="button">Copy setup</button></div>
+          <pre id="agent-config-snippet" class="config-snippet" tabindex="0"></pre>
         </div>
-        <div id="candidate-list" class="candidate-list" role="tabpanel" aria-labelledby="selection-tab-selected" tabindex="0"></div>
-        <div id="candidate-list-excluded" class="candidate-list candidate-list--scroll" role="tabpanel" aria-labelledby="selection-tab-excluded" tabindex="0" hidden></div>
-      </section>
+        <p id="agent-config-copy-status" class="copy-status" role="status" aria-live="polite"></p>
+        <div class="connection-notice"><span aria-hidden="true">i</span><p>Site Stripper sends no model request. Your selected agent handles model reasoning and may process the website evidence under its provider's settings and policies.</p></div>
+        <footer class="connections-dialog__footer">
+          <a id="agent-docs-link" href="https://code.claude.com/docs/en/mcp" target="_blank" rel="noreferrer">Open Claude Code setup guide <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 12 12 4M5 4h7v7" /></svg></a>
+          <button class="button-primary" type="submit" value="cancel">Done</button>
+        </footer>
+      </form>
+    </dialog>
 
-      <section id="screenshot-preview" class="screenshot-preview" hidden>
-        <p class="eyebrow eyebrow--center">Captures</p>
-        <h2>Screenshots</h2>
-        <div class="sub-tabs" role="tablist" aria-label="Filter screenshots by device">
-          <button type="button" id="shots-tab-desktop" class="sub-tab" role="tab" aria-selected="true" aria-controls="screenshot-container">Desktop</button>
-          <button type="button" id="shots-tab-mobile" class="sub-tab" role="tab" aria-selected="false" aria-controls="screenshot-container" tabindex="-1">Mobile</button>
-        </div>
-        <div id="screenshot-container"></div>
-      </section>
-
-      <section id="pages-panel" hidden>
-        <p class="eyebrow eyebrow--center">Analysis</p>
-        <h2>Analyzed Pages</h2>
-        <div id="pages-list" class="pages-list"></div>
-      </section>
-
-      <section id="download-panel" class="deliverable" hidden>
-        <h2>Deliverable: Download Analysis Pack</h2>
-        <div class="deliverable__stats" id="deliverable-stats" aria-live="polite"></div>
-        <p id="package-info" class="package-info"></p>
-        <button id="download" type="button">Download ZIP</button>
-      </section>
-
-      <section id="result" class="result" hidden>
-        <p class="eyebrow eyebrow--center">Output</p>
-        <h2>Raw JSON Response</h2>
-        <details class="raw-details">
-          <summary>View raw JSON response</summary>
-          <pre id="result-body"></pre>
-        </details>
-      </section>
-
-      <aside class="note">
-        <strong>Shared alpha capacity.</strong> Hosted browser time is shared across the service.
-        Heavy, slow or protected sites may return a partial report.
-      </aside>
-    </main>
-
-    <script src="../vendor/zip-store.js"></script>
-    <script src="../package.js"></script>
     <script type="module" src="../app.js"></script>
   </body>
 </html>
