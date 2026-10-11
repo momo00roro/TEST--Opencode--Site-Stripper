@@ -5,7 +5,7 @@
       "path": "README.md",
       "language": "markdown",
       "content": [
-        "# Website analysis — example.com",
+        "# Website analysis: example.com",
         "",
         "Source: https://example.com/",
         "Pages: 1/1 selected; 1 discovered",
@@ -15,7 +15,7 @@
         "",
         "## Analyzed pages",
         "",
-        "- [Example Domain](pages/home.md) — `/` — priority 1",
+        "- [Example Domain](pages/home.md) | `/` | priority 1",
         "",
         "## Important interpretation",
         "",

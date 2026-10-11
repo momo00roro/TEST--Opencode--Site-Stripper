@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Create a Site Stripper account." />
     <meta name="theme-color" content="#f8f7fa" />
-    <title>Create your account — Site Stripper</title>
+    <title>Create your account | Site Stripper</title>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
     <link rel="stylesheet" href="../landing.css" />
   </head>
@@ -22,7 +22,7 @@
         <a class="auth-back" href="../index.html"><span aria-hidden="true">←</span> Back to Site Stripper</a>
         <p class="eyebrow">Get started</p>
         <h1>Create your account</h1>
-        <p>Set up your Site Stripper account and get ready to build with clearer references.</p>
+        <p>Create a Site Stripper account to continue.</p>
       </div>
       <form id="signup-form" class="auth-card" aria-label="Create a Site Stripper account" autocomplete="off" novalidate>
         <div class="auth-card__fields">
@@ -36,8 +36,20 @@
         <button id="signup-submit" class="button button--primary auth-card__submit" type="submit">Create account</button>
         <p class="auth-switch">Already have an account? <a href="../sign-in/index.html">Sign in</a></p>
       </form>
+      <section class="auth-context" aria-labelledby="signup-context-title">
+        <div class="auth-context__heading"><p class="eyebrow">Inside a reference pack</p><h2 id="signup-context-title">Review pages, design details, and captures together.</h2><p>A Site Stripper pack keeps page context, design observations, and available captures in one organized archive.</p></div>
+        <figure class="auth-context__visual"><img src="../sample-pack/assets/sample-site-desktop.png" alt="Sample desktop homepage for Morrow House, an interior architecture studio" width="1536" height="1024" loading="lazy" /><figcaption>Example source page with project imagery, navigation, and content hierarchy.</figcaption></figure>
+        <div class="auth-context__grid"><article class="auth-context__item"><strong>Understand the page set</strong><p>Review discovered pages, navigation, and the selection notes that explain the scope of a run.</p></article><article class="auth-context__item"><strong>Carry design detail forward</strong><p>Keep typography, colors, layout samples, responsive behavior, and visible interaction cues close at hand.</p></article><article class="auth-context__item"><strong>Work with familiar files</strong><p>Use readable Markdown, structured JSON, theme output, and captures when available.</p></article></div>
+        <p class="auth-context__link">Take a look inside first: <a href="../sample-pack/index.html">browse the sample pack</a>.</p>
+      </section>
     </main>
-    <footer class="site-footer"><p>© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK</p></footer>
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <a class="site-footer__brand" href="../index.html" aria-label="Site Stripper home"><img src="../favicon.svg" alt="" width="38" height="38" /><span><strong>Site Stripper</strong><small>Website reference packs</small></span></a>
+        <nav class="site-footer__nav" aria-label="Footer navigation"><a href="../features/index.html">Features</a><a href="../how-it-works/index.html">How it works</a><a href="../sample-pack/index.html">Sample pack</a><a href="../faq/index.html">FAQ</a><a href="../sign-in/index.html">Sign in</a><a href="../sign-up/index.html">Create account</a></nav>
+        <p class="site-footer__copyright">© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK</p>
+      </div>
+    </footer>
     <script src="../mock-account.js" defer></script>
   </body>
 </html>

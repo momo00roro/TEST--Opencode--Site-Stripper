@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Answers about Site Stripper's analysis process, output files, and hosted capture limits." />
     <meta name="theme-color" content="#f8f7fa" />
-    <title>FAQ — Site Stripper</title>
+    <title>FAQ | Site Stripper</title>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
     <link rel="stylesheet" href="../landing.css" />
   </head>
@@ -20,17 +20,28 @@
       </div>
     </header>
     <main id="main">
-      <section class="page-hero"><div class="container page-hero__inner"><p class="eyebrow"><span class="eyebrow__dot" aria-hidden="true"></span> Frequently asked questions</p><h1>Clear answers about the reference pack.</h1><p>What Site Stripper observes, what it includes, and where the boundaries are.</p></div></section>
+      <section class="page-hero"><div class="container page-hero__inner"><p class="eyebrow"><span class="eyebrow__dot" aria-hidden="true"></span> Frequently asked questions</p><h1>Clear answers about the reference pack.</h1><p>Understand how pages are selected, what the ZIP contains, and how to interpret captures and coverage. Each run records observable details from public pages; it does not reproduce the source website.</p></div></section>
       <section class="section section--compact"><div class="container faq-list">
-        <details class="faq-item"><summary>Does Site Stripper use an AI model to analyze a website?</summary><p>No. Site Stripper collects structured observations. The resulting pack can support a separate AI-assisted rebuild workflow.</p></details>
-        <details class="faq-item"><summary>Which websites can I analyze?</summary><p>Public HTTP or HTTPS websites. Site Stripper follows relevant same-site pages selected from the site structure.</p></details>
-        <details class="faq-item"><summary>How many pages can a run include?</summary><p>Hosted runs can analyze up to 10 pages and run for up to 150 seconds.</p></details>
-        <details class="faq-item"><summary>Will every pack contain screenshots?</summary><p>Screenshot files are included when captures succeed and fit the hosted limits. Results can be partial or have no capture files.</p></details>
-        <details class="faq-item"><summary>Does Site Stripper make an offline copy of the original website?</summary><p>No. It creates a structured reference pack. It does not submit source-site forms, bypass bot checks, or replay arbitrary JavaScript interactions.</p></details>
-        <details class="faq-item"><summary>What is inside the ZIP?</summary><p>Markdown guides, JSON records, theme files, page notes, and capture files when available. The sample pack shows representative paths.</p></details>
+        <details class="faq-item"><summary>Does Site Stripper use an AI model to analyze a website?</summary><p>No. Site Stripper gathers structured observations from public pages. It records visible page details and formats them into reference files. The resulting pack can then support a separate AI-assisted rebuild workflow.</p></details>
+        <details class="faq-item"><summary>Which websites can I analyze?</summary><p>Site Stripper works with publicly accessible HTTP or HTTPS websites. It follows relevant same-site pages selected from the site's structure. Pages that require a sign-in are outside the analysis path.</p></details>
+        <details class="faq-item"><summary>How many pages can a run include?</summary><p>Hosted runs can analyze up to 10 pages and run for up to 150 seconds. A run can stop earlier when a source page is slow, protected, or returns incomplete information. The report records coverage and limitations.</p></details>
+        <details class="faq-item"><summary>Will every pack contain screenshots?</summary><p>No. Screenshot files are included when captures succeed and fit the hosted limits. The screenshot manifest records capture status, and the written notes and structured data remain useful when some images are unavailable.</p></details>
+        <details class="faq-item"><summary>Does Site Stripper make an offline copy of the original website?</summary><p>No. It creates a structured reference pack, not a working copy of the source site. It does not submit source-site forms, bypass bot checks, or replay arbitrary JavaScript interactions.</p></details>
+        <details class="faq-item"><summary>What is inside the ZIP?</summary><p>The package contains Markdown guides, page notes, JSON records, theme files, and screenshot files when available. It also includes a run summary and report data that describe the selected pages and coverage.</p><p>The sample pack shows a real file tree and excerpts from a generated package.</p></details>
+        <details class="faq-item"><summary>How does Site Stripper choose pages?</summary><p>It starts from public site structure, including site-map entries, navigation, and relevant same-site links. Candidate pages are ranked for a bounded run. The selection report records which candidates were included and why.</p></details>
+        <details class="faq-item"><summary>Can it inspect a password-protected website?</summary><p>Site Stripper analyzes pages that are publicly accessible. It does not sign in to source websites, submit their forms, or use private account sessions. If a page requires authentication, it will not be available as a normal public source page.</p></details>
+        <details class="faq-item"><summary>Which file should I open first?</summary><p>Start with <code>README.md</code> for the source URL, run summary, selected pages, and coverage. Then read <code>REBUILD.md</code> for the high-level build guidance and open the page-specific notes for source content and structure.</p></details>
+        <details class="faq-item"><summary>Does the ZIP contain the original website's source code?</summary><p>No. The package contains observations and reference material such as page notes, structured JSON, theme files, and available captures. It does not include the source site's HTML, CSS, or application code.</p></details>
       </div></section>
+      <section class="section section--muted"><div class="container"><div class="section__heading"><p class="eyebrow">Using the package</p><h2>Open the summary, then inspect page files.</h2><p>The overview explains coverage. Page notes preserve source context. Structured records make the observations available as data.</p></div><div class="feature-grid"><article class="feature-card"><div class="feature-card__icon" aria-hidden="true">01</div><h3>Read the run summary</h3><p>Use <code>README.md</code> to see what was analyzed, which pages were selected, and whether the run completed with limitations.</p></article><article class="feature-card"><div class="feature-card__icon" aria-hidden="true">02</div><h3>Open page notes</h3><p>Review page-specific Markdown for content order, headings, sections, and links back to the source context.</p></article><article class="feature-card"><div class="feature-card__icon" aria-hidden="true">03</div><h3>Inspect structured data</h3><p>Use JSON records for navigation, selection, design tokens, responsive observations, assets, and report coverage.</p></article></div></div></section>
       <section class="section section--muted"><div class="container callout"><div><p class="eyebrow">Still exploring?</p><h2>See the package structure.</h2></div><a class="button button--primary callout__action" href="../sample-pack/index.html">Browse the sample pack <span aria-hidden="true">↗</span></a></div></section>
     </main>
-    <footer class="site-footer"><p>© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK</p></footer>
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <a class="site-footer__brand" href="../index.html" aria-label="Site Stripper home"><img src="../favicon.svg" alt="" width="38" height="38" /><span><strong>Site Stripper</strong><small>Website reference packs</small></span></a>
+        <nav class="site-footer__nav" aria-label="Footer navigation"><a href="../features/index.html">Features</a><a href="../how-it-works/index.html">How it works</a><a href="../sample-pack/index.html">Sample pack</a><a href="../faq/index.html">FAQ</a><a href="../sign-in/index.html">Sign in</a><a href="../sign-up/index.html">Create account</a></nav>
+        <p class="site-footer__copyright">© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK</p>
+      </div>
+    </footer>
   </body>
 </html>

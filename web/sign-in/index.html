@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Sign in to Site Stripper." />
     <meta name="theme-color" content="#f8f7fa" />
-    <title>Sign in — Site Stripper</title>
+    <title>Sign in | Site Stripper</title>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
     <link rel="stylesheet" href="../landing.css" />
   </head>
@@ -22,7 +22,7 @@
         <a class="auth-back" href="../index.html"><span aria-hidden="true">←</span> Back to Site Stripper</a>
         <p class="eyebrow">Your workspace</p>
         <h1>Welcome back</h1>
-        <p>Sign in to continue with Site Stripper.</p>
+        <p>Enter your account details to continue.</p>
       </div>
       <form id="signin-form" class="auth-card" aria-label="Sign in to Site Stripper" autocomplete="off" novalidate>
         <div class="auth-card__fields">
@@ -33,8 +33,20 @@
         <button id="signin-submit" class="button button--primary auth-card__submit" type="submit">Sign in</button>
         <p class="auth-switch">New to Site Stripper? <a href="../sign-up/index.html">Create an account</a></p>
       </form>
+      <section class="auth-context" aria-labelledby="signin-context-title">
+        <div class="auth-context__heading"><p class="eyebrow">Reference pack contents</p><h2 id="signin-context-title">Find page notes and design observations.</h2><p>Use the organized file set to review source pages, visual observations, and implementation notes during a rebuild.</p></div>
+        <figure class="auth-context__visual auth-context__visual--mobile"><img src="../sample-pack/assets/sample-site-mobile.png" alt="Mobile layout of the Morrow House sample website with its content arranged in one column" width="887" height="1774" loading="lazy" /><figcaption>Example mobile source page with the same content adapted to a narrower screen.</figcaption></figure>
+        <div class="auth-context__grid"><article class="auth-context__item"><strong>See beyond the hero</strong><p>Page notes surface content order, section patterns, navigation, and useful page relationships.</p></article><article class="auth-context__item"><strong>Compare the design system</strong><p>Token, typography, and responsive records make recurring design choices easier to review.</p></article><article class="auth-context__item"><strong>Bring your own workflow</strong><p>Portable Markdown and JSON can be shared with the design and development tools you already use.</p></article></div>
+        <p class="auth-context__link">Need a refresher? <a href="../features/index.html">review the product features</a> or <a href="../sample-pack/index.html">open the sample pack</a>.</p>
+      </section>
     </main>
-    <footer class="site-footer"><p>© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK</p></footer>
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <a class="site-footer__brand" href="../index.html" aria-label="Site Stripper home"><img src="../favicon.svg" alt="" width="38" height="38" /><span><strong>Site Stripper</strong><small>Website reference packs</small></span></a>
+        <nav class="site-footer__nav" aria-label="Footer navigation"><a href="../features/index.html">Features</a><a href="../how-it-works/index.html">How it works</a><a href="../sample-pack/index.html">Sample pack</a><a href="../faq/index.html">FAQ</a><a href="../sign-in/index.html">Sign in</a><a href="../sign-up/index.html">Create account</a></nav>
+        <p class="site-footer__copyright">© 2026 Site Stripper. Made with ❤️ by CHEEE.WORK</p>
+      </div>
+    </footer>
     <script src="../mock-account.js" defer></script>
   </body>
 </html>
