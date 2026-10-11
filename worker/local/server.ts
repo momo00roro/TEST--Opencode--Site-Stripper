@@ -2,8 +2,12 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile, stat } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { localhostHostValidation, localhostOriginValidation } from "@modelcontextprotocol/node";
 import { handleRequest } from "../src/app.js";
+import type { AnalysisResult } from "../src/pipeline/analysis.js";
 import type { Env } from "../src/types.js";
+import { createAgentMcpHandler } from "./agent-mcp.js";
+import { createAgentStateStore } from "./agent-state.js";
 import { createLocalLauncher, describeLocalBackend } from "./launcher.js";
 import { resolveLocalStaticPath } from "./static.js";
 
@@ -28,6 +32,36 @@ const env: Env = {
   ENVIRONMENT: "local",
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS ?? "",
 };
+const agentStateStore = createAgentStateStore();
+const agentMcpHandler = createAgentMcpHandler({
+  stateStore: agentStateStore,
+  analyze: async (input) => {
+    const request = new Request(`http://127.0.0.1:${port}/api/analyze`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const response = await handleRequest(request, env, {
+      launcher,
+      encodeBase64: (bytes) => Buffer.from(bytes).toString("base64"),
+      capture: "full",
+    });
+    const payload: unknown = await response.json().catch(() => undefined);
+    if (!response.ok) {
+      const errorPayload = payload && typeof payload === "object"
+        ? (payload as { error?: { message?: unknown } }).error
+        : undefined;
+      const message = errorPayload && typeof errorPayload.message === "string"
+        ? errorPayload.message
+        : `Analysis request failed with status ${response.status}.`;
+      throw new Error(message);
+    }
+    if (!payload || typeof payload !== "object") throw new Error("The analyzer returned an invalid response.");
+    return payload as AnalysisResult;
+  },
+});
+const validateMcpHost = localhostHostValidation();
+const validateMcpOrigin = localhostOriginValidation();
 
 async function readBody(req: IncomingMessage): Promise<Uint8Array | undefined> {
   if (req.method === "GET" || req.method === "HEAD") return undefined;
@@ -73,13 +107,40 @@ async function serveStatic(pathname: string, res: ServerResponse): Promise<void>
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? `localhost:${port}`}`);
 
+  if (url.pathname === "/mcp") {
+    if (!validateMcpHost(req, res) || !validateMcpOrigin(req, res)) return;
+    try {
+      await agentMcpHandler(req, res);
+    } catch (error) {
+      console.error("MCP request failed:", error instanceof Error ? error.message : error);
+      if (!res.headersSent) res.writeHead(500, { "content-type": "text/plain; charset=utf-8" }).end("MCP request failed.");
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/agent/activity") {
+    if (req.method !== "GET") {
+      res.writeHead(405, { allow: "GET", "cache-control": "no-store" }).end("Method not allowed");
+      return;
+    }
+    const activity = {
+      mcpEndpoint: `http://127.0.0.1:${port}/mcp`,
+      ...agentStateStore.getSnapshot(),
+    };
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    }).end(JSON.stringify(activity));
+    return;
+  }
+
   if (url.pathname === "/health" || url.pathname.startsWith("/api/")) {
     try {
       const body = await readBody(req);
       const request = new Request(url.toString(), {
         method: req.method ?? "GET",
         headers: toHeaders(req),
-        ...(body ? { body } : {}),
+        ...(body ? { body: Uint8Array.from(body).buffer } : {}),
       });
 
       const response = await handleRequest(request, env, {
@@ -146,8 +207,8 @@ process.on("unhandledRejection", (err) => {
   console.error("Unhandled rejection in local server:", err);
 });
 
-server.listen(port, () => {
-  console.log(`site-stripper local server running at http://localhost:${port}`);
+server.listen(port, "127.0.0.1", () => {
+  console.log(`site-stripper local server running at http://127.0.0.1:${port}`);
   console.log(`backend: ${describeLocalBackend()}`);
   console.log(`serving UI from ${webRoot}`);
 });
