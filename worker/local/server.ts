@@ -7,7 +7,7 @@ import { handleRequest } from "../src/app.js";
 import type { AnalysisResult } from "../src/pipeline/analysis.js";
 import type { Env } from "../src/types.js";
 import { createAgentMcpHandler } from "./agent-mcp.js";
-import { createAgentStateStore } from "./agent-state.js";
+import { createAgentStateStore, type AgentActivityResponse } from "./agent-state.js";
 import { createLocalLauncher, describeLocalBackend } from "./launcher.js";
 import { resolveLocalStaticPath } from "./static.js";
 
@@ -123,7 +123,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(405, { allow: "GET", "cache-control": "no-store" }).end("Method not allowed");
       return;
     }
-    const activity = {
+    const activity: AgentActivityResponse = {
       mcpEndpoint: `http://127.0.0.1:${port}/mcp`,
       ...agentStateStore.getSnapshot(),
     };

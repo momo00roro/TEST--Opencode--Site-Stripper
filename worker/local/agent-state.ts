@@ -33,6 +33,10 @@ export interface AgentActivitySnapshot {
   events: AgentActivityEvent[];
 }
 
+export interface AgentActivityResponse extends AgentActivitySnapshot {
+  mcpEndpoint: string;
+}
+
 export interface AgentStateStore {
   beginRun(sourceUrl: string): AgentRunId;
   completeRun(runId: AgentRunId, result: AnalysisResult): void;
