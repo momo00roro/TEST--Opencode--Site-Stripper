@@ -13,6 +13,8 @@ This directory contains the authoritative specification, architecture docs, and 
 
 The public site is a static Cloudflare Pages bundle. It presents the reference ZIP as a visual-DNA brief for Claude, Codex, OpenCode, Cursor, and any other AI coding agent. The route map, account-form data flow, and legal-page template notes are recorded in [`01-PRD.md`](./01-PRD.md) and the root [`README.md`](../README.md). Sign-up and sign-in forms do not create accounts or save submitted values. Terms and Privacy are static starter templates with operator details that require completion.
 
+The approved agent-native redesign direction and the two visual references are documented in [`2026-10-11-site-stripper-agent-native-concept-design.md`](./superpowers/specs/2026-10-11-site-stripper-agent-native-concept-design.md). The reference images are stored under [`images/concepts/v1.1/`](./images/concepts/v1.1/). The `v1.00` tag remains the stable rollback baseline while the new concept is reviewed.
+
 ---
 
 ## Implementation Plans & Historical Records (`plans/`)
