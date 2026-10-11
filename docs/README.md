@@ -9,6 +9,10 @@ This directory contains the authoritative specification, architecture docs, and 
 * **[`01-PRD.md`](./01-PRD.md)** — **Authoritative Product & Technical Specification**
   * Start here. Covers goals, Free-tier Cloudflare constraints, backend abstractions, extraction traps/mitigations, canonical schemas, numeric limits, security controls, and full definitions of done.
 
+## Public marketing site
+
+The public site is a static Cloudflare Pages bundle. It presents the reference ZIP as a visual-DNA brief for Claude, Codex, OpenCode, Cursor, and any other AI coding agent. The route map, account-form data flow, and legal-page template notes are recorded in [`01-PRD.md`](./01-PRD.md) and the root [`README.md`](../README.md). Sign-up and sign-in forms do not create accounts or save submitted values. Terms and Privacy are static starter templates with operator details that require completion.
+
 ---
 
 ## Implementation Plans & Historical Records (`plans/`)

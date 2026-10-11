@@ -399,7 +399,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .site-footer__nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px clamp(13px, 2vw, 24px); }
 .site-footer__nav a { color: #d6d2de; font-size: 13px; font-weight: 650; }
 .site-footer__nav a:hover { color: var(--yellow); }
-.site-footer__copyright { grid-column: 1 / -1; margin: 0; padding-top: 17px; border-top: 1px solid rgba(227, 224, 232, 0.14); color: #bdb8c8; font-size: 13px; }
+.site-footer__bottom { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 17px; border-top: 1px solid rgba(227, 224, 232, 0.14); }
+.site-footer__copyright { margin: 0; color: #bdb8c8; font-size: 13px; }
+.site-footer__legal { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px 20px; }
+.site-footer__legal a { color: #d6d2de; font-size: 13px; font-weight: 650; }
+.site-footer__legal a:hover { color: var(--yellow); }
 
 @media (max-width: 900px) {
   .hero__grid { grid-template-columns: minmax(0, 1fr) minmax(340px, 0.9fr); gap: 35px; }
@@ -460,7 +464,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
   .success-card { margin-block: 25px; }
   .site-footer__inner { grid-template-columns: 1fr; gap: 18px; }
   .site-footer__nav { justify-content: flex-start; gap: 12px 18px; }
-  .site-footer__copyright { grid-column: auto; }
+  .site-footer__bottom { align-items: stretch; flex-direction: column; gap: 13px; }
+  .site-footer__legal { justify-content: flex-end; }
 }
 
 @media (max-width: 420px) {

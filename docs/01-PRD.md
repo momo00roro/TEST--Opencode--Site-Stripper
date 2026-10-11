@@ -10,6 +10,8 @@ Accept a public website URL, identify the most important pages from its primary 
 
 The product analyzes websites. It does not attempt to clone arbitrary JavaScript or produce a working offline replica.
 
+The public marketing site describes the reference pack as a way to capture a public website's visual DNA and give a coding agent a structured starting point for a new site in the same visual style. Copy includes Claude, Codex, OpenCode, Cursor, and any other AI agent that can read project files. A recorded one-prompt evaluation on a clean content site scored 93.2/100; this is a result for that site and setup, not a universal fidelity guarantee.
+
 ## Non-negotiable constraints
 
 - The hosted production path runs **only on Cloudflare, on the Free plan**.
@@ -23,11 +25,13 @@ The product analyzes websites. It does not attempt to clone arbitrary JavaScript
 ### 1. Hosted Cloudflare environment
 
 - Cloudflare Pages hosts the static Site Stripper marketing site at `/`; its allowlisted upload excludes the analyzer UI and app-only assets.
+- Public marketing routes include `/`, `/features/`, `/how-it-works/`, `/sample-pack/`, `/faq/`, `/sign-up/`, `/sign-in/`, the account completion routes, `/terms/`, and `/privacy/`.
 - A Cloudflare Worker exposes the API.
 - Browser Rendering supplies headless Chromium through the `BROWSER` binding.
 - Marketing pages include browser-only sign-up and sign-in screens. They validate fields and navigate to generic completion screens, but do not create accounts, send submitted values, or persist them.
 - The public marketing bundle does not expose the analyzer. No hosted account, checkout, or payment flow is implemented.
 - Production has no history, queue, or permanent result storage.
+- The Terms and Privacy pages are static starter templates. They contain bracketed legal-entity, contact, and governing-jurisdiction fields that must be completed and reviewed by the operator.
 
 Relevant hosted configuration:
 
@@ -159,12 +163,13 @@ The client-side ZIP step happens in the user's browser. That is not a hosted ser
 
 ## User flow
 
-1. Visitors browse the marketing pages and can interact with the browser-only sign-up/sign-in screens.
-2. Those forms validate fields and navigate to generic completion screens; no account is created and submitted information is not stored or sent.
-3. The analyzer is opened at `/app/` through the local development server, where a developer enters a public HTTP(S) URL.
-4. The backend validates the request and resolves the target safely, then discovers and analyzes same-site pages in one browser session.
-5. It captures bounded screenshots and runs structured in-page extraction.
-6. The analysis API streams observations; the local UI builds and downloads the ZIP.
+1. Visitors browse the marketing, feature, workflow, sample-pack, FAQ, Terms, and Privacy pages. The marketing copy explains how a reference ZIP can help Claude, Codex, OpenCode, Cursor, and any other AI agent carry a reference site's visual DNA into a new build.
+2. Visitors can interact with the browser-only sign-up/sign-in screens.
+3. Those forms validate fields and navigate to generic completion screens; no account is created and submitted information is not stored or sent.
+4. The analyzer is opened at `/app/` through the local development server, where a developer enters a public HTTP(S) URL.
+5. The backend validates the request and resolves the target safely, then discovers and analyzes same-site pages in one browser session.
+6. It captures bounded screenshots and runs structured in-page extraction.
+7. The analysis API streams observations; the local UI builds and downloads the ZIP.
 
 The first version is synchronous. It has no accounts, job history, queue, or permanent result storage.
 

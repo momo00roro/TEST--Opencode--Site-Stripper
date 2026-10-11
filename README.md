@@ -1,6 +1,6 @@
 # Site Stripper — Website Analysis Pack
 
-An AI-ready website-analysis pack generator. Point at a public URL and get screenshots, design tokens, content guidance, responsive behavior, interaction notes, Markdown documentation, and JSON data — everything an AI coding agent needs to rebuild a site at 80–90%+ fidelity (93+ measured on clean content sites, 1 prompt).
+Site Stripper captures the visual DNA of a public website in a comprehensive reference ZIP. Give the pack to Claude, Codex, OpenCode, Cursor, and any other AI coding agent as a structured starting point for a new site in the reference's style. One recorded one-prompt evaluation on a clean content site scored 93.2/100; results vary with site complexity, source coverage, and agent.
 
 Cloudflare Pages + Workers on the **Free tier only**. No VPS, Docker, external browser service, database, or AI API in production.
 
@@ -62,7 +62,8 @@ Three Cloudflare targets, two local modes. Same wrangler, different commands:
 
 | URL | What | Project / name | How it deploys |
 |---|---|---|---|
-| `https://site-stripper-ui.pages.dev` | **Site Stripper marketing site** (marketing, sample-pack, and account screens) | Pages `site-stripper-ui` | CI builds and uploads `dist/site` on push to `master` |
+| `https://forma-invoice.com` | **Site Stripper marketing site** (custom domain) | Pages `site-stripper-ui` | CI builds and uploads `dist/site` on push to `master` |
+| `https://site-stripper-ui.pages.dev` | **Site Stripper fallback URL** | Pages `site-stripper-ui` | Same deployment as the custom domain |
 | `https://site-stripper-api.momo00roro.workers.dev` | **Production API** (`POST /api/analyze`, `/health`) | Worker `site-stripper-api` | CI on push to `master` (gated) |
 | `https://site-stripper-tests.pages.dev` | **Rebuild gallery** (15 one-prompt clones + scores, nothing else) | Pages `site-stripper-tests` | Manual direct upload (never CI) |
 | `https://<hash>.site-stripper-ui.pages.dev` | **Preview snapshots** (one deploy frozen in time — not production) | Pages `site-stripper-ui` | Every CI deploy also leaves one |
@@ -71,8 +72,10 @@ Three Cloudflare targets, two local modes. Same wrangler, different commands:
 
 ### Target 1 — Production UI (`site-stripper-ui.pages.dev`)
 
-The marketing site lives at `/`; sign-up, sign-in, and the sample-pack explorer have their own static routes. The analyzer and client-side ZIP assembly remain local at `/app/` and are not included in the hosted upload.
+The marketing site lives at `/`, with static routes for `/features/`, `/how-it-works/`, `/sample-pack/`, `/faq/`, `/sign-up/`, `/sign-in/`, their completion pages, `/terms/`, and `/privacy/`. The Terms and Privacy pages are starter templates and still contain bracketed operator, contact, and jurisdiction fields. Replace those fields before treating the policies as finalized legal documents. The analyzer and client-side ZIP assembly remain local at `/app/` and are not included in the hosted upload.
 Static files are copied from an explicit allowlist in `web/` to `dist/site/`. The analyzer's source and app-only assets remain in `web/` for local development and are excluded from that upload.
+
+The sign-up and sign-in screens validate form values in the browser, clear them, and navigate to completion pages. They do not send the values to a server, create accounts, or retain account records. The analysis API returns results without persistent account history; Cloudflare may separately process technical and security logs according to its service configuration.
 
 - CI: `npm run build:site`, then `npx wrangler pages deploy dist/site --project-name site-stripper-ui --branch ${{ github.ref_name }}`
   — `--branch master` is what promotes the upload to **production** instead of

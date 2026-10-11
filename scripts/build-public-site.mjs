@@ -3,7 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PUBLIC_FILES = ["index.html", "landing.css", "favicon.svg", "mock-account.js"];
-const PUBLIC_DIRECTORIES = ["features", "how-it-works", "sample-pack", "faq", "sign-up", "sign-in"];
+const PUBLIC_DIRECTORIES = ["features", "how-it-works", "sample-pack", "faq", "sign-up", "sign-in", "terms", "privacy"];
 
 async function copyTree(source, destination) {
   await mkdir(destination, { recursive: true });

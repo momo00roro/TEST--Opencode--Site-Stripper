@@ -10,6 +10,8 @@ const INDEX_ROUTES = new Set([
   "sign-in",
   "sign-up/complete",
   "sign-in/complete",
+  "terms",
+  "privacy",
 ]);
 
 export function resolveLocalStaticPath(pathname: string, webRoot: string): string | null {
