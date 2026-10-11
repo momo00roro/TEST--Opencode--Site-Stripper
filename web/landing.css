@@ -132,7 +132,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .hero h1, .page-hero h1 {
   max-width: 710px;
   margin: 0;
-  font: 760 clamp(3.2rem, 6.2vw, 5.8rem)/0.98 var(--font-display);
+  font: 760 clamp(3rem, 5vw, 4.8rem)/0.98 var(--font-display);
   letter-spacing: -0.075em;
 }
 .hero h1 em, .page-hero h1 em { color: var(--purple); font-style: normal; }
