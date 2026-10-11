@@ -80,8 +80,9 @@ describe("Site Stripper public pages", () => {
       expect(sampleHtml).toContain(file.path);
       expect(sampleHtml).toContain(file.content[0]);
     }
-    expect(sampleHtml).toContain("./assets/example-home.webp");
-    expect(sampleHtml.toLowerCase()).toContain("when captured");
+    expect(sampleHtml).toContain("./assets/sample-site-desktop.png");
+    expect(sampleHtml).toContain("./assets/sample-site-mobile.png");
+    expect(sampleHtml.toLowerCase()).toContain("captures when available");
   });
 
   it("uses the approved purple, lavender, gray, and yellow palette", () => {
