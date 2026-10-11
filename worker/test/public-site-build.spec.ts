@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { copyPublicSite } from "../../scripts/build-public-site.mjs";
 
 const publicFiles = ["index.html", "landing.css", "favicon.svg", "mock-account.js"];
-const publicDirectories = ["features", "how-it-works", "sample-pack", "faq", "sign-up", "sign-in"];
+const publicDirectories = ["features", "how-it-works", "sample-pack", "faq", "sign-up", "sign-in", "terms", "privacy"];
 const temporaryRoots: string[] = [];
 
 async function exists(path: string) {
