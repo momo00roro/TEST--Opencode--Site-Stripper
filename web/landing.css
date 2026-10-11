@@ -583,6 +583,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .agent-integration-fallback .button { flex: none; }
 .preview-stage.hero-agent-flow { min-height: 0; }
 .preview-stage.hero-agent-flow::before, .preview-stage.hero-agent-flow::after { display: none; }
+.preview-stage--agent::before, .preview-stage--agent::after { display: none; }
 .agent-flow__node { box-shadow: none; }
 
 @media (max-width: 900px) {
