@@ -836,7 +836,7 @@ function renderVisualDna(body) {
 const agentClientDocs = {
   claude: { label: "Claude Code command", url: "https://code.claude.com/docs/en/mcp" },
   codex: { label: "Codex config.toml", url: "https://developers.openai.com/codex/mcp/" },
-  cursor: { label: "Cursor mcp.json", url: "https://docs.cursor.com/context/model-context-protocol" },
+  cursor: { label: "Cursor mcp.json", url: "https://prod.cursor.com/docs/mcp" },
   opencode: { label: "OpenCode config", url: "https://docs.opencode.ai/docs/mcp-servers/" },
   generic: { label: "MCP endpoint", url: "https://modelcontextprotocol.io/" },
 };
