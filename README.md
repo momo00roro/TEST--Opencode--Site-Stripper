@@ -4,6 +4,10 @@ Site Stripper captures the visual DNA of a public website in a comprehensive ref
 
 Cloudflare Pages + Workers on the **Free tier only**. No VPS, Docker, external browser service, database, or AI API in production.
 
+## Stable baseline
+
+`v1.00` marks the accepted Site Stripper website and analyzer baseline. Use this immutable Git tag as the return point if a later design experiment is less successful. Start visual experiments on a separate branch from `v1.00`; do not move the tag.
+
 ## Screenshots
 
 | | |
