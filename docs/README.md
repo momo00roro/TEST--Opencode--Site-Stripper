@@ -2,6 +2,8 @@
 
 This directory contains the authoritative specification, architecture docs, and chronological implementation plans for Site Stripper.
 
+The agent-native v1.1 work is isolated on `concept/agent-native-v1.1`. Start with the [approved concept spec](./superpowers/specs/2026-10-11-site-stripper-agent-native-concept-design.md), [implementation plan](./superpowers/plans/2026-10-11-site-stripper-agent-native-v1.1.md), and [visual references](./images/concepts/v1.1/). The immutable `v1.00` tag remains the stable baseline.
+
 ---
 
 ## Authoritative Specification (Source of Truth)
@@ -11,9 +13,7 @@ This directory contains the authoritative specification, architecture docs, and 
 
 ## Public marketing site
 
-The public site is a static Cloudflare Pages bundle. It presents the reference ZIP as a visual-DNA brief for Claude, Codex, OpenCode, Cursor, and any other AI coding agent. The route map, account-form data flow, and legal-page template notes are recorded in [`01-PRD.md`](./01-PRD.md) and the root [`README.md`](../README.md). Sign-up and sign-in forms do not create accounts or save submitted values. Terms and Privacy are static starter templates with operator details that require completion.
-
-The approved agent-native redesign direction and the two visual references are documented in [`2026-10-11-site-stripper-agent-native-concept-design.md`](./superpowers/specs/2026-10-11-site-stripper-agent-native-concept-design.md). The reference images are stored under [`images/concepts/v1.1/`](./images/concepts/v1.1/). The `v1.00` tag remains the stable rollback baseline while the new concept is reviewed.
+The public site is a static Cloudflare Pages bundle. It presents the reference ZIP and the local MCP workflow as ways to give Claude Code, Codex, OpenCode, Cursor, and any other AI agent that supports MCP a website's visual DNA. The hosted bundle excludes the analyzer, local MCP server, and local activity endpoint. The route map, local data flow, account-form behavior, and legal-page template notes are recorded in [`01-PRD.md`](./01-PRD.md) and the root [`README.md`](../README.md). Sign-up and sign-in forms do not create accounts or save submitted values. Terms and Privacy are static templates with operator details that require completion.
 
 ---
 
@@ -43,6 +43,7 @@ The [`plans/`](./plans/) directory tracks design RFCs and implementation roadmap
 | **2026-10-09** | [`2026-10-09-cf43-cf44-drift-surface-expansion.md`](./plans/2026-10-09-cf43-cf44-drift-surface-expansion.md) | CF41–CF44: drift guard, headline positions, `design-system.md` expansion kit, `expand-check.mjs` | **Completed** |
 | **2026-10-10** | [`2026-10-10-cf45-cf46-taste-hover-replay.md`](./plans/2026-10-10-cf45-cf46-taste-hover-replay.md) | CF45–CF46: taste capture (CTA/tile/tab/hover/eyebrow/margins) + observed hover replay + h3/h4 roles | **Completed** |
 | **2026-10-11** | [`2026-10-11-cf47-eye-detail.md`](./plans/2026-10-11-cf47-eye-detail.md) | CF47: eye-comparison detail capture — rendered heading weight, CTA borders, nav chrome (brand/dropdowns/actions), scroll strips, prose links, placeholder rotation, `capturedAt` recency | **Completed** |
+| **2026-10-11** | [`2026-10-11-site-stripper-agent-native-v1.1.md`](./superpowers/plans/2026-10-11-site-stripper-agent-native-v1.1.md) | Agent-native Visual DNA workspace, local MCP tools, and marketing workflow | **Implemented on isolated concept branch; not promoted** |
 
 ---
 

@@ -1,12 +1,37 @@
-# Site Stripper — Website Analysis Pack
+# Site Stripper — Visual DNA for AI agents
 
-Site Stripper captures the visual DNA of a public website in a comprehensive reference ZIP. Give the pack to Claude, Codex, OpenCode, Cursor, and any other AI coding agent as a structured starting point for a new site in the reference's style. One recorded one-prompt evaluation on a clean content site scored 93.2/100; results vary with site complexity, source coverage, and agent.
+Site Stripper captures the visual DNA of a public website in a comprehensive reference ZIP and connects that evidence to a local AI coding-agent workflow. Claude Code, Codex, OpenCode, Cursor, and any other MCP-compatible agent can request an analysis, a Visual DNA profile, focused page evidence, or the rebuild brief. One recorded one-prompt evaluation on a clean content site scored 93.2/100; results vary with site complexity, source coverage, and agent.
 
 Cloudflare Pages + Workers on the **Free tier only**. No VPS, Docker, external browser service, database, or AI API in production.
 
 ## Stable baseline
 
-`v1.00` marks the accepted Site Stripper website and analyzer baseline. Use this immutable Git tag as the return point if a later design experiment is less successful. Start visual experiments on a separate branch from `v1.00`; do not move the tag.
+`v1.00` marks the accepted Site Stripper website and analyzer baseline. Use this immutable Git tag as the return point if a later design direction is less successful. Start substantial visual revisions on a separate branch from `v1.00`; do not move the tag.
+
+The approved agent-native direction is being implemented on `concept/agent-native-v1.1`. The design reference and implementation plan are in [`docs/superpowers/specs/2026-10-11-site-stripper-agent-native-concept-design.md`](docs/superpowers/specs/2026-10-11-site-stripper-agent-native-concept-design.md), [`docs/superpowers/plans/2026-10-11-site-stripper-agent-native-v1.1.md`](docs/superpowers/plans/2026-10-11-site-stripper-agent-native-v1.1.md), and [`docs/images/concepts/v1.1/`](docs/images/concepts/v1.1/). The concept branch does not move or replace the `v1.00` baseline.
+
+## Agent-native local MCP workflow
+
+The local Node app exposes a Streamable HTTP MCP endpoint at `http://127.0.0.1:<port>/mcp`. Start the local server, open `/app/`, then choose the matching client in **Agent connections** to copy a current port-specific setup. Supported examples include Claude Code, Codex, Cursor, OpenCode, and a generic MCP-compatible client.
+
+Official client setup guides: [Claude Code](https://code.claude.com/docs/en/mcp), [Codex](https://developers.openai.com/codex/mcp/), [Cursor](https://prod.cursor.com/docs/mcp), and [OpenCode](https://docs.opencode.ai/docs/mcp-servers/).
+
+Available MCP tools:
+
+- `analyze_public_site`: analyze a public URL using the existing analyzer and page limits.
+- `get_visual_dna`: return observed style, layout, coverage, and limitations.
+- `get_page_evidence`: return focused evidence for one analyzed page without screenshot or downloaded-asset binaries.
+- `get_rebuild_brief`: return the generated `REBUILD.md` content.
+
+The MCP service runs only in the local Node process and binds to loopback with Host and Origin validation. It does not run a model or call an AI API. The connected agent uses its own model/provider, which may process the website evidence it receives under that provider's settings and policies. The ZIP and copyable prompt remain available as a manual handoff.
+
+Run records and recent activity stay in memory: up to three runs, each completed/failed run expires after 30 minutes without use, and up to 50 activity events are retained. Process exit clears this state. The bridge does not write run results to disk or a database. The public Cloudflare Pages bundle remains marketing and account pages only; it excludes `/app/`, the MCP endpoint, and the local activity endpoint.
+
+The Worker TypeScript config excludes `worker/local/`, which uses Node APIs. Check local-server types separately with:
+
+```sh
+npx tsc --noEmit --target es2022 --lib 'es2023,dom,dom.iterable' --module esnext --moduleResolution bundler --types node --strict --skipLibCheck worker/local/agent-state.ts worker/local/agent-mcp.ts worker/local/server.ts worker/local/launcher.ts worker/local/static.ts
+```
 
 ## Screenshots
 
@@ -19,12 +44,18 @@ Cloudflare Pages + Workers on the **Free tier only**. No VPS, Docker, external b
 | ![Mobile clone](docs/images/clone-cline-mobile.jpg) | |
 | **Mobile 390 px**: fluid reflow, natural wraps, no desktop constraints. | |
 
+The approved v1.1 direction adds a direct local MCP workflow and a dark Visual DNA workspace:
+
+| Marketing workflow | Local workspace |
+|---|---|
+| ![Agent-native marketing concept](docs/images/concepts/v1.1/marketing-home.png) | ![Agent-native local workspace concept](docs/images/concepts/v1.1/agent-workspace.png) |
+
 ## How it works
 
 ```text
 Cloudflare Pages (dist/site): static marketing routes only
 Existing Cloudflare Worker API ──▶ Browser Rendering (Chromium)
-Local Node server: marketing routes + analyzer at /app/ + local /api/analyze
+Local Node server: marketing routes + analyzer at /app/ + /api/analyze + local MCP /mcp
         │                         one session, sequential tabs
         ▼                         Bounded observations; local UI renders files
 Local analyzer assembles the STORE ZIP in the browser
